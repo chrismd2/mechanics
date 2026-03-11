@@ -1,0 +1,75 @@
+<div class="mx-auto max-w-sm">
+  <h2 class="text-xl font-semibold text-zinc-900 mb-4">Sign up</h2>
+
+  <.form
+    :let={f}
+    for={@changeset}
+    action={~p"/register"}
+    method="post"
+    class="space-y-4"
+  >
+    <input type="hidden" name="_csrf_token" value={get_csrf_token()} />
+
+    <div>
+      <.input
+        field={f[:email]}
+        type="email"
+        label="Email"
+        required
+      />
+    </div>
+
+    <div>
+      <.input
+        field={f[:name]}
+        type="text"
+        label="Name (optional)"
+      />
+    </div>
+
+    <div>
+      <label for="user_role" class="block text-sm font-medium text-zinc-700">I am a</label>
+      <select
+        name="user[role]"
+        id="user_role"
+        required
+        class="mt-1 block w-full rounded-lg border-zinc-300 shadow-sm focus:border-zinc-500 focus:ring-zinc-500 sm:text-sm"
+      >
+        <option value="mechanic">Mechanic looking for work</option>
+        <option value="customer">Customer looking for a mechanic</option>
+      </select>
+    </div>
+
+    <div>
+      <.input
+        field={f[:password]}
+        type="password"
+        label="Password"
+        required
+      />
+    </div>
+
+    <div>
+      <.input
+        field={f[:password_confirmation]}
+        type="password"
+        label="Confirm password"
+        required
+      />
+    </div>
+
+    <button
+      type="submit"
+      class="w-full rounded-lg bg-zinc-900 px-4 py-2 text-sm font-semibold text-white hover:bg-zinc-800"
+    >
+      Sign up
+    </button>
+  </.form>
+
+  <p class="mt-4 text-sm text-zinc-600">
+    Already have an account?
+    <.link href={~p"/login"} class="font-medium text-zinc-900 hover:underline">
+      Sign in
+    </.link>
+  </p>
+</div>
