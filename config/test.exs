@@ -2,14 +2,17 @@ import Config
 
 # Configure your database
 #
+# Prefer DATABASE_URL when present (e.g. in Docker/CI via christenson_server_host),
+# otherwise fall back to a local Postgres on localhost:5432.
 # The MIX_TEST_PARTITION environment variable can be used
 # to provide built-in test partitioning in CI environment.
 # Run `mix help test` for more information.
+database_url =
+  System.get_env("DATABASE_URL") ||
+    "ecto://postgres:postgres@localhost/mechanics_test#{System.get_env("MIX_TEST_PARTITION")}"
+
 config :mechanics, Mechanics.Repo,
-  username: "postgres",
-  password: "postgres",
-  hostname: "localhost",
-  database: "mechanics_test#{System.get_env("MIX_TEST_PARTITION")}",
+  url: database_url,
   pool: Ecto.Adapters.SQL.Sandbox,
   pool_size: System.schedulers_online() * 2
 
