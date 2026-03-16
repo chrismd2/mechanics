@@ -1,0 +1,76 @@
+name: Deploy to Production
+
+on:
+  pull_request:
+    types: [opened]
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: 'Branch to deploy'
+        required: true
+        default: 'main'
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set deployment variables
+      id: set-vars
+      run: |
+        if [ "${{ github.event_name }}" == "pull_request" ]; then
+          echo "action=merge_branch" >> $GITHUB_OUTPUT
+          echo "branch=${{ github.head_ref }}" >> $GITHUB_OUTPUT
+        elif [ -n "${{ github.event.inputs.branch }}" ]; then
+          echo "action=deploy" >> $GITHUB_OUTPUT
+          echo "branch=${{ github.event.inputs.branch }}" >> $GITHUB_OUTPUT
+        else
+          echo "action=deploy" >> $GITHUB_OUTPUT
+          echo "branch=${{ github.ref_name }}" >> $GITHUB_OUTPUT
+        fi
+
+    - name: Setup SSH
+      uses: webfactory/ssh-agent@v0.8.0
+      with:
+        ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+
+    - name: Add server to known hosts
+      run: |
+        ssh-keyscan -H ${{ vars.SERVER }} >> ~/.ssh/known_hosts
+
+    - name: Deploy to server
+      if: steps.set-vars.outputs.action != 'skip'
+      env:
+        SERVER: ${{ vars.SERVER }}
+        USER: ${{ vars.USER }}
+        ACTION: ${{ steps.set-vars.outputs.action }}
+        BRANCH: ${{ steps.set-vars.outputs.branch }}
+      run: |
+        ssh -o StrictHostKeyChecking=no $USER@$SERVER "
+          # Navigate to mechanics code directory
+          cd /root/mechanics/
+
+          if [ \"$ACTION\" == \"merge_branch\" ]; then
+            git fetch origin
+            git checkout main
+            git merge origin/$BRANCH
+          else
+            git fetch origin
+            git checkout $BRANCH
+            git pull origin $BRANCH
+          fi
+
+          # Run tests; stop deploy if they fail
+          cd ~/christenson_server_host/
+          make test mechanics && echo \"Tests passed. 🎉\" || { echo \"Tests failed 😭 — cancelling deploy.\"; exit 1; }
+
+          # Restart service
+          make down mechanics
+          make build mechanics
+          make up mechanics
+        "
