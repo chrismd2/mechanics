@@ -158,4 +158,116 @@ defmodule MechanicsWeb.AuthControllerTest do
       assert html_response(conn, 200) =~ "Sign up"
     end
   end
+
+  describe "GET /login (sign-in page)" do
+    test "returns 200 and shows Sign in heading", %{conn: conn} do
+      conn = get(conn, ~p"/login")
+      assert html_response(conn, 200) =~ "Sign in"
+    end
+
+    test "shows sign-in form with email and password fields", %{conn: conn} do
+      conn = get(conn, ~p"/login")
+      html = html_response(conn, 200)
+      assert html =~ "Email"
+      assert html =~ "Password"
+      parsed = Floki.parse_document!(html)
+      assert Floki.find(parsed, "input#session_email") != []
+      assert Floki.find(parsed, "input#session_password") != []
+    end
+
+    test "has form that posts to /login", %{conn: conn} do
+      conn = get(conn, ~p"/login")
+      html = html_response(conn, 200)
+      parsed = Floki.parse_document!(html)
+      form = Floki.find(parsed, "form[action=\"/login\"]")
+      assert form != []
+      assert Floki.attribute(form, "method") |> List.first() =~ "post"
+    end
+
+    test "shows reset password link", %{conn: conn} do
+      conn = get(conn, ~p"/login")
+      html = html_response(conn, 200)
+      parsed = Floki.parse_document!(html)
+      links = Floki.find(parsed, "a[href=\"/password/reset\"]")
+      assert links != [], "expected a link to /password/reset (Forgot password?)"
+      assert html =~ "Forgot password?"
+    end
+
+    test "shows Sign up link for new users", %{conn: conn} do
+      conn = get(conn, ~p"/login")
+      html = html_response(conn, 200)
+      assert html =~ "Don't have an account?"
+      parsed = Floki.parse_document!(html)
+      links = Floki.find(parsed, "a[href*=\"register\"]")
+      assert links != []
+    end
+  end
+
+  describe "POST /login (sign in)" do
+    @login_email "signinuser@example.com"
+    @login_password "secret123"
+
+    setup do
+      {:ok, _user} =
+        Mechanics.Accounts.create_user(%{
+          "email" => @login_email,
+          "name" => "Sign In User",
+          "role" => "customer",
+          "password" => @login_password,
+          "password_confirmation" => @login_password,
+          "wants_listing" => "false"
+        })
+
+      :ok
+    end
+
+    test "with valid credentials sets session and redirects to home", %{conn: conn} do
+      conn =
+        conn
+        |> post(~p"/login", %{"session" => %{"email" => @login_email, "password" => @login_password}})
+
+      assert redirected_to(conn) == ~p"/"
+      assert Phoenix.Flash.get(conn.assigns[:flash], :info) == "Welcome back!"
+      assert get_session(conn, :current_user_id)
+    end
+
+    test "with invalid password re-renders sign-in with error", %{conn: conn} do
+      conn =
+        conn
+        |> post(~p"/login", %{"session" => %{"email" => @login_email, "password" => "wrongpass"}})
+
+      assert html_response(conn, 200) =~ "Sign in"
+      assert html_response(conn, 200) =~ "Invalid email or password"
+      refute get_session(conn, :current_user_id)
+    end
+
+    test "with unknown email re-renders sign-in with error", %{conn: conn} do
+      conn =
+        conn
+        |> post(~p"/login", %{"session" => %{"email" => "unknown@example.com", "password" => "any"}})
+
+      assert html_response(conn, 200) =~ "Sign in"
+      assert html_response(conn, 200) =~ "Invalid email or password"
+      refute get_session(conn, :current_user_id)
+    end
+
+    test "after 5 failed attempts shows lockout message and does not authenticate", %{conn: conn} do
+      Mechanics.LoginAttempts.clear_all()
+      locked_email = "lockout@example.com"
+
+      # 5 failed attempts
+      for _ <- 1..5 do
+        post(conn, ~p"/login", %{"session" => %{"email" => locked_email, "password" => "wrong"}})
+      end
+
+      # 6th attempt gets lockout message
+      conn =
+        conn
+        |> post(~p"/login", %{"session" => %{"email" => locked_email, "password" => "wrong"}})
+
+      assert html_response(conn, 200) =~ "Sign in"
+      assert html_response(conn, 200) =~ "Too many failed attempts"
+      refute get_session(conn, :current_user_id)
+    end
+  end
 end
