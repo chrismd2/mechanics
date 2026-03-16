@@ -50,13 +50,34 @@ defmodule MechanicsWeb.AuthControllerTest do
       assert links != []
       assert html =~ "Already have an account?"
     end
+
+    test "has visible eye button to unhide password", %{conn: conn} do
+      conn = get(conn, ~p"/register")
+      html = html_response(conn, 200)
+      parsed = Floki.parse_document!(html)
+      buttons = Floki.find(parsed, "button, [role='button']")
+      has_visibility_toggle =
+        Enum.any?(buttons, fn el ->
+          label =
+            (Floki.attribute(el, "aria-label") |> List.first()) ||
+              (Floki.attribute(el, "title") |> List.first()) || ""
+
+          label_lower = String.downcase(label)
+          String.contains?(label_lower, "password") and
+            (String.contains?(label_lower, "show") or String.contains?(label_lower, "hide") or
+               String.contains?(label_lower, "toggle") or String.contains?(label_lower, "visibility"))
+        end)
+
+      assert has_visibility_toggle,
+             "expected a visible eye button (e.g. aria-label or title 'Show password') to unhide password on registration page"
+    end
   end
 
   describe "POST /register (registration form submission)" do
     @valid_params %{
       "email" => "newuser@example.com",
       "name" => "Jane Doe",
-      "role" => "mechanic",
+      "roles" => ["customer", "mechanic"],
       "password" => "secret123",
       "password_confirmation" => "secret123",
       "wants_listing" => "false"
@@ -78,7 +99,7 @@ defmodule MechanicsWeb.AuthControllerTest do
     end
 
     test "creates customer, sets session, and redirects to home with success flash when wants_listing is false", %{conn: conn} do
-      params = Map.put(@valid_params, "role", "customer")
+      params = Map.put(@valid_params, "roles", ["customer"])
 
       conn =
         conn
@@ -110,7 +131,7 @@ defmodule MechanicsWeb.AuthControllerTest do
     end
 
     test "creates customer, sets session, and redirects to create listings with success flash when wants_listing is true", %{conn: conn} do
-      params = Map.put(@valid_params, "role", "customer")
+      params = Map.put(@valid_params, "roles", ["customer"])
       |> Map.put("wants_listing", "true")
 
       conn =
@@ -234,6 +255,27 @@ defmodule MechanicsWeb.AuthControllerTest do
       links = Floki.find(parsed, "a[href*=\"register\"]")
       assert links != []
     end
+
+    test "has visible eye button to unhide password", %{conn: conn} do
+      conn = get(conn, ~p"/login")
+      html = html_response(conn, 200)
+      parsed = Floki.parse_document!(html)
+      buttons = Floki.find(parsed, "button, [role='button']")
+      has_visibility_toggle =
+        Enum.any?(buttons, fn el ->
+          label =
+            (Floki.attribute(el, "aria-label") |> List.first()) ||
+              (Floki.attribute(el, "title") |> List.first()) || ""
+
+          label_lower = String.downcase(label)
+          String.contains?(label_lower, "password") and
+            (String.contains?(label_lower, "show") or String.contains?(label_lower, "hide") or
+               String.contains?(label_lower, "toggle") or String.contains?(label_lower, "visibility"))
+        end)
+
+      assert has_visibility_toggle,
+             "expected a visible eye button (e.g. aria-label or title 'Show password') to unhide password on login page"
+    end
   end
 
   describe "POST /login (sign in)" do
@@ -245,7 +287,7 @@ defmodule MechanicsWeb.AuthControllerTest do
         Mechanics.Accounts.create_user(%{
           "email" => @login_email,
           "name" => "Sign In User",
-          "role" => "customer",
+          "roles" => ["customer"],
           "password" => @login_password,
           "password_confirmation" => @login_password
         })
