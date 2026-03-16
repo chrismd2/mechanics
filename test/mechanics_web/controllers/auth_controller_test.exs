@@ -69,7 +69,12 @@ defmodule MechanicsWeb.AuthControllerTest do
 
       assert redirected_to(conn) == ~p"/profile"
       assert Phoenix.Flash.get(conn.assigns[:flash], :info) == "Account created successfully!"
-      assert get_session(conn, :current_user_id)
+      user_id = get_session(conn, :current_user_id)
+      assert user_id
+
+      user = Mechanics.Accounts.get_user!(user_id)
+      assert is_list(user.roles)
+      assert user.roles == ["customer", "mechanic"]
     end
 
     test "creates customer, sets session, and redirects to create listings with success flash", %{conn: conn} do
@@ -81,7 +86,12 @@ defmodule MechanicsWeb.AuthControllerTest do
 
       assert redirected_to(conn) == ~p"/listings/new"
       assert Phoenix.Flash.get(conn.assigns[:flash], :info) == "Account created successfully!"
-      assert get_session(conn, :current_user_id)
+      user_id = get_session(conn, :current_user_id)
+      assert user_id
+
+      user = Mechanics.Accounts.get_user!(user_id)
+      assert is_list(user.roles)
+      assert user.roles == ["customer"]
     end
 
     test "re-renders form with errors when name is missing", %{conn: conn} do
