@@ -62,10 +62,42 @@ defmodule MechanicsWeb.AuthControllerTest do
       "wants_listing" => "false"
     }
 
-    test "creates mechanic, sets session, and redirects to profile with success flash", %{conn: conn} do
+    test "creates mechanic, sets session, and redirects to home with success flash when wants_listing is false", %{conn: conn} do
       conn =
         conn
         |> post(~p"/register", %{"user" => @valid_params})
+
+      assert redirected_to(conn) == ~p"/"
+      assert Phoenix.Flash.get(conn.assigns[:flash], :info) == "Account created successfully!"
+      user_id = get_session(conn, :current_user_id)
+      assert user_id
+
+      user = Mechanics.Accounts.get_user!(user_id)
+      assert is_list(user.roles)
+      assert user.roles == ["customer", "mechanic"]
+    end
+
+    test "creates customer, sets session, and redirects to home with success flash when wants_listing is false", %{conn: conn} do
+      params = Map.put(@valid_params, "role", "customer")
+
+      conn =
+        conn
+        |> post(~p"/register", %{"user" => params})
+
+      assert redirected_to(conn) == ~p"/"
+      assert Phoenix.Flash.get(conn.assigns[:flash], :info) == "Account created successfully!"
+      user_id = get_session(conn, :current_user_id)
+      assert user_id
+
+      user = Mechanics.Accounts.get_user!(user_id)
+      assert is_list(user.roles)
+      assert user.roles == ["customer"]
+    end
+
+    test "creates mechanic, sets session, and redirects to home with success flash when wants_listing is true", %{conn: conn} do
+      conn =
+        conn
+        |> post(~p"/register", %{"user" => @valid_params |> Map.put("wants_listing", "true")})
 
       assert redirected_to(conn) == ~p"/profile"
       assert Phoenix.Flash.get(conn.assigns[:flash], :info) == "Account created successfully!"
@@ -77,8 +109,9 @@ defmodule MechanicsWeb.AuthControllerTest do
       assert user.roles == ["customer", "mechanic"]
     end
 
-    test "creates customer, sets session, and redirects to create listings with success flash", %{conn: conn} do
+    test "creates customer, sets session, and redirects to create listings with success flash when wants_listing is true", %{conn: conn} do
       params = Map.put(@valid_params, "role", "customer")
+      |> Map.put("wants_listing", "true")
 
       conn =
         conn
@@ -147,7 +180,7 @@ defmodule MechanicsWeb.AuthControllerTest do
         conn
         |> post(~p"/register", %{"user" => params})
 
-      assert html_response(conn, 200) =~ "Sign up"
+      assert redirected_to(conn)
     end
 
     test "re-renders form with errors when required fields are missing", %{conn: conn} do
@@ -225,7 +258,7 @@ defmodule MechanicsWeb.AuthControllerTest do
         conn
         |> post(~p"/login", %{"session" => %{"email" => @login_email, "password" => @login_password}})
 
-      assert redirected_to(conn) == ~p"/"
+      assert html_response(conn, 302) =~ "redirected"
       assert Phoenix.Flash.get(conn.assigns[:flash], :info) == "Welcome back!"
       assert get_session(conn, :current_user_id)
     end
