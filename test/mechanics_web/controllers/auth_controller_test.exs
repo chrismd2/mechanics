@@ -58,15 +58,28 @@ defmodule MechanicsWeb.AuthControllerTest do
       "name" => "Jane Doe",
       "role" => "mechanic",
       "password" => "secret123",
-      "password_confirmation" => "secret123"
+      "password_confirmation" => "secret123",
+      "wants_listing" => "false"
     }
 
-    test "creates user, sets session, and redirects to home with success flash", %{conn: conn} do
+    test "creates mechanic, sets session, and redirects to profile with success flash", %{conn: conn} do
       conn =
         conn
         |> post(~p"/register", %{"user" => @valid_params})
 
-      assert redirected_to(conn) == ~p"/"
+      assert redirected_to(conn) == ~p"/profile"
+      assert Phoenix.Flash.get(conn.assigns[:flash], :info) == "Account created successfully!"
+      assert get_session(conn, :current_user_id)
+    end
+
+    test "creates customer, sets session, and redirects to create listings with success flash", %{conn: conn} do
+      params = Map.put(@valid_params, "role", "customer")
+
+      conn =
+        conn
+        |> post(~p"/register", %{"user" => params})
+
+      assert redirected_to(conn) == ~p"/listings/new"
       assert Phoenix.Flash.get(conn.assigns[:flash], :info) == "Account created successfully!"
       assert get_session(conn, :current_user_id)
     end
@@ -109,6 +122,16 @@ defmodule MechanicsWeb.AuthControllerTest do
       params =
         @valid_params
         |> Map.put("password_confirmation", "different123")
+
+      conn =
+        conn
+        |> post(~p"/register", %{"user" => params})
+
+      assert html_response(conn, 200) =~ "Sign up"
+    end
+
+    test "re-renders form with errors when wants_listing is missing", %{conn: conn} do
+      params = Map.delete(@valid_params, "wants_listing")
 
       conn =
         conn
