@@ -214,8 +214,7 @@ defmodule MechanicsWeb.AuthControllerTest do
           "name" => "Sign In User",
           "role" => "customer",
           "password" => @login_password,
-          "password_confirmation" => @login_password,
-          "wants_listing" => "false"
+          "password_confirmation" => @login_password
         })
 
       :ok
