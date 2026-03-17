@@ -7,7 +7,7 @@ alias Mechanics.Repo
 alias Mechanics.Accounts.User
 
 # Optional: create demo users if none exist
-if Repo.aggregate(User, :count, :id) == 0 do
+if Repo.aggregate(User, :count, :id) == 0 and System.get_env("ENV") != "prod" do
   {:ok, _} = Accounts.create_user(%{
     email: "mechanic@example.com",
     name: "Demo Mechanic",

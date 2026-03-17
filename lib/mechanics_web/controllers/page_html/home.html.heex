@@ -1,17 +1,14 @@
 <div class="space-y-12">
   <div class="text-center">
     <h1 class="text-2xl font-semibold text-zinc-900">
-      Connect mechanics with customers
+      Connecting mechanics with customers to complete jobs
     </h1>
-    <p class="mt-2 text-zinc-600">
-      Find mechanics looking for work or customers looking to hire.
-    </p>
   </div>
 
   <div class="grid gap-10 md:grid-cols-2">
     <div class="rounded-xl border border-zinc-200 bg-white p-6 shadow-sm">
       <h2 class="text-lg font-semibold text-zinc-900 mb-4">
-        Mechanics looking for work
+        Mechanics for hire
       </h2>
       <%= if Enum.any?(@mechanics) do %>
         <ul class="space-y-3" role="list">
@@ -31,7 +28,7 @@
 
     <div class="rounded-xl border border-zinc-200 bg-white p-6 shadow-sm">
       <h2 class="text-lg font-semibold text-zinc-900 mb-4">
-        Customers looking for mechanics
+        Jobs available
       </h2>
       <%= if Enum.any?(@customers) do %>
         <ul class="space-y-3" role="list">

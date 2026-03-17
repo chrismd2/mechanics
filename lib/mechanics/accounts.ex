@@ -12,11 +12,19 @@ defmodule Mechanics.Accounts do
   end
 
   def list_mechanics do
-    Repo.all(from u in User, where: u.role == "mechanic", order_by: [desc: u.inserted_at])
+    Repo.all(
+      from u in User,
+        where: fragment("? = ANY(?)", "mechanic", u.roles),
+        order_by: [desc: u.inserted_at]
+    )
   end
 
   def list_customers do
-    Repo.all(from u in User, where: u.role == "customer", order_by: [desc: u.inserted_at])
+    Repo.all(
+      from u in User,
+        where: fragment("? = ANY(?)", "customer", u.roles),
+        order_by: [desc: u.inserted_at]
+    )
   end
 
   def get_user!(id), do: Repo.get!(User, id)
@@ -26,9 +34,21 @@ defmodule Mechanics.Accounts do
   end
 
   def create_user(attrs \\ %{}) do
+    attrs = normalize_roles(attrs)
+
     %User{}
     |> User.changeset(attrs)
     |> Repo.insert()
+  end
+
+  # Form and seeds send :role (single); User schema uses :roles (list).
+  # Mechanic gets ["customer", "mechanic"]; customer gets ["customer"].
+  defp normalize_roles(attrs) when is_map(attrs) do
+    case attrs["role"] || attrs[:role] do
+      "mechanic" -> Map.put(Map.drop(attrs, ["role", :role]), "roles", ["customer", "mechanic"])
+      "customer" -> Map.put(Map.drop(attrs, ["role", :role]), "roles", ["customer"])
+      _ -> attrs
+    end
   end
 
   def authenticate_user(email, password) do

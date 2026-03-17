@@ -23,7 +23,7 @@
       <.input
         field={f[:name]}
         type="text"
-        label="Name (optional)"
+        label="Name"
       />
     </div>
 
@@ -41,21 +41,58 @@
     </div>
 
     <div>
+      <label class="flex items-center gap-2 text-sm font-medium text-zinc-700">
+        <input type="checkbox" name="user[wants_listing]" value="true" class="rounded border-zinc-300" />
+        And I would like to make a listing
+      </label>
+    </div>
+
+    <div class="relative">
       <.input
         field={f[:password]}
         type="password"
         label="Password"
         required
       />
+      <button
+        type="button"
+        class="password-toggle-btn absolute right-2 top-9 rounded p-1 text-zinc-500 hover:text-zinc-700 focus:outline-none focus:ring-2 focus:ring-zinc-400"
+        aria-label="Show password"
+        title="Show password"
+        onclick="var w=this.parentElement; var inp=w.querySelector('input'); if(!inp) return; inp.type=inp.type==='password'?'text':'password'; this.setAttribute('aria-label', inp.type==='password'?'Show password':'Hide password'); this.setAttribute('title', inp.type==='password'?'Show password':'Hide password'); inp.type==='password'?this.classList.remove('password-visible'):this.classList.add('password-visible');"
+      >
+        <svg class="eye-closed w-5 h-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" aria-hidden="true">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M3 10.5q9 5.5 18 0" />
+        </svg>
+        <svg class="eye-open w-5 h-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" aria-hidden="true">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z" />
+          <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+        </svg>
+      </button>
     </div>
 
-    <div>
+    <div class="relative">
       <.input
         field={f[:password_confirmation]}
         type="password"
         label="Confirm password"
         required
       />
+      <button
+        type="button"
+        class="password-toggle-btn absolute right-2 top-9 rounded p-1 text-zinc-500 hover:text-zinc-700 focus:outline-none focus:ring-2 focus:ring-zinc-400"
+        aria-label="Show password"
+        title="Show password"
+        onclick="var w=this.parentElement; var inp=w.querySelector('input'); if(!inp) return; inp.type=inp.type==='password'?'text':'password'; this.setAttribute('aria-label', inp.type==='password'?'Show password':'Hide password'); this.setAttribute('title', inp.type==='password'?'Show password':'Hide password'); inp.type==='password'?this.classList.remove('password-visible'):this.classList.add('password-visible');"
+      >
+        <svg class="eye-closed w-5 h-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" aria-hidden="true">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M3 10.5q9 5.5 18 0" />
+        </svg>
+        <svg class="eye-open w-5 h-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" aria-hidden="true">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z" />
+          <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+        </svg>
+      </button>
     </div>
 
     <button
