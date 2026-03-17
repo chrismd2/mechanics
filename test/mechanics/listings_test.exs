@@ -11,7 +11,7 @@ defmodule Mechanics.ListingsTest do
     "name" => "Test Customer",
     "password" => "secret123",
     "password_confirmation" => "secret123",
-    "role" => "customer"
+    "roles" => ["customer"]
   }
 
   @valid_attrs %{
