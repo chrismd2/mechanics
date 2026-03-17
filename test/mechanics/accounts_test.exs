@@ -12,6 +12,24 @@ defmodule Mechanics.AccountsTest do
   }
 
   describe "database roles" do
+    test "a user can be both mechanic and customer" do
+      {:ok, both} =
+        Accounts.create_user(%{
+          @valid_attrs
+          | "email" => "both@example.com",
+            "roles" => ["mechanic", "customer"]
+        })
+
+      mechanics = Accounts.list_mechanics()
+      customers = Accounts.list_customers()
+
+      assert Enum.any?(mechanics, &(&1.id == both.id))
+      assert Enum.any?(customers, &(&1.id == both.id))
+
+      assert "mechanic" in both.roles
+      assert "customer" in both.roles
+    end
+
     test "list_mechanics returns only users with role mechanic" do
       {:ok, mechanic} =
         Accounts.create_user(%{
