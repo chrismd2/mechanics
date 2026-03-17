@@ -2,8 +2,7 @@ defmodule Mechanics.ProfileListingsTest do
   use Mechanics.DataCase, async: true
 
   alias Mechanics.Accounts
-
-  @moduletag :skip
+  alias Mechanics.Profiles
 
   @mechanic_attrs %{
     "email" => "mechanic@example.com",
@@ -48,37 +47,79 @@ defmodule Mechanics.ProfileListingsTest do
             "name" => "New Mechanic"
         })
 
-      # Intended API (to be implemented):
-      #
-      # {:ok, _p1} = Profiles.upsert_profile(first_mechanic, @profile_attrs)
-      # {:ok, _p2} = Profiles.upsert_profile(second_mechanic, %{ @profile_attrs | "headline" => "Shop mechanic" })
-      #
-      # profiles = Profiles.list_mechanic_profiles()
-      #
-      # assert length(profiles) == 2
-      # assert hd(profiles).user_id == second_mechanic.id
-      # assert Enum.at(profiles, 1).user_id == first_mechanic.id
+      {:ok, _p1} =
+        Profiles.create_profile(
+          Map.merge(@profile_attrs, %{
+            "user_id" => first_mechanic.id,
+            "is_public" => true
+          })
+        )
 
-      assert first_mechanic.id != second_mechanic.id
+      {:ok, _p2} =
+        Profiles.create_profile(
+          Map.merge(@profile_attrs, %{
+            "user_id" => second_mechanic.id,
+            "headline" => "Shop mechanic",
+            "is_public" => true
+          })
+        )
+
+      profiles = Profiles.list_mechanic_profiles()
+
+      assert length(profiles) == 2
+      assert hd(profiles).user_id == second_mechanic.id
+      assert Enum.at(profiles, 1).user_id == first_mechanic.id
     end
 
     test "list_mechanic_profiles/0 returns empty when no mechanic profiles exist" do
-      # Intended API:
-      #
-      # assert Profiles.list_mechanic_profiles() == []
-      assert true
+      assert Profiles.list_mechanic_profiles() == []
     end
 
     test "list_mechanic_profiles/0 excludes users without mechanic role" do
-      {:ok, _customer} = Accounts.create_user(@customer_attrs)
-      {:ok, _mechanic} = Accounts.create_user(@mechanic_attrs)
+      {:ok, customer} = Accounts.create_user(@customer_attrs)
+      {:ok, mechanic} = Accounts.create_user(@mechanic_attrs)
 
-      # Intended API:
-      #
-      # {:ok, _profile} = Profiles.upsert_profile(mechanic, @profile_attrs)
-      # profiles = Profiles.list_mechanic_profiles()
-      # assert Enum.all?(profiles, fn p -> "mechanic" in p.user.roles end)
-      assert true
+      {:ok, _customer_profile} =
+        Profiles.create_profile(
+          Map.merge(@profile_attrs, %{
+            "user_id" => customer.id,
+            "headline" => "Customer profile",
+            "is_public" => true
+          })
+        )
+
+      {:ok, _mechanic_profile} =
+        Profiles.create_profile(
+          Map.merge(@profile_attrs, %{
+            "user_id" => mechanic.id,
+            "headline" => "Mechanic profile",
+            "is_public" => true
+          })
+        )
+
+      profiles = Profiles.list_mechanic_profiles()
+
+      assert length(profiles) == 1
+      assert hd(profiles).user_id == mechanic.id
+    end
+
+    test "list_mechanic_profiles/0 excludes mechanic profiles that are not public" do
+      {:ok, mechanic} =
+        Accounts.create_user(%{
+          @mechanic_attrs
+          | "email" => "private@example.com",
+            "name" => "Private Mechanic"
+        })
+
+      {:ok, _profile} =
+        Profiles.create_profile(
+          Map.merge(@profile_attrs, %{
+            "user_id" => mechanic.id,
+            "is_public" => false
+          })
+        )
+
+      assert Profiles.list_mechanic_profiles() == []
     end
   end
 end
