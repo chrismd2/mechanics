@@ -8,7 +8,7 @@ defmodule Mechanics.AccountsTest do
     "name" => "Test User",
     "password" => "secret123",
     "password_confirmation" => "secret123",
-    "role" => "mechanic"
+    "roles" => ["mechanic"]
   }
 
   describe "database roles" do
@@ -17,21 +17,21 @@ defmodule Mechanics.AccountsTest do
         Accounts.create_user(%{
           @valid_attrs
           | "email" => "m1@example.com",
-            "role" => "mechanic"
+            "roles" => ["mechanic"]
         })
 
       {:ok, _customer} =
         Accounts.create_user(%{
           @valid_attrs
           | "email" => "c1@example.com",
-            "role" => "customer"
+            "roles" => ["customer"]
         })
 
       mechanics = Accounts.list_mechanics()
 
       assert length(mechanics) == 1
       assert hd(mechanics).id == mechanic.id
-      assert hd(mechanics).role == "mechanic"
+      assert "mechanic" in hd(mechanics).roles
     end
 
     test "list_customers returns only users with role customer" do
@@ -39,21 +39,21 @@ defmodule Mechanics.AccountsTest do
         Accounts.create_user(%{
           @valid_attrs
           | "email" => "m2@example.com",
-            "role" => "mechanic"
+            "roles" => ["mechanic"]
         })
 
       {:ok, customer} =
         Accounts.create_user(%{
           @valid_attrs
           | "email" => "c2@example.com",
-            "role" => "customer"
+            "roles" => ["customer"]
         })
 
       customers = Accounts.list_customers()
 
       assert length(customers) == 1
       assert hd(customers).id == customer.id
-      assert hd(customers).role == "customer"
+      assert "customer" in hd(customers).roles
     end
 
     test "list_mechanics orders by inserted_at descending" do
@@ -61,7 +61,7 @@ defmodule Mechanics.AccountsTest do
         Accounts.create_user(%{
           @valid_attrs
           | "email" => "old@example.com",
-            "role" => "mechanic"
+            "roles" => ["mechanic"]
         })
 
       # ensure second is inserted later
@@ -71,7 +71,7 @@ defmodule Mechanics.AccountsTest do
         Accounts.create_user(%{
           @valid_attrs
           | "email" => "new@example.com",
-            "role" => "mechanic"
+            "roles" => ["mechanic"]
         })
 
       mechanics = Accounts.list_mechanics()
@@ -86,7 +86,7 @@ defmodule Mechanics.AccountsTest do
         Accounts.create_user(%{
           @valid_attrs
           | "email" => "oldc@example.com",
-            "role" => "customer"
+            "roles" => ["customer"]
         })
 
       Process.sleep(10)
@@ -95,7 +95,7 @@ defmodule Mechanics.AccountsTest do
         Accounts.create_user(%{
           @valid_attrs
           | "email" => "newc@example.com",
-            "role" => "customer"
+            "roles" => ["customer"]
         })
 
       customers = Accounts.list_customers()
