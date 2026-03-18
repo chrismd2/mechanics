@@ -23,6 +23,7 @@ defmodule Mechanics.DataCase do
       import Ecto
       import Ecto.Changeset
       import Ecto.Query
+      import Mechanics.AccountsFixtures
       import Mechanics.DataCase
     end
   end

@@ -75,21 +75,24 @@ defmodule Mechanics.AccountsTest do
     end
 
     test "list_mechanics orders by inserted_at descending" do
-      {:ok, first} =
-        Accounts.create_user(%{
-          @valid_attrs
-          | "email" => "old@example.com",
-            "roles" => ["mechanic"]
+      first_inserted_at = DateTime.utc_now()
+
+      first =
+        insert_user!(%{
+          email: "old@example.com",
+          roles: ["mechanic"],
+          inserted_at: first_inserted_at,
+          updated_at: first_inserted_at
         })
 
-      # ensure second is inserted later
-      Process.sleep(10)
+      second_inserted_at = DateTime.add(first.inserted_at, 1, :second)
 
-      {:ok, second} =
-        Accounts.create_user(%{
-          @valid_attrs
-          | "email" => "new@example.com",
-            "roles" => ["mechanic"]
+      second =
+        insert_user!(%{
+          email: "new@example.com",
+          roles: ["mechanic"],
+          inserted_at: second_inserted_at,
+          updated_at: second_inserted_at
         })
 
       mechanics = Accounts.list_mechanics()
@@ -100,20 +103,24 @@ defmodule Mechanics.AccountsTest do
     end
 
     test "list_customers orders by inserted_at descending" do
-      {:ok, first} =
-        Accounts.create_user(%{
-          @valid_attrs
-          | "email" => "oldc@example.com",
-            "roles" => ["customer"]
+      first_inserted_at = DateTime.utc_now()
+
+      first =
+        insert_user!(%{
+          email: "oldc@example.com",
+          roles: ["customer"],
+          inserted_at: first_inserted_at,
+          updated_at: first_inserted_at
         })
 
-      Process.sleep(10)
+      second_inserted_at = DateTime.add(first.inserted_at, 1, :second)
 
-      {:ok, second} =
-        Accounts.create_user(%{
-          @valid_attrs
-          | "email" => "newc@example.com",
-            "roles" => ["customer"]
+      second =
+        insert_user!(%{
+          email: "newc@example.com",
+          roles: ["customer"],
+          inserted_at: second_inserted_at,
+          updated_at: second_inserted_at
         })
 
       customers = Accounts.list_customers()
