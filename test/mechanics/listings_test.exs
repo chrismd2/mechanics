@@ -100,5 +100,63 @@ defmodule Mechanics.ListingsTest do
       {:ok, listing} = Listings.create_listing(attrs)
       assert %Ecto.Changeset{} = Listings.change_listing(listing)
     end
+
+    test "list_listings_by/1 filters by customer_id, title, and exact fields", %{customer: customer} do
+      {:ok, other_customer} =
+        Accounts.create_user(%{
+          @customer_attrs
+          | "email" => "other-customer@example.com",
+            "name" => "Other Customer"
+        })
+
+      base_attrs = Map.put(@valid_attrs, "customer_id", customer.id)
+
+      {:ok, first_match} =
+        Listings.create_listing(%{
+          base_attrs
+          | "title" => "Oil Change Basic",
+            "currency" => "USD"
+        })
+
+      Process.sleep(10)
+
+      {:ok, second_match} =
+        Listings.create_listing(%{
+          base_attrs
+          | "title" => "OIL Change Premium",
+            "currency" => "USD"
+        })
+
+      {:ok, _wrong_currency} =
+        Listings.create_listing(%{
+          base_attrs
+          | "title" => "Oil Change Euro",
+            "currency" => "EUR"
+        })
+
+      {:ok, _wrong_customer} =
+        Listings.create_listing(%{
+          @valid_attrs
+          | "customer_id" => other_customer.id,
+            "title" => "Oil Change Other Customer",
+            "currency" => "USD"
+        })
+
+      {:ok, _wrong_title} =
+        Listings.create_listing(%{
+          base_attrs
+          | "title" => "Brake Repair",
+            "currency" => "USD"
+        })
+
+      listings =
+        Listings.list_listings_by(%{
+          customer_id: customer.id,
+          title: "oil change",
+          currency: "USD"
+        })
+
+      assert Enum.map(listings, & &1.id) == [second_match.id, first_match.id]
+    end
   end
 end

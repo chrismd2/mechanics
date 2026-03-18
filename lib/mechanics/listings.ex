@@ -33,4 +33,20 @@ defmodule Mechanics.Listings do
   def change_listing(%Listing{} = listing, attrs \\ %{}) do
     Listing.update_changeset(listing, attrs)
   end
+
+  @doc """
+  Returns a list of listings filtered by the given params.
+  Example params: %{customer_id: ..., title: ...}
+  """
+  def list_listings_by(params) when is_map(params) do
+    query =
+      Listing
+      |> where(^Enum.reduce(params, dynamic(true), fn
+        {:customer_id, val}, dynamic -> dynamic([l], ^dynamic and l.customer_id == ^val)
+        {:title, val}, dynamic -> dynamic([l], ^dynamic and ilike(l.title, ^"%#{val}%"))
+        {key, val}, dynamic -> dynamic([l], ^dynamic and field(l, ^key) == ^val)
+      end))
+
+    Repo.all(from l in query, order_by: [desc: l.inserted_at, desc: l.id])
+  end
 end
