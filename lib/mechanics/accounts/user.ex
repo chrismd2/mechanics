@@ -29,10 +29,10 @@ defmodule Mechanics.Accounts.User do
 
   defp validate_roles(changeset) do
     validate_change(changeset, :roles, fn :roles, roles ->
-      if is_list(roles) and Enum.all?(roles, &(&1 in @valid_roles)) and "customer" in roles do
+      if is_list(roles) and roles != [] and Enum.all?(roles, &(&1 in @valid_roles)) do
         []
       else
-        [roles: "must be a list containing at least 'customer' and optionally 'mechanic'"]
+        [roles: "must be a non-empty list containing only valid roles"]
       end
     end)
   end
