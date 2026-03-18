@@ -9,7 +9,7 @@ defmodule Mechanics.AccountsFixtures do
       email: Map.get(attrs, :email, "user@example.com"),
       name: Map.get(attrs, :name, "Test User"),
       password_hash: Bcrypt.hash_pwd_salt(Map.get(attrs, :password, "secret123")),
-      roles: Map.get(attrs, :roles, ["mechanic"]),
+      roles: Map.get(attrs, :roles, []),
       inserted_at: Map.get(attrs, :inserted_at, now),
       updated_at: Map.get(attrs, :updated_at, now)
     }

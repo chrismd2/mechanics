@@ -103,20 +103,24 @@ defmodule Mechanics.AccountsTest do
     end
 
     test "list_customers orders by inserted_at descending" do
-      {:ok, first} =
-        Accounts.create_user(%{
-          @valid_attrs
-          | "email" => "oldc@example.com",
-            "roles" => ["customer"]
+      first_inserted_at = DateTime.utc_now()
+
+      first =
+        insert_user!(%{
+          email: "oldc@example.com",
+          roles: ["customer"],
+          inserted_at: first_inserted_at,
+          updated_at: first_inserted_at
         })
 
-      Process.sleep(10)
+      second_inserted_at = DateTime.add(first.inserted_at, 1, :second)
 
-      {:ok, second} =
-        Accounts.create_user(%{
-          @valid_attrs
-          | "email" => "newc@example.com",
-            "roles" => ["customer"]
+      second =
+        insert_user!(%{
+          email: "newc@example.com",
+          roles: ["customer"],
+          inserted_at: second_inserted_at,
+          updated_at: second_inserted_at
         })
 
       customers = Accounts.list_customers()
