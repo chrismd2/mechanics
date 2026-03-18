@@ -4,8 +4,6 @@ defmodule Mechanics.ListingsTest do
   alias Mechanics.Listings
   alias Mechanics.Accounts
 
-  @moduletag :skip
-
   @customer_attrs %{
     "email" => "customer@example.com",
     "name" => "Test Customer",
