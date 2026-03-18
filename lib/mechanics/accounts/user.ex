@@ -2,6 +2,9 @@ defmodule Mechanics.Accounts.User do
   use Ecto.Schema
   import Ecto.Changeset
 
+  @primary_key {:id, :binary_id, autogenerate: true}
+  @foreign_key_type :binary_id
+
   schema "users" do
     field :email, :string
     field :name, :string
@@ -9,6 +12,8 @@ defmodule Mechanics.Accounts.User do
     field :password, :string, virtual: true
     field :password_confirmation, :string, virtual: true
     field :roles, {:array, :string}
+
+    has_many :listings, Mechanics.Listings.Listing, foreign_key: :customer_id
 
     timestamps(type: :utc_datetime)
   end

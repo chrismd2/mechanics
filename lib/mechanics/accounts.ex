@@ -12,19 +12,11 @@ defmodule Mechanics.Accounts do
   end
 
   def list_mechanics do
-    Repo.all(
-      from u in User,
-        where: fragment("? = ANY(?)", "mechanic", u.roles),
-        order_by: [desc: u.inserted_at]
-    )
+    list_users_by_role("mechanic")
   end
 
   def list_customers do
-    Repo.all(
-      from u in User,
-        where: fragment("? = ANY(?)", "customer", u.roles),
-        order_by: [desc: u.inserted_at]
-    )
+    list_users_by_role("customer")
   end
 
   def get_user!(id), do: Repo.get!(User, id)
@@ -70,5 +62,13 @@ defmodule Mechanics.Accounts do
 
   def change_user(%User{} = user, attrs \\ %{}) do
     User.changeset(user, attrs)
+  end
+
+  defp list_users_by_role(role) do
+    Repo.all(
+      from u in User,
+        where: fragment("? = ANY(?)", ^role, u.roles),
+        order_by: [desc: u.inserted_at, desc: u.id]
+    )
   end
 end
