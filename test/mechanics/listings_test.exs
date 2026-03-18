@@ -43,13 +43,30 @@ defmodule Mechanics.ListingsTest do
     end
 
     test "list_listings/0 returns listings ordered by inserted_at descending", %{customer: customer} do
-      assert customer.id |> to_string() |> Ecto.UUID.cast() |> elem(0) == :ok
+      first_inserted_at = DateTime.utc_now()
+      second_inserted_at = DateTime.add(first_inserted_at, 1, :second)
 
-      attrs = Map.put(@valid_attrs, "customer_id", customer.id)
+      first =
+        insert_listing!(%{
+          title: @valid_attrs["title"],
+          description: @valid_attrs["description"],
+          price_cents: @valid_attrs["price_cents"],
+          currency: @valid_attrs["currency"],
+          customer_id: customer.id,
+          inserted_at: first_inserted_at,
+          updated_at: first_inserted_at
+        })
 
-      {:ok, first} = Listings.create_listing(attrs)
-      Process.sleep(10)
-      {:ok, second} = Listings.create_listing(%{attrs | "title" => "Tire rotation"})
+      second =
+        insert_listing!(%{
+          title: "Tire rotation",
+          description: @valid_attrs["description"],
+          price_cents: @valid_attrs["price_cents"],
+          currency: @valid_attrs["currency"],
+          customer_id: customer.id,
+          inserted_at: second_inserted_at,
+          updated_at: second_inserted_at
+        })
 
       listings = Listings.list_listings()
 
@@ -109,44 +126,56 @@ defmodule Mechanics.ListingsTest do
             "name" => "Other Customer"
         })
 
-      base_attrs = Map.put(@valid_attrs, "customer_id", customer.id)
+      first_inserted_at = DateTime.utc_now()
+      second_inserted_at = DateTime.add(first_inserted_at, 1, :second)
 
-      {:ok, first_match} =
-        Listings.create_listing(%{
-          base_attrs
-          | "title" => "Oil Change Basic",
-            "currency" => "USD"
+      first_match =
+        insert_listing!(%{
+          title: "Oil Change Basic",
+          description: @valid_attrs["description"],
+          price_cents: @valid_attrs["price_cents"],
+          currency: "USD",
+          customer_id: customer.id,
+          inserted_at: first_inserted_at,
+          updated_at: first_inserted_at
         })
 
-      Process.sleep(10)
-
-      {:ok, second_match} =
-        Listings.create_listing(%{
-          base_attrs
-          | "title" => "OIL Change Premium",
-            "currency" => "USD"
+      second_match =
+        insert_listing!(%{
+          title: "OIL Change Premium",
+          description: @valid_attrs["description"],
+          price_cents: @valid_attrs["price_cents"],
+          currency: "USD",
+          customer_id: customer.id,
+          inserted_at: second_inserted_at,
+          updated_at: second_inserted_at
         })
 
-      {:ok, _wrong_currency} =
-        Listings.create_listing(%{
-          base_attrs
-          | "title" => "Oil Change Euro",
-            "currency" => "EUR"
+      _wrong_currency =
+        insert_listing!(%{
+          title: "Oil Change Euro",
+          description: @valid_attrs["description"],
+          price_cents: @valid_attrs["price_cents"],
+          currency: "EUR",
+          customer_id: customer.id
         })
 
-      {:ok, _wrong_customer} =
-        Listings.create_listing(%{
-          @valid_attrs
-          | "customer_id" => other_customer.id,
-            "title" => "Oil Change Other Customer",
-            "currency" => "USD"
+      _wrong_customer =
+        insert_listing!(%{
+          title: "Oil Change Other Customer",
+          description: @valid_attrs["description"],
+          price_cents: @valid_attrs["price_cents"],
+          currency: "USD",
+          customer_id: other_customer.id
         })
 
-      {:ok, _wrong_title} =
-        Listings.create_listing(%{
-          base_attrs
-          | "title" => "Brake Repair",
-            "currency" => "USD"
+      _wrong_title =
+        insert_listing!(%{
+          title: "Brake Repair",
+          description: @valid_attrs["description"],
+          price_cents: @valid_attrs["price_cents"],
+          currency: "USD",
+          customer_id: customer.id
         })
 
       listings =
