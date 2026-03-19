@@ -69,9 +69,9 @@ defmodule Mechanics.AccountsTest do
 
       customers = Accounts.list_customers()
 
-      assert length(customers) == 2
-      assert Enum.any?(customers, &(&1.id == customer.id))
-      assert Enum.all?(customers, &("customer" in &1.roles))
+      assert length(customers) == 1
+      assert hd(customers).id == customer.id
+      assert "customer" in hd(customers).roles
     end
 
     test "list_mechanics orders by inserted_at descending" do

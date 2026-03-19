@@ -33,14 +33,46 @@ defmodule Mechanics.Accounts do
     |> Repo.insert()
   end
 
-  # Form and seeds send :role (single); User schema uses :roles (list).
-  # Mechanic gets ["customer", "mechanic"]; customer gets ["customer"].
+  # Form and seeds send `role` (single); User schema stores `roles` (list).
+  # A user only has `customer` role if it was assigned.
   defp normalize_roles(attrs) when is_map(attrs) do
-    case attrs["role"] || attrs[:role] do
-      "mechanic" -> Map.put(Map.drop(attrs, ["role", :role]), "roles", ["customer", "mechanic"])
-      "customer" -> Map.put(Map.drop(attrs, ["role", :role]), "roles", ["customer"])
-      _ -> attrs
+    cond do
+      # Registration / seeds send a single `role` key.
+      role = attrs["role"] || attrs[:role] ->
+        case role do
+          "mechanic" -> Map.put(Map.drop(attrs, ["role", :role]), "roles", ["mechanic"])
+          "customer" -> Map.put(Map.drop(attrs, ["role", :role]), "roles", ["customer"])
+          _ -> attrs
+        end
+
+      # Some callers (including tests) may pass `roles: ["mechanic"]`.
+      roles = attrs["roles"] || attrs[:roles] ->
+        normalize_roles_from_list(attrs, roles)
+
+      true ->
+        attrs
     end
+  end
+
+  defp normalize_roles_from_list(attrs, roles) do
+    roles_list =
+      cond do
+        is_binary(roles) -> [roles]
+        is_list(roles) -> roles
+        true -> roles
+      end
+
+    roles_list =
+      if is_list(roles_list) do
+        Enum.map(roles_list, fn
+          r when is_atom(r) -> Atom.to_string(r)
+          r -> r
+        end)
+      else
+        roles_list
+      end
+
+    Map.put(Map.drop(attrs, ["roles", :roles]), "roles", roles_list)
   end
 
   def authenticate_user(email, password) do
