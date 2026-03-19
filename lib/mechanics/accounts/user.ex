@@ -13,6 +13,10 @@ defmodule Mechanics.Accounts.User do
     field :password_confirmation, :string, virtual: true
     field :roles, {:array, :string}
 
+    # Password reset rate limiting
+    field :password_reset_count, :integer, default: 0
+    field :password_reset_last_sent_at, :utc_datetime
+
     has_many :listings, Mechanics.Listings.Listing, foreign_key: :customer_id
 
     timestamps(type: :utc_datetime)
@@ -29,6 +33,18 @@ defmodule Mechanics.Accounts.User do
     |> validate_length(:password, min: 6)
     |> validate_confirmation(:password)
     |> unique_constraint(:email)
+    |> put_password_hash()
+  end
+
+  @doc """
+  Changeset used for password resets. It does not require email/name/roles.
+  """
+  def password_changeset(user, attrs) do
+    user
+    |> cast(attrs, [:password, :password_confirmation])
+    |> validate_required([:password, :password_confirmation])
+    |> validate_length(:password, min: 6)
+    |> validate_confirmation(:password)
     |> put_password_hash()
   end
 

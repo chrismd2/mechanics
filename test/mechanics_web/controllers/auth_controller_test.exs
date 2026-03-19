@@ -1,5 +1,6 @@
 defmodule MechanicsWeb.AuthControllerTest do
   use MechanicsWeb.ConnCase
+  import Swoosh.TestAssertions
 
   describe "GET /register shows the registration page (new_registration)" do
     test "returns 200 and shows Sign up heading", %{conn: conn} do
@@ -295,6 +296,256 @@ defmodule MechanicsWeb.AuthControllerTest do
     end
   end
 
+  describe "GET /password/reset?token=..." do
+    setup :set_swoosh_global
+
+    test "with a valid token renders form to set new password (including eye-ball toggles)", %{conn: conn} do
+      now = DateTime.utc_now() |> DateTime.truncate(:second)
+      email = "token_valid@example.com"
+
+      {:ok, user} =
+        Mechanics.Accounts.create_user(%{
+          "email" => email,
+          "name" => "Token Valid User",
+          "roles" => ["customer"],
+          "password" => "secret123",
+          "password_confirmation" => "secret123"
+        })
+
+      assert {:ok, :sent} = Mechanics.Accounts.request_password_reset(user.email, now)
+      assert_receive {:email, sent_email}
+      assert sent_email.text_body =~ "/password/reset?token="
+
+      [_, token] = Regex.run(~r/token=([^\s]+)/, sent_email.text_body)
+
+      conn = get(conn, "/password/reset?token=#{token}")
+      html = html_response(conn, 200)
+      assert html =~ "Reset your password"
+
+      parsed = Floki.parse_document!(html)
+      form = Floki.find(parsed, "form[action=\"/password/reset/confirm\"]") |> List.first()
+      assert form != nil
+
+      assert Floki.find(form, "input#password_reset_password") != []
+      assert Floki.find(form, "input#password_reset_password_confirmation") != []
+
+      # From registration: two password toggle buttons (one per password field).
+      toggle_buttons = Floki.find(form, "button.password-toggle-btn[aria-label=\"Show password\"]")
+      assert length(toggle_buttons) == 2
+
+      assert Floki.find(form, "button[type=\"submit\"]") != []
+    end
+
+    test "with an expired token redirects to sign-in", %{conn: conn} do
+      now = DateTime.utc_now() |> DateTime.truncate(:second)
+      email = "token_expired@example.com"
+
+      {:ok, user} =
+        Mechanics.Accounts.create_user(%{
+          "email" => email,
+          "name" => "Token Expired User",
+          "roles" => ["customer"],
+          "password" => "secret123",
+          "password_confirmation" => "secret123"
+        })
+
+      assert {:ok, :sent} = Mechanics.Accounts.request_password_reset(user.email, now)
+      assert_receive {:email, sent_email}
+
+      [_, token] = Regex.run(~r/token=([^\s]+)/, sent_email.text_body)
+
+      reset_token = Mechanics.Repo.get_by(Mechanics.Accounts.PasswordResetToken, token: token)
+      assert reset_token
+
+      Mechanics.Repo.update!(
+        Ecto.Changeset.change(reset_token, %{
+          expires_at: DateTime.add(now, -1, :hour) |> DateTime.truncate(:second)
+        })
+      )
+
+      conn = get(conn, "/password/reset?token=#{token}")
+      assert redirected_to(conn) == ~p"/login"
+      assert Phoenix.Flash.get(conn.assigns[:flash], :info) ==
+               "If you have an account with us, then we'll send you a reset request."
+    end
+
+    test "submitting a valid token resets password and consumes the token", %{conn: conn} do
+      now = DateTime.utc_now() |> DateTime.truncate(:second)
+      email = "token_reset@example.com"
+      new_password = "newsecret123"
+
+      {:ok, user} =
+        Mechanics.Accounts.create_user(%{
+          "email" => email,
+          "name" => "Token Reset User",
+          "roles" => ["customer"],
+          "password" => "secret123",
+          "password_confirmation" => "secret123"
+        })
+
+      assert {:ok, :sent} = Mechanics.Accounts.request_password_reset(user.email, now)
+      assert_receive {:email, sent_email}
+
+      [_, token] = Regex.run(~r/token=([^\s]+)/, sent_email.text_body)
+
+      conn =
+        post(conn, ~p"/password/reset/confirm", %{
+          "password_reset" => %{
+            "token" => token,
+            "password" => new_password,
+            "password_confirmation" => new_password
+          }
+        })
+
+      assert redirected_to(conn) == ~p"/login"
+      assert Phoenix.Flash.get(conn.assigns[:flash], :info) == "Password reset successful. You can sign in now."
+
+      assert {:ok, _} = Mechanics.Accounts.authenticate_user(email, new_password)
+      assert Mechanics.Repo.get_by(Mechanics.Accounts.PasswordResetToken, token: token) == nil
+    end
+  end
+
+  describe "POST /password/reset" do
+    setup :set_swoosh_global
+
+    test "redirects to sign-in with ambiguous message for unknown email and does not send email", %{
+      conn: conn
+    } do
+      conn =
+        post(conn, ~p"/password/reset", %{
+          "password_reset" => %{
+            "email" => "unknown@example.com"
+          }
+        })
+
+      assert redirected_to(conn) == ~p"/login"
+      assert Phoenix.Flash.get(conn.assigns[:flash], :info) ==
+               "If you have an account with us, then we'll send you a reset request."
+      refute_email_sent()
+    end
+
+    test "redirects to sign-in with ambiguous message and sends reset email when allowed", %{
+      conn: conn
+    } do
+      email = "reset_allowed@example.com"
+
+      {:ok, user} =
+        Mechanics.Accounts.create_user(%{
+          "email" => email,
+          "name" => "Reset Allowed User",
+          "roles" => ["customer"],
+          "password" => "secret123",
+          "password_confirmation" => "secret123"
+        })
+
+      conn =
+        post(conn, ~p"/password/reset", %{
+          "password_reset" => %{
+            "email" => user.email
+          }
+        })
+
+      assert redirected_to(conn) == ~p"/login"
+      assert Phoenix.Flash.get(conn.assigns[:flash], :info) ==
+               "If you have an account with us, then we'll send you a reset request."
+
+      assert_email_sent(fn sent_email ->
+        sent_email.text_body =~ "/password/reset?token="
+      end)
+
+      updated = Mechanics.Accounts.get_user_by_email(email)
+      assert updated.password_reset_count == 1
+      assert updated.password_reset_last_sent_at
+    end
+
+    test "redirects to sign-in with ambiguous message and blocks limited resets", %{conn: conn} do
+      now = DateTime.utc_now() |> DateTime.truncate(:second)
+      email = "reset_limited@example.com"
+
+      {:ok, user} =
+        Mechanics.Accounts.create_user(%{
+          "email" => email,
+          "name" => "Reset Limited User",
+          "roles" => ["customer"],
+          "password" => "secret123",
+          "password_confirmation" => "secret123"
+        })
+
+      last_sent_at = DateTime.add(now, -1, :hour) |> DateTime.truncate(:second)
+
+      Mechanics.Repo.update!(
+        Ecto.Changeset.change(user, %{
+          password_reset_count: 3,
+          password_reset_last_sent_at: last_sent_at
+        })
+      )
+
+      conn =
+        post(conn, ~p"/password/reset", %{
+          "password_reset" => %{
+            "email" => email
+          }
+        })
+
+      assert redirected_to(conn) == ~p"/login"
+      assert Phoenix.Flash.get(conn.assigns[:flash], :info) ==
+               "If you have an account with us, then we'll send you a reset request."
+      refute_email_sent()
+
+      updated = Mechanics.Accounts.get_user_by_email(email)
+      assert updated.password_reset_count == 3
+      assert updated.password_reset_last_sent_at == last_sent_at
+    end
+
+    test "redirects to sign-in with ambiguous message and allows reset after 6+ hours", %{
+      conn: conn
+    } do
+      now = DateTime.utc_now() |> DateTime.truncate(:second)
+      email = "reset_after_window@example.com"
+
+      {:ok, user} =
+        Mechanics.Accounts.create_user(%{
+          "email" => email,
+          "name" => "Reset After Window User",
+          "roles" => ["customer"],
+          "password" => "secret123",
+          "password_confirmation" => "secret123"
+        })
+
+      last_sent_at = DateTime.add(now, -7, :hour) |> DateTime.truncate(:second)
+
+      Mechanics.Repo.update!(
+        Ecto.Changeset.change(user, %{
+          password_reset_count: 3,
+          password_reset_last_sent_at: last_sent_at
+        })
+      )
+
+      conn =
+        post(conn, ~p"/password/reset", %{
+          "password_reset" => %{
+            "email" => email
+          }
+        })
+
+      assert redirected_to(conn) == ~p"/login"
+      assert Phoenix.Flash.get(conn.assigns[:flash], :info) ==
+               "If you have an account with us, then we'll send you a reset request."
+
+      assert_email_sent(fn sent_email ->
+        sent_email.text_body =~ "/password/reset?token="
+      end)
+
+      updated = Mechanics.Accounts.get_user_by_email(email)
+      assert updated.password_reset_count == 1
+
+      # Controller uses its own `utc_now` (truncated to seconds), so allow the
+      # updated timestamp to be within 0-1 seconds of the test's `now`.
+      diff = abs(DateTime.diff(updated.password_reset_last_sent_at, now, :second))
+      assert diff <= 1
+    end
+  end
+
   describe "POST /login (sign in)" do
     @login_email "signinuser@example.com"
     @login_password "secret123"
@@ -357,7 +608,7 @@ defmodule MechanicsWeb.AuthControllerTest do
         |> post(~p"/login", %{"session" => %{"email" => locked_email, "password" => "wrong"}})
 
       assert html_response(conn, 200) =~ "Sign in"
-      assert html_response(conn, 200) =~ "Too many failed attempts"
+      assert html_response(conn, 200) =~ "Please try again later."
       refute get_session(conn, :current_user_id)
     end
   end

@@ -21,7 +21,9 @@ defmodule MechanicsWeb.Router do
     get "/register", AuthController, :new_registration
     post "/register", AuthController, :create_registration
     get "/login", AuthController, :new_session
+    post "/password/reset", AuthController, :request_password_reset
     get "/password/reset", AuthController, :new_password_reset
+    post "/password/reset/confirm", AuthController, :confirm_password_reset
     post "/login", AuthController, :create_session
     delete "/logout", AuthController, :delete_user_session
 
