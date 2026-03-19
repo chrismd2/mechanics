@@ -85,7 +85,13 @@ defmodule MechanicsWeb.PageControllerTest do
 
     test "Checking for jobs available section", %{conn: conn} do
       conn = get(conn, ~p"/")
-      assert html_response(conn, 200) =~ "Jobs available"
+      html = html_response(conn, 200)
+      assert html =~ "Jobs available"
+      parsed = Floki.parse_document!(html)
+
+      plus_link = Floki.find(parsed, ~s(a[href="/listings/new"]))
+      assert plus_link != []
+      assert Enum.any?(plus_link, &(Floki.text(&1) =~ "+"))
     end
 
     test "shows jobs available section with empty state when no listings", %{conn: conn} do
