@@ -16,9 +16,16 @@ defmodule MechanicsWeb.PageControllerTest do
       html = html_response(conn, 200)
       assert html =~ "Mechanics for hire"
       parsed = Floki.parse_document!(html)
-      plus_link = Floki.find(parsed, ~s(a[href="/profile"]))
-      assert plus_link != []
-      assert Enum.any?(plus_link, &(Floki.text(&1) =~ "+"))
+
+      # Plus button should be disabled unless the user has the "mechanic" role.
+      plus_links = Floki.find(parsed, ~s(a[href="/profile"]))
+      assert plus_links == []
+
+      disabled_buttons =
+        Floki.find(parsed, ~s(span[aria-label="Add mechanic profile"][aria-disabled="true"]))
+
+      assert disabled_buttons != []
+      assert Enum.any?(disabled_buttons, &(Floki.text(&1) =~ "+"))
 
       empty_message = Floki.find(parsed, "p")
       empty_state = Enum.any?(empty_message, &(Floki.text(&1) =~ "No public mechanic profiles are available yet"))
@@ -89,9 +96,61 @@ defmodule MechanicsWeb.PageControllerTest do
       assert html =~ "Jobs available"
       parsed = Floki.parse_document!(html)
 
-      plus_link = Floki.find(parsed, ~s(a[href="/listings/new"]))
-      assert plus_link != []
-      assert Enum.any?(plus_link, &(Floki.text(&1) =~ "+"))
+      # Plus button should be disabled unless the user has the "customer" role.
+      plus_links = Floki.find(parsed, ~s(a[href="/listings/new"]))
+      assert plus_links == []
+
+      disabled_buttons =
+        Floki.find(parsed, ~s(span[aria-label="Add job listing"][aria-disabled="true"]))
+
+      assert disabled_buttons != []
+      assert Enum.any?(disabled_buttons, &(Floki.text(&1) =~ "+"))
+    end
+
+    test "mechanic user can add mechanic profile (and job listing) from home", %{conn: conn} do
+      {:ok, _user} =
+        Accounts.create_user(%{
+          "email" => "mechanic-plus@example.com",
+          "name" => "Mechanic Plus",
+          "roles" => ["mechanic", "customer"],
+          "password" => "securepw123",
+          "password_confirmation" => "securepw123"
+        })
+
+      conn =
+        post(conn, ~p"/login", %{
+          "session" => %{"email" => "mechanic-plus@example.com", "password" => "securepw123"}
+        })
+
+      conn = get(conn, ~p"/")
+      html = html_response(conn, 200)
+      parsed = Floki.parse_document!(html)
+
+      assert Floki.find(parsed, ~s(a[href="/profile"])) != []
+      assert Floki.find(parsed, ~s(a[href="/listings/new"])) != []
+    end
+
+    test "customer user can add job listing but not mechanic profile from home", %{conn: conn} do
+      {:ok, _user} =
+        Accounts.create_user(%{
+          "email" => "customer-plus@example.com",
+          "name" => "Customer Plus",
+          "roles" => ["customer"],
+          "password" => "securepw123",
+          "password_confirmation" => "securepw123"
+        })
+
+      conn =
+        post(conn, ~p"/login", %{
+          "session" => %{"email" => "customer-plus@example.com", "password" => "securepw123"}
+        })
+
+      conn = get(conn, ~p"/")
+      html = html_response(conn, 200)
+      parsed = Floki.parse_document!(html)
+
+      assert Floki.find(parsed, ~s(a[href="/listings/new"])) != []
+      assert Floki.find(parsed, ~s(a[href="/profile"])) == []
     end
 
     test "shows jobs available section with empty state when no listings", %{conn: conn} do
