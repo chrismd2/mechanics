@@ -15,7 +15,7 @@ defmodule MechanicsWeb.AuthController do
         conn
         |> put_session(:current_user_id, user.id)
         |> put_flash(:info, "Account created successfully!")
-        |> redirect(to: ~p"/")
+        |> redirect(to: registration_redirect_path(user, user_params))
 
       {:error, %Ecto.Changeset{} = changeset} ->
         render(conn, :new_registration, changeset: changeset)
@@ -73,4 +73,19 @@ defmodule MechanicsWeb.AuthController do
     |> put_flash(:info, "Logged out successfully.")
     |> redirect(to: ~p"/")
   end
+
+  defp registration_redirect_path(user, user_params) do
+    if wants_listing?(user_params) do
+      if "mechanic" in user.roles do
+        ~p"/profile"
+      else
+        ~p"/listings/new"
+      end
+    else
+      ~p"/"
+    end
+  end
+
+  defp wants_listing?(%{"wants_listing" => value}), do: value in [true, "true", "on", "1"]
+  defp wants_listing?(_params), do: false
 end
