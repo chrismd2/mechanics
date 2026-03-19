@@ -1,12 +1,13 @@
 defmodule MechanicsWeb.PageController do
   use MechanicsWeb, :controller
 
-  alias Mechanics.Accounts
+  alias Mechanics.Listings
+  alias Mechanics.Profiles
 
   def home(conn, _params) do
     conn
-    |> assign(:mechanics, Accounts.list_mechanics())
-    |> assign(:customers, Accounts.list_customers())
+    |> assign(:mechanics, Profiles.list_mechanic_profiles())
+    |> assign(:listings, Listings.list_listings())
     |> render(:home)
   end
 end
