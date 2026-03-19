@@ -15,8 +15,11 @@ defmodule MechanicsWeb.PageControllerTest do
       conn = get(conn, ~p"/")
       html = html_response(conn, 200)
       assert html =~ "Mechanics for hire"
-
       parsed = Floki.parse_document!(html)
+      plus_link = Floki.find(parsed, ~s(a[href="/profile"]))
+      assert plus_link != []
+      assert Enum.any?(plus_link, &(Floki.text(&1) =~ "+"))
+
       empty_message = Floki.find(parsed, "p")
       empty_state = Enum.any?(empty_message, &(Floki.text(&1) =~ "No public mechanic profiles are available yet"))
       mechanics_list = Floki.find(parsed, ".grid div:first-child ul li")
