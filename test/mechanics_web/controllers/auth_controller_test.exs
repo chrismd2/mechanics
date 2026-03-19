@@ -278,6 +278,23 @@ defmodule MechanicsWeb.AuthControllerTest do
     end
   end
 
+  describe "GET /password/reset" do
+    test "returns 200 and shows reset password heading", %{conn: conn} do
+      conn = get(conn, ~p"/password/reset")
+
+      html = html_response(conn, 200)
+      assert html =~ "Reset your password"
+
+      parsed = Floki.parse_document!(html)
+      form = Floki.find(parsed, "form[action=\"/password/reset\"]") |> List.first()
+      assert form != nil
+      assert Floki.attribute(form, "method") |> List.first() =~ "post"
+
+      submit_buttons = Floki.find(form, "button[type=\"submit\"], input[type=\"submit\"]")
+      assert submit_buttons != []
+    end
+  end
+
   describe "POST /login (sign in)" do
     @login_email "signinuser@example.com"
     @login_password "secret123"
