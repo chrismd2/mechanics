@@ -42,6 +42,7 @@ defmodule Mechanics.AccountsFixtures do
       description: Map.get(attrs, :description, "Standard oil change service"),
       price_cents: Map.get(attrs, :price_cents, 5_000),
       currency: Map.get(attrs, :currency, "USD"),
+      is_public: Map.get(attrs, :is_public, false),
       customer_id: Map.fetch!(attrs, :customer_id),
       inserted_at: Map.get(attrs, :inserted_at, now) |> truncate_datetime(),
       updated_at: Map.get(attrs, :updated_at, now) |> truncate_datetime()

@@ -233,7 +233,8 @@ defmodule MechanicsWeb.PageControllerTest do
           "description" => "Need front brake pads replaced this week",
           "price_cents" => 12_500,
           "currency" => "USD",
-          "customer_id" => customer.id
+          "customer_id" => customer.id,
+          "is_public" => true
         })
 
       conn = get(conn, ~p"/")
@@ -249,6 +250,32 @@ defmodule MechanicsWeb.PageControllerTest do
       assert html =~ "Brake pad replacement"
       assert html =~ "Need front brake pads replaced this week"
       assert html =~ "12500 USD"
+    end
+
+    test "does not list job listings marked as non-public on the home page", %{conn: conn} do
+      {:ok, customer} =
+        Accounts.create_user(%{
+          "email" => "customer-private@example.com",
+          "name" => "Private Customer",
+          "roles" => ["customer"],
+          "password" => "securepw123",
+          "password_confirmation" => "securepw123"
+        })
+
+      {:ok, _listing} =
+        Listings.create_listing(%{
+          "title" => "Should not show",
+          "description" => "This listing is private.",
+          "price_cents" => 10_000,
+          "currency" => "USD",
+          "customer_id" => customer.id,
+          "is_public" => false
+        })
+
+      conn = get(conn, ~p"/")
+      html = html_response(conn, 200)
+      refute html =~ "Should not show"
+      assert html =~ "No job listings have been posted yet"
     end
 
     test "shows Sign up link", %{conn: conn} do
