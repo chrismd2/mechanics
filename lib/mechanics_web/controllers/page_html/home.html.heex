@@ -78,21 +78,27 @@
       <%= if Enum.any?(@listings) do %>
         <ul class="space-y-3" role="list">
           <%= for listing <- @listings do %>
-            <li class="rounded-lg border border-zinc-100 px-4 py-3 space-y-1">
-              <div>
-                <%= if @current_user && listing.customer_id == @current_user.id do %>
-                  <.link
-                    href={~p"/listings/#{listing.id}/edit"}
-                    class="font-medium text-zinc-900 hover:text-zinc-700"
-                  >
+            <li>
+              <%= if @current_user && listing.customer_id == @current_user.id do %>
+                <.link
+                  href={~p"/listings/#{listing.id}/edit"}
+                  class="block rounded-lg border border-zinc-100 px-4 py-3 space-y-1 hover:bg-zinc-50"
+                >
+                  <div>
                     <%= listing.title %>
-                  </.link>
-                <% else %>
-                  <span class="font-medium text-zinc-900"><%= listing.title %></span>
-                <% end %>
-                <span class="text-sm text-zinc-500 ml-2"><%= "#{listing.price_cents} #{listing.currency}" %></span>
-              </div>
-              <p class="text-sm text-zinc-600"><%= listing.description %></p>
+                    <span class="text-sm text-zinc-500 ml-2"><%= "#{listing.price_cents} #{listing.currency}" %></span>
+                  </div>
+                  <p class="text-sm text-zinc-600"><%= listing.description %></p>
+                </.link>
+              <% else %>
+                <div class="rounded-lg border border-zinc-100 px-4 py-3 space-y-1">
+                  <div>
+                    <span class="font-medium text-zinc-900"><%= listing.title %></span>
+                    <span class="text-sm text-zinc-500 ml-2"><%= "#{listing.price_cents} #{listing.currency}" %></span>
+                  </div>
+                  <p class="text-sm text-zinc-600"><%= listing.description %></p>
+                </div>
+              <% end %>
             </li>
           <% end %>
         </ul>
