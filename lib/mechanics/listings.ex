@@ -12,6 +12,14 @@ defmodule Mechanics.Listings do
     Repo.all(from l in Listing, order_by: [desc: l.inserted_at, desc: l.id])
   end
 
+  def list_public_listings do
+    Repo.all(
+      from l in Listing,
+        where: l.is_public == true,
+        order_by: [desc: l.inserted_at, desc: l.id]
+    )
+  end
+
   def get_listing!(id), do: Repo.get!(Listing, id)
 
   def create_listing(attrs \\ %{}) do

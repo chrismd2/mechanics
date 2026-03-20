@@ -7,7 +7,7 @@ defmodule MechanicsWeb.PageController do
   def home(conn, _params) do
     conn
     |> assign(:mechanics, Profiles.list_mechanic_profiles())
-    |> assign(:listings, Listings.list_listings())
+    |> assign(:listings, Listings.list_public_listings())
     |> render(:home)
   end
 end

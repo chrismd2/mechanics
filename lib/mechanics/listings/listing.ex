@@ -12,6 +12,7 @@ defmodule Mechanics.Listings.Listing do
     field :description, :string
     field :price_cents, :integer
     field :currency, :string
+    field :is_public, :boolean, default: false
 
     belongs_to :customer, User
 
@@ -19,12 +20,12 @@ defmodule Mechanics.Listings.Listing do
   end
 
   @required_fields ~w(title description price_cents currency customer_id)a
-  @editable_fields ~w(title description price_cents currency)a
+  @editable_fields ~w(title description price_cents currency is_public)a
 
   @doc false
   def create_changeset(listing, attrs) do
     listing
-    |> cast(attrs, @required_fields)
+    |> cast(attrs, @required_fields ++ [:is_public])
     |> validate_listing()
     |> foreign_key_constraint(:customer_id)
   end
