@@ -35,12 +35,27 @@
       <%= if Enum.any?(@mechanics) do %>
         <ul class="space-y-3" role="list">
           <%= for profile <- @mechanics do %>
-            <li class="rounded-lg border border-zinc-100 px-4 py-3 space-y-1">
-              <div>
-                <span class="font-medium text-zinc-900"><%= profile.headline %></span>
-                <span class="text-sm text-zinc-500 ml-2"><%= "#{profile.city}, #{profile.state}" %></span>
-              </div>
-              <p class="text-sm text-zinc-600"><%= profile.bio %></p>
+            <li>
+              <%= if @current_user && profile.user_id == @current_user.id do %>
+                <.link
+                  href={~p"/profile"}
+                  class="block rounded-lg border border-zinc-100 px-4 py-3 space-y-1 hover:bg-zinc-50"
+                >
+                  <div>
+                    <span class="font-medium text-zinc-900"><%= profile.headline %></span>
+                    <span class="text-sm text-zinc-500 ml-2"><%= "#{profile.city}, #{profile.state}" %></span>
+                  </div>
+                  <p class="text-sm text-zinc-600"><%= profile.bio %></p>
+                </.link>
+              <% else %>
+                <div class="rounded-lg border border-zinc-100 px-4 py-3 space-y-1">
+                  <div>
+                    <span class="font-medium text-zinc-900"><%= profile.headline %></span>
+                    <span class="text-sm text-zinc-500 ml-2"><%= "#{profile.city}, #{profile.state}" %></span>
+                  </div>
+                  <p class="text-sm text-zinc-600"><%= profile.bio %></p>
+                </div>
+              <% end %>
             </li>
           <% end %>
         </ul>
