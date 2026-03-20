@@ -19,16 +19,42 @@ defmodule MechanicsWeb.ProfileControllerTest do
   end
 
   describe "GET /profile" do
-    test "renders mechanic profile form fields", %{conn: conn} do
+    test "shows create heading when the mechanic has no existing profile", %{conn: conn} do
       {:ok, conn: conn, mechanic: _mechanic} = create_mechanic_user(conn)
+
       conn = get(conn, ~p"/profile")
       html = html_response(conn, 200)
-
       assert html =~ "Create your mechanic profile"
 
       parsed = Floki.parse_document!(html)
       assert Floki.find(parsed, "form[action='/profile'][method='post']") != []
 
+      assert Floki.find(parsed, "input#profile_headline[name='profile[headline]']") != []
+      assert Floki.find(parsed, "textarea#profile_bio[name='profile[bio]']") != []
+      assert Floki.find(parsed, "input#profile_city[name='profile[city]']") != []
+      assert Floki.find(parsed, "input#profile_state[name='profile[state]']") != []
+      assert Floki.find(parsed, "input#profile_is_public[type='checkbox'][name='profile[is_public]']") != []
+    end
+
+    test "shows edit heading when the mechanic has an existing profile", %{conn: conn} do
+      {:ok, conn: conn, mechanic: mechanic} = create_mechanic_user(conn)
+
+      {:ok, _profile} =
+        Profiles.create_profile(%{
+          "headline" => "Old mechanic",
+          "bio" => "Old bio.",
+          "city" => "Mesa",
+          "state" => "AZ",
+          "is_public" => false,
+          "user_id" => mechanic.id
+        })
+
+      conn = get(conn, ~p"/profile")
+      html = html_response(conn, 200)
+      assert html =~ "Edit your mechanic profile"
+
+      parsed = Floki.parse_document!(html)
+      assert Floki.find(parsed, "form[action='/profile'][method='post']") != []
       assert Floki.find(parsed, "input#profile_headline[name='profile[headline]']") != []
       assert Floki.find(parsed, "textarea#profile_bio[name='profile[bio]']") != []
       assert Floki.find(parsed, "input#profile_city[name='profile[city]']") != []
