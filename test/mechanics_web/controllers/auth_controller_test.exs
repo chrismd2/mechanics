@@ -551,6 +551,11 @@ defmodule MechanicsWeb.AuthControllerTest do
     @login_password "secret123"
 
     setup do
+      # Login lockout state is stored in a global ETS table, so clear it per-test
+      # to avoid cross-test leakage (and potential parallel execution ordering).
+      Mechanics.LoginAttempts.init()
+      Mechanics.LoginAttempts.clear_all()
+
       {:ok, _user} =
         Mechanics.Accounts.create_user(%{
           "email" => @login_email,
