@@ -28,6 +28,7 @@ defmodule MechanicsWeb.Router do
     delete "/logout", AuthController, :delete_user_session
 
     get "/profile", ProfileController, :show
+    post "/profile", ProfileController, :save
     get "/listings/new", ListingController, :new
 
     get "/", PageController, :home

@@ -59,6 +59,35 @@ defmodule MechanicsWeb.PageControllerTest do
       assert html =~ "No public mechanic profiles are available yet"
     end
 
+    test "shows no mechanics for hire when a mechanic has a non-public profile", %{conn: conn} do
+      {:ok, mechanic} =
+        Accounts.create_user(%{
+          "email" => "mechanic-private@example.com",
+          "name" => "Private Mechanic",
+          "roles" => ["mechanic"],
+          "password" => "securepw123",
+          "password_confirmation" => "securepw123"
+        })
+
+      {:ok, _profile} =
+        Profiles.create_profile(%{
+          "headline" => "Shop mechanic",
+          "bio" => "This should not be shown to customers.",
+          "city" => "Phoenix",
+          "state" => "AZ",
+          "is_public" => false,
+          "user_id" => mechanic.id
+        })
+
+      conn = get(conn, ~p"/")
+      html = html_response(conn, 200)
+      parsed = Floki.parse_document!(html)
+      mechanics_list = Floki.find(parsed, ".grid div:first-child ul li")
+
+      assert mechanics_list == []
+      assert html =~ "No public mechanic profiles are available yet"
+    end
+
     test "lists public mechanic profiles in mechanics for hire", %{conn: conn} do
       {:ok, mechanic} =
         Accounts.create_user(%{
