@@ -30,6 +30,9 @@ defmodule MechanicsWeb.Router do
     get "/profile", ProfileController, :show
     post "/profile", ProfileController, :save
     get "/listings/new", ListingController, :new
+    post "/listings", ListingController, :create
+    get "/listings/:id/edit", ListingController, :edit
+    post "/listings/:id", ListingController, :update
 
     get "/", PageController, :home
   end

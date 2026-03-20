@@ -1,0 +1,137 @@
+<%
+  title = Ecto.Changeset.get_field(@changeset, :title) || ""
+  description = Ecto.Changeset.get_field(@changeset, :description) || ""
+  price_cents = Ecto.Changeset.get_field(@changeset, :price_cents)
+  currency = Ecto.Changeset.get_field(@changeset, :currency) || ""
+  is_public = Ecto.Changeset.get_field(@changeset, :is_public) == true
+
+  is_edit = not is_nil(@listing)
+  form_action = if is_edit, do: ~p"/listings/#{@listing.id}", else: ~p"/listings"
+%>
+
+<div class="mx-auto max-w-2xl space-y-6">
+  <div class="space-y-2">
+    <h1 class="text-2xl font-semibold text-zinc-900">
+      <%= if is_edit, do: "Edit your job listing", else: "Create a new job listing" %>
+    </h1>
+    <p class="text-sm text-zinc-600">
+      Tell mechanics what work you need done so they can reach out.
+    </p>
+  </div>
+
+  <div class="rounded-xl border border-zinc-200 bg-white p-6 shadow-sm">
+    <form action={form_action} method="post" class="space-y-6">
+      <input type="hidden" name="_csrf_token" value={get_csrf_token()} />
+
+      <div class="space-y-2">
+        <label for="listing_title" class="block text-sm font-semibold leading-6 text-zinc-800">
+          Title
+        </label>
+        <input
+          type="text"
+          id="listing_title"
+          name="listing[title]"
+          value={title}
+          class="mt-1 block w-full rounded-lg border-zinc-300 shadow-sm focus:border-zinc-500 focus:ring-zinc-500 sm:text-sm"
+        />
+      </div>
+
+      <div class="space-y-2">
+        <label for="listing_description" class="block text-sm font-semibold leading-6 text-zinc-800">
+          Description
+        </label>
+        <textarea
+          id="listing_description"
+          name="listing[description]"
+          class="mt-1 block w-full rounded-lg text-zinc-900 focus:ring-0 sm:text-sm sm:leading-6 min-h-[6rem]"
+        ><%= description %></textarea>
+      </div>
+
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div class="space-y-2">
+          <label for="listing_price_cents" class="block text-sm font-semibold leading-6 text-zinc-800">
+            Price (cents)
+          </label>
+          <input
+            type="number"
+            id="listing_price_cents"
+            name="listing[price_cents]"
+            value={price_cents || ""}
+            min="0"
+            class="mt-1 block w-full rounded-lg border-zinc-300 shadow-sm focus:border-zinc-500 focus:ring-zinc-500 sm:text-sm"
+          />
+        </div>
+
+        <div class="space-y-2">
+          <label for="listing_currency" class="block text-sm font-semibold leading-6 text-zinc-800">
+            Currency
+          </label>
+          <input
+            type="text"
+            id="listing_currency"
+            name="listing[currency]"
+            value={currency}
+            class="mt-1 block w-full rounded-lg border-zinc-300 shadow-sm focus:border-zinc-500 focus:ring-zinc-500 sm:text-sm"
+          />
+        </div>
+      </div>
+
+      <div class="space-y-2">
+        <input type="hidden" name="listing[is_public]" value="false" />
+        <label for="listing_is_public" class="flex items-center gap-3 text-sm leading-6 text-zinc-700">
+          <input
+            type="checkbox"
+            id="listing_is_public"
+            name="listing[is_public]"
+            value="true"
+            checked={is_public}
+            class="rounded border-zinc-300 text-zinc-900 focus:ring-0"
+          />
+          Make this listing public
+        </label>
+      </div>
+
+      <div class="space-y-2">
+        <div class="text-sm font-semibold leading-6 text-zinc-800">Warranty disclaimer</div>
+        <label for="listing_warranty_disclaimer" class="flex items-center gap-3 text-sm leading-6 text-zinc-700">
+          <input
+            type="checkbox"
+            id="listing_warranty_disclaimer"
+            name="listing[warranty_disclaimer_accepted]"
+            value="true"
+            checked={@warranty_acknowledged}
+            class="rounded border-zinc-300 text-zinc-900 focus:ring-0"
+          />
+          I acknowledge the warranty disclaimer to proceed.
+        </label>
+      </div>
+
+      <div class="pt-2">
+        <button
+          id="listing_submit"
+          type="submit"
+          disabled={not @warranty_acknowledged}
+          class="w-full rounded-lg bg-zinc-900 px-4 py-2 text-sm font-semibold text-white hover:bg-zinc-800 disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          Save listing
+        </button>
+      </div>
+    </form>
+
+    <script>
+      (function () {
+        var checkbox = document.getElementById("listing_warranty_disclaimer");
+        var submitButton = document.getElementById("listing_submit");
+        if (!checkbox || !submitButton) return;
+
+        function sync() {
+          submitButton.disabled = !checkbox.checked;
+        }
+
+        checkbox.addEventListener("change", sync);
+        sync();
+      })();
+    </script>
+  </div>
+</div>
+
