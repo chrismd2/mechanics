@@ -1,5 +1,7 @@
 defmodule Mechanics.AccountsTest do
-  use Mechanics.DataCase, async: true
+  use Mechanics.DataCase, async: false
+
+  import Swoosh.TestAssertions
 
   alias Mechanics.Accounts
 
@@ -136,6 +138,130 @@ defmodule Mechanics.AccountsTest do
 
     test "list_customers returns empty when no customers exist" do
       assert Accounts.list_customers() == []
+    end
+  end
+
+  describe "password reset throttling" do
+    @password "secret123"
+    setup :set_swoosh_global
+
+    test "sends email and increments reset count when under limit" do
+      now = DateTime.utc_now() |> DateTime.truncate(:second)
+
+      {:ok, user} =
+        Accounts.create_user(%{
+          "email" => "reset1@example.com",
+          "name" => "Reset User 1",
+          "roles" => ["customer"],
+          "password" => @password,
+          "password_confirmation" => @password
+        })
+
+      assert {:ok, :sent} = Accounts.request_password_reset(user.email, now)
+
+      assert_receive {:email, sent_email}
+      assert sent_email.text_body =~ "/password/reset?token="
+
+      [_, token] = Regex.run(~r/token=([^\s]+)/, sent_email.text_body)
+
+      reset_token = Repo.get_by(Mechanics.Accounts.PasswordResetToken, token: token)
+      assert reset_token
+      assert reset_token.user_id == user.id
+      assert reset_token.expires_at == DateTime.add(now, 60 * 60, :second)
+
+      updated = Accounts.get_user_by_email(user.email)
+      assert updated.password_reset_count == 1
+      assert updated.password_reset_last_sent_at == now
+    end
+
+    test "blocks the 4th reset within 6 hours and does not send email" do
+      now = DateTime.utc_now() |> DateTime.truncate(:second)
+      last_sent_at = DateTime.add(now, -1, :hour) |> DateTime.truncate(:second)
+
+      {:ok, user} =
+        Accounts.create_user(%{
+          "email" => "reset2@example.com",
+          "name" => "Reset User 2",
+          "roles" => ["customer"],
+          "password" => @password,
+          "password_confirmation" => @password
+        })
+
+      Repo.update!(
+        Ecto.Changeset.change(user, %{
+          password_reset_count: 3,
+          password_reset_last_sent_at: last_sent_at
+        })
+      )
+
+      assert {:ok, :not_sent} = Accounts.request_password_reset(user.email, now)
+      refute_email_sent()
+
+      assert Repo.get_by(Mechanics.Accounts.PasswordResetToken, user_id: user.id) == nil
+
+      updated = Accounts.get_user_by_email(user.email)
+      assert updated.password_reset_count == 3
+      assert updated.password_reset_last_sent_at == last_sent_at
+    end
+
+    test "allows a new reset after 6+ hours since last reset" do
+      now = DateTime.utc_now() |> DateTime.truncate(:second)
+      last_sent_at = DateTime.add(now, -7, :hour) |> DateTime.truncate(:second)
+
+      {:ok, user} =
+        Accounts.create_user(%{
+          "email" => "reset3@example.com",
+          "name" => "Reset User 3",
+          "roles" => ["customer"],
+          "password" => @password,
+          "password_confirmation" => @password
+        })
+
+      Repo.update!(
+        Ecto.Changeset.change(user, %{
+          password_reset_count: 3,
+          password_reset_last_sent_at: last_sent_at
+        })
+      )
+
+      assert {:ok, :sent} = Accounts.request_password_reset(user.email, now)
+      assert_receive {:email, sent_email}
+      assert sent_email.text_body =~ "/password/reset?token="
+
+      [_, token] = Regex.run(~r/token=([^\s]+)/, sent_email.text_body)
+
+      reset_token = Repo.get_by(Mechanics.Accounts.PasswordResetToken, token: token)
+      assert reset_token
+      assert reset_token.user_id == user.id
+      assert reset_token.expires_at == DateTime.add(now, 60 * 60, :second)
+
+      updated = Accounts.get_user_by_email(user.email)
+      assert updated.password_reset_count == 1
+      assert updated.password_reset_last_sent_at == now
+    end
+
+    test "clears reset counters on successful sign-in" do
+      now = DateTime.utc_now() |> DateTime.truncate(:second)
+
+      {:ok, user} =
+        Accounts.create_user(%{
+          "email" => "reset4@example.com",
+          "name" => "Reset User 4",
+          "roles" => ["customer"],
+          "password" => @password,
+          "password_confirmation" => @password
+        })
+
+      Repo.update!(
+        Ecto.Changeset.change(user, %{
+          password_reset_count: 2,
+          password_reset_last_sent_at: now
+        })
+      )
+
+      {:ok, cleared_user} = Accounts.authenticate_user(user.email, @password)
+      assert cleared_user.password_reset_count == 0
+      assert cleared_user.password_reset_last_sent_at == nil
     end
   end
 end

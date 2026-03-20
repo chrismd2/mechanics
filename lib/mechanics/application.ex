@@ -7,6 +7,8 @@ defmodule Mechanics.Application do
 
   @impl true
   def start(_type, _args) do
+    Mechanics.LoginAttempts.init()
+
     children = [
       MechanicsWeb.Telemetry,
       Mechanics.Repo,

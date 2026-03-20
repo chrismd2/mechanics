@@ -1,0 +1,130 @@
+<% headline = Ecto.Changeset.get_field(@changeset, :headline) || "" %>
+<% bio = Ecto.Changeset.get_field(@changeset, :bio) || "" %>
+<% city = Ecto.Changeset.get_field(@changeset, :city) || "" %>
+<% state = Ecto.Changeset.get_field(@changeset, :state) || "" %>
+<% is_public = Ecto.Changeset.get_field(@changeset, :is_public) == true %>
+
+<div class="mx-auto max-w-2xl space-y-6">
+  <div class="space-y-2">
+    <h1 class="text-2xl font-semibold text-zinc-900">
+      <%= if @profile, do: "Edit your mechanic profile", else: "Create your mechanic profile" %>
+    </h1>
+    <p class="text-sm text-zinc-600">
+      Finish setting up your public profile so customers can find and hire you.
+    </p>
+  </div>
+
+  <div class="rounded-xl border border-zinc-200 bg-white p-6 shadow-sm">
+    <form action={~p"/profile"} method="post" class="space-y-6">
+      <input type="hidden" name="_csrf_token" value={get_csrf_token()} />
+
+      <div class="space-y-2">
+        <label for="profile_headline" class="block text-sm font-semibold leading-6 text-zinc-800">
+          Headline
+        </label>
+        <input
+          type="text"
+          name="profile[headline]"
+          id="profile_headline"
+          value={headline}
+          class="mt-1 block w-full rounded-lg border-zinc-300 shadow-sm focus:border-zinc-500 focus:ring-zinc-500 sm:text-sm"
+        />
+      </div>
+
+      <div class="space-y-2">
+        <label for="profile_bio" class="block text-sm font-semibold leading-6 text-zinc-800">
+          Bio
+        </label>
+        <textarea
+          name="profile[bio]"
+          id="profile_bio"
+          class="mt-1 block w-full rounded-lg text-zinc-900 focus:ring-0 sm:text-sm sm:leading-6 min-h-[6rem]"
+        ><%= bio %></textarea>
+      </div>
+
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div class="space-y-2">
+          <label for="profile_city" class="block text-sm font-semibold leading-6 text-zinc-800">
+            City
+          </label>
+          <input
+            type="text"
+            name="profile[city]"
+            id="profile_city"
+            value={city}
+            class="mt-1 block w-full rounded-lg border-zinc-300 shadow-sm focus:border-zinc-500 focus:ring-zinc-500 sm:text-sm"
+          />
+        </div>
+
+        <div class="space-y-2">
+          <label for="profile_state" class="block text-sm font-semibold leading-6 text-zinc-800">
+            State
+          </label>
+          <input
+            type="text"
+            name="profile[state]"
+            id="profile_state"
+            value={state}
+            class="mt-1 block w-full rounded-lg border-zinc-300 shadow-sm focus:border-zinc-500 focus:ring-zinc-500 sm:text-sm"
+          />
+        </div>
+      </div>
+
+      <div class="space-y-2">
+        <input type="hidden" name="profile[is_public]" value="false" />
+        <label for="profile_is_public" class="flex items-center gap-3 text-sm leading-6 text-zinc-700">
+          <input
+            type="checkbox"
+            name="profile[is_public]"
+            id="profile_is_public"
+            value="true"
+            checked={is_public}
+            class="rounded border-zinc-300 text-zinc-900 focus:ring-0"
+          />
+          Make my profile public
+        </label>
+      </div>
+
+      <div class="space-y-2">
+        <div class="text-sm font-semibold leading-6 text-zinc-800">Liability disclaimer</div>
+        <label for="profile_liability_disclaimer" class="flex items-center gap-3 text-sm leading-6 text-zinc-700">
+          <input
+            type="checkbox"
+            name="profile[liability_disclaimer_accepted]"
+            id="profile_liability_disclaimer"
+            value="true"
+            checked={@liability_acknowledged}
+            class="rounded border-zinc-300 text-zinc-900 focus:ring-0"
+          />
+          I confirm I understand this notice and agree to proceed.
+        </label>
+      </div>
+
+      <div class="pt-2">
+        <button
+          id="profile_submit"
+          type="submit"
+          disabled={not @liability_acknowledged}
+          class="w-full rounded-lg bg-zinc-900 px-4 py-2 text-sm font-semibold text-white hover:bg-zinc-800 disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          Save profile
+        </button>
+      </div>
+    </form>
+
+    <script>
+      (function () {
+        var checkbox = document.getElementById("profile_liability_disclaimer");
+        var submitButton = document.getElementById("profile_submit");
+        if (!checkbox || !submitButton) return;
+
+        function sync() {
+          submitButton.disabled = !checkbox.checked;
+        }
+
+        checkbox.addEventListener("change", sync);
+        sync();
+      })();
+    </script>
+  </div>
+</div>

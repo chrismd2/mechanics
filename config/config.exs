@@ -9,7 +9,7 @@ import Config
 
 config :mechanics,
   ecto_repos: [Mechanics.Repo],
-  generators: [timestamp_type: :utc_datetime]
+  generators: [binary_id: true, timestamp_type: :utc_datetime]
 
 # Configures the endpoint
 config :mechanics, MechanicsWeb.Endpoint,

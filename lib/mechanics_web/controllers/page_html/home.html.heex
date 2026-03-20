@@ -1,51 +1,124 @@
 <div class="space-y-12">
   <div class="text-center">
     <h1 class="text-2xl font-semibold text-zinc-900">
-      Connect mechanics with customers
+      Connecting mechanics with customers to complete jobs
     </h1>
-    <p class="mt-2 text-zinc-600">
-      Find mechanics looking for work or customers looking to hire.
-    </p>
   </div>
 
   <div class="grid gap-10 md:grid-cols-2">
     <div class="rounded-xl border border-zinc-200 bg-white p-6 shadow-sm">
-      <h2 class="text-lg font-semibold text-zinc-900 mb-4">
-        Mechanics looking for work
-      </h2>
+      <% can_add_mechanic_profile? = @current_user && "mechanic" in @current_user.roles %>
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="text-lg font-semibold text-zinc-900">
+          Mechanics for hire
+        </h2>
+
+        <%= if can_add_mechanic_profile? do %>
+          <.link
+            href={~p"/profile"}
+            class="rounded-lg bg-zinc-100 px-2 py-1 hover:bg-zinc-200/80 text-zinc-900 font-semibold"
+            aria-label="Add mechanic profile"
+          >
+            +
+          </.link>
+        <% else %>
+          <span
+            class="rounded-lg bg-zinc-100 px-2 py-1 text-zinc-400 font-semibold cursor-not-allowed"
+            aria-label="Add mechanic profile"
+            aria-disabled="true"
+            title="Only mechanics can add a profile"
+          >
+            +
+          </span>
+        <% end %>
+      </div>
       <%= if Enum.any?(@mechanics) do %>
         <ul class="space-y-3" role="list">
-          <%= for user <- @mechanics do %>
-            <li class="flex items-center justify-between rounded-lg border border-zinc-100 px-4 py-3">
-              <div>
-                <span class="font-medium text-zinc-900"><%= user.name || "Mechanic" %></span>
-                <span class="text-sm text-zinc-500 ml-2"><%= user.email %></span>
-              </div>
+          <%= for profile <- @mechanics do %>
+            <li>
+              <%= if @current_user && profile.user_id == @current_user.id do %>
+                <.link
+                  href={~p"/profile"}
+                  class="block rounded-lg border border-zinc-100 px-4 py-3 space-y-1 hover:bg-zinc-50"
+                >
+                  <div>
+                    <span class="font-medium text-zinc-900"><%= profile.headline %></span>
+                    <span class="text-sm text-zinc-500 ml-2"><%= "#{profile.city}, #{profile.state}" %></span>
+                  </div>
+                  <p class="text-sm text-zinc-600"><%= profile.bio %></p>
+                </.link>
+              <% else %>
+                <div class="rounded-lg border border-zinc-100 px-4 py-3 space-y-1">
+                  <div>
+                    <span class="font-medium text-zinc-900"><%= profile.headline %></span>
+                    <span class="text-sm text-zinc-500 ml-2"><%= "#{profile.city}, #{profile.state}" %></span>
+                  </div>
+                  <p class="text-sm text-zinc-600"><%= profile.bio %></p>
+                </div>
+              <% end %>
             </li>
           <% end %>
         </ul>
       <% else %>
-        <p class="text-sm text-zinc-500">No mechanics have signed up yet. Sign up as a mechanic to appear here.</p>
+        <p class="text-sm text-zinc-500">No public mechanic profiles are available yet. Sign up as a mechanic to create one.</p>
       <% end %>
     </div>
 
     <div class="rounded-xl border border-zinc-200 bg-white p-6 shadow-sm">
-      <h2 class="text-lg font-semibold text-zinc-900 mb-4">
-        Customers looking for mechanics
-      </h2>
-      <%= if Enum.any?(@customers) do %>
+      <% can_add_job_listing? = @current_user && "customer" in @current_user.roles %>
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="text-lg font-semibold text-zinc-900">
+          Jobs available
+        </h2>
+
+        <%= if can_add_job_listing? do %>
+          <.link
+            href={~p"/listings/new"}
+            class="rounded-lg bg-zinc-100 px-2 py-1 hover:bg-zinc-200/80 text-zinc-900 font-semibold"
+            aria-label="Add job listing"
+          >
+            +
+          </.link>
+        <% else %>
+          <span
+            class="rounded-lg bg-zinc-100 px-2 py-1 text-zinc-400 font-semibold cursor-not-allowed"
+            aria-label="Add job listing"
+            aria-disabled="true"
+            title="Only customers can add job listings"
+          >
+            +
+          </span>
+        <% end %>
+      </div>
+      <%= if Enum.any?(@listings) do %>
         <ul class="space-y-3" role="list">
-          <%= for user <- @customers do %>
-            <li class="flex items-center justify-between rounded-lg border border-zinc-100 px-4 py-3">
-              <div>
-                <span class="font-medium text-zinc-900"><%= user.name || "Customer" %></span>
-                <span class="text-sm text-zinc-500 ml-2"><%= user.email %></span>
-              </div>
+          <%= for listing <- @listings do %>
+            <li>
+              <%= if @current_user && listing.customer_id == @current_user.id do %>
+                <.link
+                  href={~p"/listings/#{listing.id}/edit"}
+                  class="block rounded-lg border border-zinc-100 px-4 py-3 space-y-1 hover:bg-zinc-50"
+                >
+                  <div>
+                    <%= listing.title %>
+                    <span class="text-sm text-zinc-500 ml-2"><%= "#{listing.price_cents} #{listing.currency}" %></span>
+                  </div>
+                  <p class="text-sm text-zinc-600"><%= listing.description %></p>
+                </.link>
+              <% else %>
+                <div class="rounded-lg border border-zinc-100 px-4 py-3 space-y-1">
+                  <div>
+                    <span class="font-medium text-zinc-900"><%= listing.title %></span>
+                    <span class="text-sm text-zinc-500 ml-2"><%= "#{listing.price_cents} #{listing.currency}" %></span>
+                  </div>
+                  <p class="text-sm text-zinc-600"><%= listing.description %></p>
+                </div>
+              <% end %>
             </li>
           <% end %>
         </ul>
       <% else %>
-        <p class="text-sm text-zinc-500">No customers have signed up yet. Sign up as a customer to appear here.</p>
+        <p class="text-sm text-zinc-500">No job listings have been posted yet. Sign up as a customer to create one.</p>
       <% end %>
     </div>
   </div>

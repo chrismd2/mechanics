@@ -3,3 +3,9 @@
 @import "tailwindcss/utilities";
 
 /* This file is for your main application CSS */
+
+/* Password visibility toggle: closed eyelid when hidden, open eye when visible */
+.password-toggle-btn .eye-open { display: none; }
+.password-toggle-btn .eye-closed { display: block; }
+.password-toggle-btn.password-visible .eye-open { display: block; }
+.password-toggle-btn.password-visible .eye-closed { display: none; }

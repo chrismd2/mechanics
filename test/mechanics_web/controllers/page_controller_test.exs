@@ -1,6 +1,10 @@
 defmodule MechanicsWeb.PageControllerTest do
   use MechanicsWeb.ConnCase
 
+  alias Mechanics.Accounts
+  alias Mechanics.Listings
+  alias Mechanics.Profiles
+
   describe "GET / shows a home page with core functionality of this page" do
     test "Checking for tagline ", %{conn: conn} do
       conn = get(conn, ~p"/")
@@ -11,17 +15,27 @@ defmodule MechanicsWeb.PageControllerTest do
       conn = get(conn, ~p"/")
       html = html_response(conn, 200)
       assert html =~ "Mechanics for hire"
-
       parsed = Floki.parse_document!(html)
+
+      # Plus button should be disabled unless the user has the "mechanic" role.
+      plus_links = Floki.find(parsed, ~s(a[href="/profile"]))
+      assert plus_links == []
+
+      disabled_buttons =
+        Floki.find(parsed, ~s(span[aria-label="Add mechanic profile"][aria-disabled="true"]))
+
+      assert disabled_buttons != []
+      assert Enum.any?(disabled_buttons, &(Floki.text(&1) =~ "+"))
+
       empty_message = Floki.find(parsed, "p")
-      empty_state = Enum.any?(empty_message, &(Floki.text(&1) =~ "No mechanics have signed up yet"))
+      empty_state = Enum.any?(empty_message, &(Floki.text(&1) =~ "No public mechanic profiles are available yet"))
       mechanics_list = Floki.find(parsed, ".grid div:first-child ul li")
       has_mechanics = mechanics_list != []
 
       assert empty_state != has_mechanics
     end
 
-    test "Checking for mechanics for hire section with a new mechanic who doesn't have a public profile", %{conn: conn} do
+    test "shows no mechanics for hire when a mechanic has no public profile", %{conn: conn} do
       # Add a mechanic user through registration process
       valid_params = %{
         "email" => "mechanic1@example.com",
@@ -42,21 +56,57 @@ defmodule MechanicsWeb.PageControllerTest do
       mechanics_list = Floki.find(parsed, ".grid div:first-child ul li")
 
       assert mechanics_list == []
+      assert html =~ "No public mechanic profiles are available yet"
     end
 
-    test "Checking for mechanics for hire section with a new mechanic who has a public profile", %{conn: conn} do
-      # Add a mechanic user through registration process
-      valid_params = %{
-        "email" => "mechanic1@example.com",
-        "name" => "Test Mechanic",
-        "roles" => ["mechanic"],
-        "password" => "securepw123",
-        "password_confirmation" => "securepw123",
-        "wants_listing" => "true"
-      }
-      _register_conn =
-        build_conn()
-        |> post(~p"/register", %{"user" => valid_params})
+    test "shows no mechanics for hire when a mechanic has a non-public profile", %{conn: conn} do
+      {:ok, mechanic} =
+        Accounts.create_user(%{
+          "email" => "mechanic-private@example.com",
+          "name" => "Private Mechanic",
+          "roles" => ["mechanic"],
+          "password" => "securepw123",
+          "password_confirmation" => "securepw123"
+        })
+
+      {:ok, _profile} =
+        Profiles.create_profile(%{
+          "headline" => "Shop mechanic",
+          "bio" => "This should not be shown to customers.",
+          "city" => "Phoenix",
+          "state" => "AZ",
+          "is_public" => false,
+          "user_id" => mechanic.id
+        })
+
+      conn = get(conn, ~p"/")
+      html = html_response(conn, 200)
+      parsed = Floki.parse_document!(html)
+      mechanics_list = Floki.find(parsed, ".grid div:first-child ul li")
+
+      assert mechanics_list == []
+      assert html =~ "No public mechanic profiles are available yet"
+    end
+
+    test "lists public mechanic profiles in mechanics for hire", %{conn: conn} do
+      {:ok, mechanic} =
+        Accounts.create_user(%{
+          "email" => "mechanic1@example.com",
+          "name" => "Test Mechanic",
+          "roles" => ["mechanic"],
+          "password" => "securepw123",
+          "password_confirmation" => "securepw123"
+        })
+
+      {:ok, _profile} =
+        Profiles.create_profile(%{
+          "headline" => "Mobile brake specialist",
+          "bio" => "I travel to you for brake and rotor work.",
+          "city" => "Phoenix",
+          "state" => "AZ",
+          "is_public" => true,
+          "user_id" => mechanic.id
+        })
 
       conn = get(conn, ~p"/")
       html = html_response(conn, 200)
@@ -64,25 +114,86 @@ defmodule MechanicsWeb.PageControllerTest do
       mechanics_list = Floki.find(parsed, ".grid div:first-child ul li")
 
       assert mechanics_list != []
+      assert html =~ "Mobile brake specialist"
+      assert html =~ "I travel to you for brake and rotor work."
+      assert html =~ "Phoenix, AZ"
     end
 
     test "Checking for jobs available section", %{conn: conn} do
       conn = get(conn, ~p"/")
-      assert html_response(conn, 200) =~ "Jobs available"
+      html = html_response(conn, 200)
+      assert html =~ "Jobs available"
+      parsed = Floki.parse_document!(html)
+
+      # Plus button should be disabled unless the user has the "customer" role.
+      plus_links = Floki.find(parsed, ~s(a[href="/listings/new"]))
+      assert plus_links == []
+
+      disabled_buttons =
+        Floki.find(parsed, ~s(span[aria-label="Add job listing"][aria-disabled="true"]))
+
+      assert disabled_buttons != []
+      assert Enum.any?(disabled_buttons, &(Floki.text(&1) =~ "+"))
     end
 
-    test "shows jobs available section with empty state when no customers", %{conn: conn} do
+    test "mechanic user can add mechanic profile (and job listing) from home", %{conn: conn} do
+      {:ok, _user} =
+        Accounts.create_user(%{
+          "email" => "mechanic-plus@example.com",
+          "name" => "Mechanic Plus",
+          "roles" => ["mechanic", "customer"],
+          "password" => "securepw123",
+          "password_confirmation" => "securepw123"
+        })
+
+      conn =
+        post(conn, ~p"/login", %{
+          "session" => %{"email" => "mechanic-plus@example.com", "password" => "securepw123"}
+        })
+
       conn = get(conn, ~p"/")
       html = html_response(conn, 200)
       parsed = Floki.parse_document!(html)
-      assert html =~ "No customers have signed up yet"
+
+      assert Floki.find(parsed, ~s(a[href="/profile"])) != []
+      assert Floki.find(parsed, ~s(a[href="/listings/new"])) != []
+    end
+
+    test "customer user can add job listing but not mechanic profile from home", %{conn: conn} do
+      {:ok, _user} =
+        Accounts.create_user(%{
+          "email" => "customer-plus@example.com",
+          "name" => "Customer Plus",
+          "roles" => ["customer"],
+          "password" => "securepw123",
+          "password_confirmation" => "securepw123"
+        })
+
+      conn =
+        post(conn, ~p"/login", %{
+          "session" => %{"email" => "customer-plus@example.com", "password" => "securepw123"}
+        })
+
+      conn = get(conn, ~p"/")
+      html = html_response(conn, 200)
+      parsed = Floki.parse_document!(html)
+
+      assert Floki.find(parsed, ~s(a[href="/listings/new"])) != []
+      assert Floki.find(parsed, ~s(a[href="/profile"])) == []
+    end
+
+    test "shows jobs available section with empty state when no listings", %{conn: conn} do
+      conn = get(conn, ~p"/")
+      html = html_response(conn, 200)
+      parsed = Floki.parse_document!(html)
+      assert html =~ "No job listings have been posted yet"
       grid_divs = Floki.find(parsed, ".grid > div")
       jobs_section = Enum.at(grid_divs, 1)
       jobs_list = Floki.find(jobs_section, "ul li")
-      assert jobs_list == [], "expected no customers in jobs available when none have signed up"
+      assert jobs_list == [], "expected no listings in jobs available when none have been posted"
     end
 
-    test "lists no customers in jobs available when customer has signed up and wants listing", %{conn: conn} do
+    test "shows no listings in jobs available when a customer has signed up but not posted one", %{conn: conn} do
       customer_params = %{
         "email" => "customer1@example.com",
         "name" => "Test Customer",
@@ -102,22 +213,29 @@ defmodule MechanicsWeb.PageControllerTest do
       jobs_section = Enum.at(grid_divs, 1)
       jobs_list = Floki.find(jobs_section, "ul li")
 
-      assert jobs_list == [], "expected no customers in jobs available when none want a listing"
-      assert html =~ "customer1@example.com"
+      assert jobs_list == [], "expected no listings in jobs available when no listing has been posted"
+      assert html =~ "No job listings have been posted yet"
     end
 
-    test "lists customers in jobs available when customer has signed up and wants listing", %{conn: conn} do
-      customer_params = %{
-        "email" => "customer1@example.com",
-        "name" => "Test Customer",
-        "roles" => ["customer"],
-        "password" => "securepw123",
-        "password_confirmation" => "securepw123",
-        "wants_listing" => "true"
-      }
+    test "lists job listings in jobs available when a customer posts one", %{conn: conn} do
+      {:ok, customer} =
+        Accounts.create_user(%{
+          "email" => "customer1@example.com",
+          "name" => "Test Customer",
+          "roles" => ["customer"],
+          "password" => "securepw123",
+          "password_confirmation" => "securepw123"
+        })
 
-      build_conn()
-      |> post(~p"/register", %{"user" => customer_params})
+      {:ok, _listing} =
+        Listings.create_listing(%{
+          "title" => "Brake pad replacement",
+          "description" => "Need front brake pads replaced this week",
+          "price_cents" => 12_500,
+          "currency" => "USD",
+          "customer_id" => customer.id,
+          "is_public" => true
+        })
 
       conn = get(conn, ~p"/")
       html = html_response(conn, 200)
@@ -127,8 +245,37 @@ defmodule MechanicsWeb.PageControllerTest do
       jobs_list = Floki.find(jobs_section, "ul li")
 
       assert length(jobs_list) >= 1,
-             "expected at least one customer in jobs available section after customer signs up"
-      assert html =~ "customer1@example.com"
+             "expected at least one listing in jobs available section after a listing is posted"
+
+      assert html =~ "Brake pad replacement"
+      assert html =~ "Need front brake pads replaced this week"
+      assert html =~ "12500 USD"
+    end
+
+    test "does not list job listings marked as non-public on the home page", %{conn: conn} do
+      {:ok, customer} =
+        Accounts.create_user(%{
+          "email" => "customer-private@example.com",
+          "name" => "Private Customer",
+          "roles" => ["customer"],
+          "password" => "securepw123",
+          "password_confirmation" => "securepw123"
+        })
+
+      {:ok, _listing} =
+        Listings.create_listing(%{
+          "title" => "Should not show",
+          "description" => "This listing is private.",
+          "price_cents" => 10_000,
+          "currency" => "USD",
+          "customer_id" => customer.id,
+          "is_public" => false
+        })
+
+      conn = get(conn, ~p"/")
+      html = html_response(conn, 200)
+      refute html =~ "Should not show"
+      assert html =~ "No job listings have been posted yet"
     end
 
     test "shows Sign up link", %{conn: conn} do
