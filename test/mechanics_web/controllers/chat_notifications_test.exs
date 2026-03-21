@@ -1,10 +1,14 @@
 defmodule MechanicsWeb.ChatNotificationsTest do
   use MechanicsWeb.ConnCase
 
+  import Ecto.Query
+
   alias Mechanics.Accounts
   alias Mechanics.Chats
+  alias Mechanics.Chats.Message
   alias Mechanics.Listings
   alias Mechanics.Profiles
+  alias Mechanics.Repo
 
   defp login(conn, user) do
     init_test_session(conn, %{current_user_id: user.id})
@@ -350,6 +354,15 @@ defmodule MechanicsWeb.ChatNotificationsTest do
       {:ok, chat_b} = Chats.get_or_create_private_pm(customer_b, mechanic)
       {:ok, _} = Chats.create_message(chat_a.id, customer_a, %{body: "Aaron needs a quote."})
       {:ok, _} = Chats.create_message(chat_b.id, customer_b, %{body: "Zora checking availability."})
+
+      # Same-second message timestamps would tie FIFO on UUID order; force Aaron's thread first.
+      older =
+        DateTime.utc_now()
+        |> DateTime.add(-2 * 3600, :second)
+        |> DateTime.truncate(:second)
+
+      from(m in Message, where: m.chat_id == ^chat_a.id)
+      |> Repo.update_all(set: [inserted_at: older])
 
       html =
         build_conn()
