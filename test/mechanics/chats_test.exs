@@ -88,6 +88,9 @@ defmodule Mechanics.ChatsTest do
                  %{label: "Location", value: "Tucson, AZ"}
                ]
              }
+
+      assert Chats.card_title_for_viewer(chat, customer) ==
+               "PM with Pat Mechanic · Pat's mobile shop"
     end
 
     test "customer can send a message without a listing id on the chat" do
@@ -237,6 +240,9 @@ defmodule Mechanics.ChatsTest do
                  %{label: "Description", value: "Need tires swapped on a sedan."}
                ]
              }
+
+      assert Chats.card_title_for_viewer(chat, customer) ==
+               "Pat Mechanic · Pat's mobile shop — Winter tire swap"
     end
   end
 end
