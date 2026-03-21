@@ -37,6 +37,17 @@ defmodule Mechanics.Accounts.User do
   end
 
   @doc """
+  Updates display name and email while signed in (password unchanged).
+  """
+  def settings_changeset(user, attrs) do
+    user
+    |> cast(attrs, [:email, :name])
+    |> validate_required([:email, :name])
+    |> validate_format(:email, ~r/@/)
+    |> unique_constraint(:email)
+  end
+
+  @doc """
   Changeset used for password resets. It does not require email/name/roles.
   """
   def password_changeset(user, attrs) do

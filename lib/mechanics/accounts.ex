@@ -176,6 +176,25 @@ defmodule Mechanics.Accounts do
     User.changeset(user, attrs)
   end
 
+  def change_user_settings(%User{} = user, attrs \\ %{}) do
+    User.settings_changeset(user, attrs)
+  end
+
+  def update_user_settings(%User{} = user, attrs) when is_map(attrs) do
+    user
+    |> User.settings_changeset(attrs)
+    |> Repo.update()
+  end
+
+  @doc """
+  Updates password for a signed-in user (no reset token).
+  """
+  def update_user_password(%User{} = user, attrs) when is_map(attrs) do
+    user
+    |> User.password_changeset(attrs)
+    |> Repo.update()
+  end
+
   @doc """
   Returns the reset token record if it's valid (exists and not expired).
   """

@@ -17,6 +17,7 @@
 
 // Include phoenix_html to handle method=PUT/DELETE in forms and buttons.
 import "phoenix_html"
+import { applyChatTranscriptTimes } from "./chat_transcript_time.mjs"
 // Establish Phoenix Socket and LiveView configuration.
 import {Socket} from "phoenix"
 import {LiveSocket} from "phoenix_live_view"
@@ -41,4 +42,40 @@ liveSocket.connect()
 // >> liveSocket.enableLatencySim(1000)  // enabled for duration of browser session
 // >> liveSocket.disableLatencySim()
 window.liveSocket = liveSocket
+
+// Account page: tab buttons swap notification center vs settings (no full navigation).
+document.addEventListener("DOMContentLoaded", () => {
+  const accountRoot = document.getElementById("account-page")
+  if (accountRoot) {
+    const tabs = accountRoot.querySelectorAll("[data-account-tab]")
+    const panels = accountRoot.querySelectorAll("[data-account-panel]")
+    tabs.forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const key = btn.getAttribute("data-account-tab")
+        tabs.forEach((t) => {
+          const on = t.getAttribute("data-account-tab") === key
+          t.setAttribute("aria-selected", on ? "true" : "false")
+        })
+        panels.forEach((p) => {
+          const show = p.getAttribute("data-account-panel") === key
+          p.hidden = !show
+        })
+      })
+    })
+  }
+})
+
+// Local `<time data-local-chat-time>` labels from `datetime` (UTC ISO); chat Enter sends, Shift+Enter newline.
+document.addEventListener("DOMContentLoaded", () => {
+  applyChatTranscriptTimes()
+
+  const messageBody = document.getElementById("message_body")
+  if (!messageBody?.form) return
+
+  messageBody.addEventListener("keydown", (e) => {
+    if (e.key !== "Enter" || e.shiftKey) return
+    e.preventDefault()
+    messageBody.form.requestSubmit()
+  })
+})
 

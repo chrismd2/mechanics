@@ -66,7 +66,7 @@ defmodule MechanicsWeb.ProfileController do
 
         conn
         |> put_flash(:info, "Profile saved successfully.")
-        |> redirect(to: ~p"/")
+        |> redirect(to: profile_redirect_target(profile_params))
       else
         changeset =
           cond do
@@ -80,6 +80,19 @@ defmodule MechanicsWeb.ProfileController do
           liability_acknowledged: false
         )
       end
+    end
+  end
+
+  defp profile_redirect_target(profile_params) do
+    return_to =
+      (profile_params["return_to"] || profile_params[:return_to] || "")
+      |> to_string()
+      |> String.trim()
+
+    if return_to == "/account" do
+      ~p"/account"
+    else
+      ~p"/"
     end
   end
 end

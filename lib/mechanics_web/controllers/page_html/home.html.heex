@@ -32,6 +32,8 @@
           </span>
         <% end %>
       </div>
+      <% can_message_mechanic? =
+        @current_user && "customer" in @current_user.roles %>
       <%= if Enum.any?(@mechanics) do %>
         <ul class="space-y-3" role="list">
           <%= for profile <- @mechanics do %>
@@ -48,13 +50,39 @@
                   <p class="text-sm text-zinc-600"><%= profile.bio %></p>
                 </.link>
               <% else %>
-                <div class="rounded-lg border border-zinc-100 px-4 py-3 space-y-1">
-                  <div>
-                    <span class="font-medium text-zinc-900"><%= profile.headline %></span>
-                    <span class="text-sm text-zinc-500 ml-2"><%= "#{profile.city}, #{profile.state}" %></span>
+                <%= if can_message_mechanic? do %>
+                  <% m_brief = Map.get(@mechanic_card_bells, profile.user_id, %{total_unread: 0, peers: []}) %>
+                  <div class="flex overflow-hidden rounded-lg border border-zinc-100 hover:bg-zinc-50">
+                    <.link
+                      href={~p"/chats/open/mechanic/#{profile.user_id}"}
+                      class="block flex-1 space-y-1 px-4 py-3"
+                      aria-label={"Message #{profile.headline}"}
+                    >
+                      <div>
+                        <span class="font-medium text-zinc-900"><%= profile.headline %></span>
+                        <span class="text-sm text-zinc-500 ml-2"><%= "#{profile.city}, #{profile.state}" %></span>
+                      </div>
+                      <p class="text-sm text-zinc-600"><%= profile.bio %></p>
+                    </.link>
+                    <%= if m_brief.total_unread > 0 do %>
+                      <.bell_card
+                        id={"mechanic-card-notification-bell-#{profile.user_id}"}
+                        count={m_brief.total_unread}
+                        peers={m_brief.peers}
+                        data_test="mechanic-card-notification-bell"
+                        aria_label={"Open message details for #{profile.headline} (#{m_brief.total_unread} unread messages)"}
+                      />
+                    <% end %>
                   </div>
-                  <p class="text-sm text-zinc-600"><%= profile.bio %></p>
-                </div>
+                <% else %>
+                  <div class="rounded-lg border border-zinc-100 px-4 py-3 space-y-1">
+                    <div>
+                      <span class="font-medium text-zinc-900"><%= profile.headline %></span>
+                      <span class="text-sm text-zinc-500 ml-2"><%= "#{profile.city}, #{profile.state}" %></span>
+                    </div>
+                    <p class="text-sm text-zinc-600"><%= profile.bio %></p>
+                  </div>
+                <% end %>
               <% end %>
             </li>
           <% end %>
@@ -90,29 +118,69 @@
           </span>
         <% end %>
       </div>
+      <% can_open_listing_chat? =
+        @current_user && "mechanic" in @current_user.roles %>
       <%= if Enum.any?(@listings) do %>
         <ul class="space-y-3" role="list">
           <%= for listing <- @listings do %>
             <li>
               <%= if @current_user && listing.customer_id == @current_user.id do %>
-                <.link
-                  href={~p"/listings/#{listing.id}/edit"}
-                  class="block rounded-lg border border-zinc-100 px-4 py-3 space-y-1 hover:bg-zinc-50"
-                >
-                  <div>
-                    <%= listing.title %>
-                    <span class="text-sm text-zinc-500 ml-2"><%= "#{listing.price_cents} #{listing.currency}" %></span>
-                  </div>
-                  <p class="text-sm text-zinc-600"><%= listing.description %></p>
-                </.link>
-              <% else %>
-                <div class="rounded-lg border border-zinc-100 px-4 py-3 space-y-1">
-                  <div>
-                    <span class="font-medium text-zinc-900"><%= listing.title %></span>
-                    <span class="text-sm text-zinc-500 ml-2"><%= "#{listing.price_cents} #{listing.currency}" %></span>
-                  </div>
-                  <p class="text-sm text-zinc-600"><%= listing.description %></p>
+                <% lo_brief = Map.get(@listing_owner_card_bells, listing.id, %{total_unread: 0, peers: []}) %>
+                <div class="flex overflow-hidden rounded-lg border border-zinc-100 hover:bg-zinc-50">
+                  <.link
+                    href={~p"/listings/#{listing.id}/edit"}
+                    class="block flex-1 space-y-1 px-4 py-3"
+                  >
+                    <div>
+                      <%= listing.title %>
+                      <span class="text-sm text-zinc-500 ml-2"><%= "#{listing.price_cents} #{listing.currency}" %></span>
+                    </div>
+                    <p class="text-sm text-zinc-600"><%= listing.description %></p>
+                  </.link>
+                  <%= if lo_brief.total_unread > 0 do %>
+                    <.bell_card
+                      id={"listing-owner-notification-bell-#{listing.id}"}
+                      count={lo_brief.total_unread}
+                      peers={lo_brief.peers}
+                      data_test="listing-owner-notification-bell"
+                      aria_label={"Open mechanics who messaged about #{listing.title} (#{lo_brief.total_unread} unread messages)"}
+                    />
+                  <% end %>
                 </div>
+              <% else %>
+                <%= if can_open_listing_chat? do %>
+                  <% lm_brief = Map.get(@listing_mechanic_card_bells, listing.id, %{total_unread: 0, peers: []}) %>
+                  <div class="flex overflow-hidden rounded-lg border border-zinc-100 hover:bg-zinc-50">
+                    <.link
+                      href={~p"/chats/open/listing/#{listing.id}"}
+                      class="block flex-1 space-y-1 px-4 py-3"
+                      aria-label={"Discuss listing: #{listing.title}"}
+                    >
+                      <div>
+                        <span class="font-medium text-zinc-900"><%= listing.title %></span>
+                        <span class="text-sm text-zinc-500 ml-2"><%= "#{listing.price_cents} #{listing.currency}" %></span>
+                      </div>
+                      <p class="text-sm text-zinc-600"><%= listing.description %></p>
+                    </.link>
+                    <%= if lm_brief.total_unread > 0 do %>
+                      <.bell_card
+                        id={"listing-mechanic-notification-bell-#{listing.id}"}
+                        count={lm_brief.total_unread}
+                        peers={lm_brief.peers}
+                        data_test="listing-mechanic-notification-bell"
+                        aria_label={"Open poster details for #{listing.title} (#{lm_brief.total_unread} unread messages)"}
+                      />
+                    <% end %>
+                  </div>
+                <% else %>
+                  <div class="rounded-lg border border-zinc-100 px-4 py-3 space-y-1">
+                    <div>
+                      <span class="font-medium text-zinc-900"><%= listing.title %></span>
+                      <span class="text-sm text-zinc-500 ml-2"><%= "#{listing.price_cents} #{listing.currency}" %></span>
+                    </div>
+                    <p class="text-sm text-zinc-600"><%= listing.description %></p>
+                  </div>
+                <% end %>
               <% end %>
             </li>
           <% end %>

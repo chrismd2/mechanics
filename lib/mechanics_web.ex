@@ -85,6 +85,8 @@ defmodule MechanicsWeb do
       import Phoenix.HTML
       # Core UI components and translation
       import MechanicsWeb.CoreComponents
+      import MechanicsWeb.NotificationBellComponents
+      import MechanicsWeb.ChatTime
       import MechanicsWeb.Gettext
 
       # Shortcut for generating JS commands
