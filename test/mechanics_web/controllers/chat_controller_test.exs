@@ -156,7 +156,14 @@ defmodule MechanicsWeb.ChatControllerTest do
         |> get(~p"/chats/#{chat_id}")
 
       html = html_response(conn_show, 200)
-      assert html =~ "Job: AC recharge"
+      assert html =~ "AC recharge"
+      assert html =~ "Details"
+      assert html =~ "Pay"
+      assert html =~ "$150.00 USD"
+      assert html =~ "Posted by"
+      assert html =~ "List Owner"
+      assert html =~ "Description"
+      assert html =~ "R134a"
     end
 
     test "user without the mechanic role cannot open listing chats" do

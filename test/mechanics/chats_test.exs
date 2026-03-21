@@ -55,12 +55,39 @@ defmodule Mechanics.ChatsTest do
       assert uuid_binary_id?(chat.customer_user_id)
     end
 
-    test "recipient sees title \"PM with {other user}\"" do
+    test "recipient sees title \"PM with {other user}\"; customer gets mechanic profile detail rows" do
       %{mechanic: mechanic, customer: customer} = mechanic_and_customer()
       {:ok, chat} = Chats.get_or_create_private_pm(customer, mechanic)
 
-      assert Chats.title_for_viewer(chat, mechanic) == "PM with Chris Customer"
-      assert Chats.title_for_viewer(chat, customer) == "PM with Pat Mechanic"
+      assert Chats.chat_header_for_viewer(chat, mechanic) == %{
+               title: "PM with Chris Customer",
+               details: []
+             }
+
+      assert Chats.chat_header_for_viewer(chat, customer) == %{
+               title: "PM with Pat Mechanic",
+               details: []
+             }
+
+      {:ok, _} =
+        Profiles.create_profile(%{
+          "headline" => "Pat's mobile shop",
+          "bio" => "Certified.",
+          "city" => "Tucson",
+          "state" => "AZ",
+          "is_public" => true,
+          "user_id" => mechanic.id
+        })
+
+      assert Chats.chat_header_for_viewer(chat, customer) == %{
+               title: "PM with Pat Mechanic",
+               details: [
+                 %{label: "Name", value: "Pat Mechanic"},
+                 %{label: "Headline", value: "Pat's mobile shop"},
+                 %{label: "Bio", value: "Certified."},
+                 %{label: "Location", value: "Tucson, AZ"}
+               ]
+             }
     end
 
     test "customer can send a message without a listing id on the chat" do
@@ -160,7 +187,7 @@ defmodule Mechanics.ChatsTest do
   end
 
   describe "listing chats" do
-    test "title is derived from the listing title; listing and profile ids are UUIDs" do
+    test "chat_header_for_viewer splits job, pay, people, and description by viewer; ids are UUIDs" do
       %{mechanic: mechanic, customer: customer} = mechanic_and_customer()
 
       {:ok, listing} =
@@ -190,8 +217,26 @@ defmodule Mechanics.ChatsTest do
       assert {:ok, chat} = Chats.get_or_create_listing_chat(mechanic, listing.id)
       assert chat.listing_id == listing.id
 
-      assert Chats.title_for_viewer(chat, mechanic) == "Job: Winter tire swap"
-      assert Chats.title_for_viewer(chat, customer) == "Job: Winter tire swap"
+      assert Chats.chat_header_for_viewer(chat, mechanic) == %{
+               title: "Winter tire swap",
+               details: [
+                 %{label: "Pay", value: "$80.00 USD"},
+                 %{label: "Posted by", value: "Chris Customer"},
+                 %{label: "Description", value: "Need tires swapped on a sedan."}
+               ]
+             }
+
+      assert Chats.chat_header_for_viewer(chat, customer) == %{
+               title: "Pat Mechanic",
+               details: [
+                 %{label: "Name", value: "Pat Mechanic"},
+                 %{label: "Headline", value: "Pat's mobile shop"},
+                 %{label: "Bio", value: "Certified."},
+                 %{label: "Location", value: "Tucson, AZ"},
+                 %{label: "Job", value: "Winter tire swap"},
+                 %{label: "Description", value: "Need tires swapped on a sedan."}
+               ]
+             }
     end
   end
 end

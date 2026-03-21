@@ -75,6 +75,13 @@ defmodule MechanicsWeb.ChatNotificationsTest do
 
       row_text = rows |> hd() |> Floki.text()
       assert row_text =~ "PM with Header Mech"
+      assert row_text =~ "Name"
+      assert row_text =~ "Header Mech"
+      assert row_text =~ "Headline"
+      assert row_text =~ "Hdr Mech Co"
+      assert row_text =~ "Bio"
+      assert row_text =~ "Location"
+      assert row_text =~ "Tucson"
       assert row_text =~ "Unread ping from mechanic."
       refute row_text =~ "UTC"
 
