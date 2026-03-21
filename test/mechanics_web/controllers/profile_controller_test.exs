@@ -142,5 +142,27 @@ defmodule MechanicsWeb.ProfileControllerTest do
 
       assert redirected_to(conn) == ~p"/"
     end
+
+    test "redirects to account when return_to is /account", %{conn: conn} do
+      {:ok, conn: conn, mechanic: mechanic} = create_mechanic_user(conn)
+
+      conn = get(conn, ~p"/profile")
+
+      conn =
+        post(conn, ~p"/profile", %{
+          "profile" => %{
+            "headline" => "Mobile brake specialist",
+            "bio" => "I travel to you for brake and rotor work.",
+            "city" => "Phoenix",
+            "state" => "AZ",
+            "is_public" => "true",
+            "liability_disclaimer_accepted" => "true",
+            "return_to" => "/account",
+            "user_id" => mechanic.id
+          }
+        })
+
+      assert redirected_to(conn) == ~p"/account"
+    end
   end
 end

@@ -67,11 +67,12 @@ defmodule MechanicsWeb.ChatNotificationsTest do
       assert length(rows) >= 1
 
       assert Floki.find(parsed, ".header-notification-row time[datetime]") != []
+      assert Floki.find(parsed, ".header-notification-row time[data-local-chat-time]") != []
 
       row_text = rows |> hd() |> Floki.text()
       assert row_text =~ "PM with Header Mech"
       assert row_text =~ "Unread ping from mechanic."
-      assert row_text =~ "UTC"
+      refute row_text =~ "UTC"
 
       previews = Floki.find(parsed, ".header-notification-preview")
       assert previews != []
