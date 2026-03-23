@@ -32,6 +32,36 @@ defmodule Mechanics.AccountsTest do
       assert "customer" in both.roles
     end
 
+    test "add_mechanic_role upgrades a customer" do
+      {:ok, customer} =
+        Accounts.create_user(%{
+          @valid_attrs
+          | "email" => "upgrade@example.com",
+            "roles" => ["customer"]
+        })
+
+      {:ok, updated} = Accounts.add_mechanic_role(customer)
+
+      assert "mechanic" in updated.roles
+      assert "customer" in updated.roles
+      assert Enum.uniq(updated.roles) == updated.roles
+    end
+
+    test "add_mechanic_role is idempotent for mechanics" do
+      {:ok, both} =
+        Accounts.create_user(%{
+          @valid_attrs
+          | "email" => "idem@example.com",
+            "roles" => ["mechanic", "customer"]
+        })
+
+      {:ok, updated} = Accounts.add_mechanic_role(both)
+
+      assert "mechanic" in updated.roles
+      assert "customer" in updated.roles
+      assert Enum.uniq(updated.roles) == updated.roles
+    end
+
     test "list_mechanics returns only users with role mechanic" do
       {:ok, mechanic} =
         Accounts.create_user(%{

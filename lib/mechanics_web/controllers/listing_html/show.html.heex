@@ -92,7 +92,16 @@
       </div>
 
       <div class="space-y-2">
-        <div class="text-sm font-semibold leading-6 text-zinc-800">Warranty disclaimer</div>
+        <div class="flex items-start justify-between gap-3">
+          <div class="text-sm font-semibold leading-6 text-zinc-800">Warranty disclaimer</div>
+          <a
+            id="listing_warranty_disclaimer_open_modal_link"
+            href={~p"/disclaimer?type=warranty"}
+            class="text-sm font-semibold leading-6 text-zinc-900 underline hover:text-zinc-800"
+          >
+            Read notice
+          </a>
+        </div>
         <label for="listing_warranty_disclaimer" class="flex items-center gap-3 text-sm leading-6 text-zinc-700">
           <input
             type="checkbox"
@@ -118,17 +127,128 @@
       </div>
     </form>
 
+    <div
+      id="listing_warranty_disclaimer_modal"
+      hidden
+      class="fixed inset-0 z-50"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="listing_warranty_disclaimer_modal_title"
+    >
+      <div class="absolute inset-0 bg-zinc-900/60" data-disclaimer-modal-overlay></div>
+      <div class="relative mx-auto mt-16 w-[95%] max-w-lg rounded-xl bg-white p-6 shadow-xl">
+        <div class="flex items-start justify-between gap-4">
+          <h2
+            id="listing_warranty_disclaimer_modal_title"
+            class="text-lg font-semibold text-zinc-900"
+          >
+            Customer Warranty Disclaimer
+          </h2>
+          <button
+            type="button"
+            class="text-zinc-500 hover:text-zinc-700"
+            aria-label="Close"
+            data-disclaimer-modal-close
+          >
+            &times;
+          </button>
+        </div>
+
+        <div class="mt-4 space-y-3 text-sm leading-6 text-zinc-700">
+          <.customer_warranty_notice_exclusion_paragraph />
+        </div>
+
+        <div class="mt-6 flex gap-3">
+          <button
+            type="button"
+            id="listing_warranty_disclaimer_cancel"
+            class="flex-1 rounded-lg border border-zinc-200 bg-white px-4 py-2 text-sm font-semibold text-zinc-900 hover:bg-zinc-50"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            id="listing_warranty_disclaimer_accept"
+            class="flex-1 rounded-lg bg-zinc-900 px-4 py-2 text-sm font-semibold text-white hover:bg-zinc-800"
+          >
+            Accept
+          </button>
+        </div>
+      </div>
+    </div>
+
     <script>
       (function () {
         var checkbox = document.getElementById("listing_warranty_disclaimer");
         var submitButton = document.getElementById("listing_submit");
+        var modal = document.getElementById("listing_warranty_disclaimer_modal");
+        var openLink = document.getElementById("listing_warranty_disclaimer_open_modal_link");
+        var cancelButton = document.getElementById("listing_warranty_disclaimer_cancel");
+        var acceptButton = document.getElementById("listing_warranty_disclaimer_accept");
         if (!checkbox || !submitButton) return;
+
+        var checkboxWasChecked = checkbox.checked;
 
         function sync() {
           submitButton.disabled = !checkbox.checked;
         }
 
-        checkbox.addEventListener("change", sync);
+        function openModal() {
+          if (!modal) return;
+          modal.hidden = false;
+          document.body.style.overflow = "hidden";
+        }
+
+        function closeModal() {
+          if (!modal) return;
+          modal.hidden = true;
+          document.body.style.overflow = "";
+        }
+
+        if (openLink) {
+          openLink.addEventListener("click", function (e) {
+            e.preventDefault();
+            openModal();
+          });
+        }
+
+        if (cancelButton) {
+          cancelButton.addEventListener("click", function () {
+            closeModal();
+          });
+        }
+
+        if (acceptButton) {
+          acceptButton.addEventListener("click", function () {
+            checkbox.checked = true;
+            checkboxWasChecked = true;
+            sync();
+            closeModal();
+          });
+        }
+
+        if (modal) {
+          var closeButtons = modal.querySelectorAll("[data-disclaimer-modal-close]");
+          closeButtons.forEach(function (btn) {
+            btn.addEventListener("click", closeModal);
+          });
+
+          var overlay = modal.querySelector("[data-disclaimer-modal-overlay]");
+          if (overlay) {
+            overlay.addEventListener("click", closeModal);
+          }
+        }
+
+        // When the user checks the box, require explicit acceptance via the modal.
+        checkbox.addEventListener("change", function () {
+          if (checkbox.checked && !checkboxWasChecked) {
+            checkbox.checked = false;
+            checkboxWasChecked = false;
+            sync();
+            openModal();
+          }
+        });
+
         sync();
       })();
     </script>

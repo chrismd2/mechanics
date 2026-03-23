@@ -1,8 +1,10 @@
 defmodule MechanicsWeb.ProfileController do
   use MechanicsWeb, :controller
 
+  alias Mechanics.Disclaimers
   alias Mechanics.Profiles
   alias Mechanics.Profiles.Profile
+  alias Mechanics.Repo
 
   def show(conn, _params) do
     current_user = conn.assigns[:current_user]
@@ -58,15 +60,51 @@ defmodule MechanicsWeb.ProfileController do
         |> Map.put("user_id", current_user.id)
 
       if liability_accepted? do
-        {:ok, _profile} =
-          case profile do
-            nil -> Profiles.create_profile(attrs)
-            %Profile{} = existing -> Profiles.update_profile(existing, attrs)
-          end
+        result =
+          Repo.transaction(fn ->
+            profile_result =
+              case profile do
+                nil -> Profiles.create_profile(attrs)
+                %Profile{} = existing -> Profiles.update_profile(existing, attrs)
+              end
 
-        conn
-        |> put_flash(:info, "Profile saved successfully.")
-        |> redirect(to: profile_redirect_target(profile_params))
+            case profile_result do
+              {:ok, %Profile{} = saved_profile} ->
+                with {:ok, _agreement} <- Disclaimers.log_user_agreement(current_user.id, :liability) do
+                  saved_profile
+                else
+                  {:error, _} = err -> Repo.rollback(err)
+                end
+
+              {:error, %Ecto.Changeset{} = changeset} ->
+                Repo.rollback(changeset)
+            end
+          end)
+
+        case result do
+          {:ok, %Profile{} = _profile} ->
+            conn
+            |> put_flash(:info, "Profile saved successfully.")
+            |> redirect(to: profile_redirect_target(profile_params))
+
+          {:error, %Ecto.Changeset{} = changeset} ->
+            render(
+              conn,
+              :show,
+              changeset: changeset,
+              profile: profile,
+              liability_acknowledged: false
+            )
+
+          {:error, _other} ->
+            changeset =
+              cond do
+                profile -> Profiles.change_profile(profile, attrs)
+                true -> Profile.create_changeset(%Profile{}, attrs)
+              end
+
+            render(conn, :show, changeset: changeset, profile: profile, liability_acknowledged: false)
+        end
       else
         changeset =
           cond do

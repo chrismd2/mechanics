@@ -31,6 +31,7 @@ defmodule MechanicsWeb.Router do
 
     get "/account", AccountController, :show
     put "/account", AccountController, :update
+    post "/account/become-mechanic", AccountController, :become_mechanic
     post "/account/password", AccountController, :update_password
 
     get "/profile", ProfileController, :show
@@ -39,6 +40,7 @@ defmodule MechanicsWeb.Router do
     post "/listings", ListingController, :create
     get "/listings/:id/edit", ListingController, :edit
     post "/listings/:id", ListingController, :update
+    get "/disclaimer", PageController, :disclaimer
 
     get "/chats/open/mechanic/:mechanic_user_id", ChatController, :open_by_mechanic
     get "/chats/open/listing/:listing_id", ChatController, :open_by_listing

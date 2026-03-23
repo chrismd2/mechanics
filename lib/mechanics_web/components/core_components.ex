@@ -89,6 +89,52 @@ defmodule MechanicsWeb.CoreComponents do
     """
   end
 
+  defp general_disclaimer_paragraph(assigns) do
+    ~H"""
+    <p>
+      The owner and any contributers to the Mechanics app are not responsible for indirect, incidental, special, consequential, or punitive damages arising from the work performed or use of the app.
+    </p>
+    """
+  end
+
+  @doc false
+  def mechanic_liability_notice_exclusion_paragraph(assigns) do
+    ~H"""
+    <%= general_disclaimer_paragraph(assigns) %>
+    <p>
+      You, as the mechanic, are expected to use reasonable care, follow applicable safety practices, and communicate clearly with the customer about limitations, risks, and changes in scope.
+    </p>
+    <p>
+      Customers acknowledge that repair and installation work can involve uncertainties (including condition of existing components) and agree to provide accurate information and access needed to perform the job.
+    </p>
+    <p>
+      If additional work is required, you should obtain customer confirmation before proceeding.
+    </p>
+    """
+  end
+
+  @doc false
+  def customer_warranty_notice_exclusion_paragraph(assigns) do
+    ~H"""
+    <%= general_disclaimer_paragraph(assigns) %>
+    <p>
+      When you request work using the Mechanics app served by ElectricQuestLog, you understand that mechanics may provide services and/or parts without any specific warranty.
+    </p>
+    <p>
+      Any implied warranties (including merchantability and fitness for a particular purpose) are disclaimed.
+    </p>
+    <p>
+      Sometimes, repair and installation work can involve uncertainties (including condition of existing components) and agree to provide accurate information and access needed to perform the job.
+    </p>
+    <p>
+      You are responsible for confirming scope of work, acceptable outcomes, pricing, and timing with the mechanic before and during the job.
+    </p>
+    <p>
+      Mechanics may refuse or pause work where safety, authorization, or shop policies require it. Your acknowledgement helps ensure expectations are clear.
+    </p>
+    """
+  end
+
   @doc """
   Renders flash notices.
 

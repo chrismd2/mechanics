@@ -23,6 +23,23 @@ defmodule MechanicsWeb.PageController do
     |> render(:home)
   end
 
+  def disclaimer(conn, params) do
+    focus =
+      params
+      |> Map.get("type", "both")
+      |> to_string()
+      |> String.trim()
+      |> case do
+        "warranty" -> "warranty"
+        "liability" -> "liability"
+        _ -> "both"
+      end
+
+    conn
+    |> assign(:disclaimer_focus, focus)
+    |> render(:disclaimer)
+  end
+
   defp mechanic_card_bells_map(user, mechanics) do
     if user && "customer" in user.roles do
       Map.new(mechanics, fn p ->

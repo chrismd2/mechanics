@@ -48,6 +48,17 @@ defmodule Mechanics.Accounts.User do
   end
 
   @doc """
+  Updates the user's role(s).
+
+  Used for in-app role changes like "becoming a mechanic".
+  """
+  def roles_changeset(user, attrs \\ %{}) do
+    user
+    |> cast(attrs, [:roles])
+    |> validate_roles()
+  end
+
+  @doc """
   Changeset used for password resets. It does not require email/name/roles.
   """
   def password_changeset(user, attrs) do

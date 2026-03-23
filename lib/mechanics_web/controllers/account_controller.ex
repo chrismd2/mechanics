@@ -57,6 +57,33 @@ defmodule MechanicsWeb.AccountController do
     end
   end
 
+  def become_mechanic(conn, _params) do
+    case conn.assigns[:current_user] do
+      nil ->
+        conn
+        |> put_flash(:error, "Sign in to update your account.")
+        |> redirect(to: ~p"/login")
+
+      %User{} = user ->
+        case Accounts.add_mechanic_role(user) do
+          {:ok, _updated_user} ->
+            conn
+            |> put_flash(:info, "You're now a mechanic.")
+            |> redirect(to: account_path(tab: "settings"))
+
+          {:error, :not_customer} ->
+            conn
+            |> put_flash(:error, "Only customers can become mechanics.")
+            |> redirect(to: account_path(tab: "settings"))
+
+          {:error, %Ecto.Changeset{}} ->
+            conn
+            |> put_flash(:error, "Could not update your role. Please try again.")
+            |> redirect(to: account_path(tab: "settings"))
+        end
+    end
+  end
+
   def update_password(conn, params) do
     case conn.assigns[:current_user] do
       nil ->

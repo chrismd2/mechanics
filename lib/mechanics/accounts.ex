@@ -21,6 +21,30 @@ defmodule Mechanics.Accounts do
     list_users_by_role("customer")
   end
 
+  @doc """
+  Adds the "mechanic" role to a signed-in user.
+
+  Customers can opt into being mechanics; this is idempotent.
+  """
+  def add_mechanic_role(%User{} = user) do
+    roles = user.roles || []
+
+    cond do
+      "mechanic" in roles ->
+        {:ok, user}
+
+      "customer" in roles ->
+        new_roles = roles ++ ["mechanic"] |> Enum.uniq()
+
+        user
+        |> User.roles_changeset(%{roles: new_roles})
+        |> Repo.update()
+
+      true ->
+        {:error, :not_customer}
+    end
+  end
+
   def get_user!(id), do: Repo.get!(User, id)
 
   def get_user_by_email(email) do
