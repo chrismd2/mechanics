@@ -2,6 +2,7 @@ defmodule MechanicsWeb.ChatController do
   use MechanicsWeb, :controller
 
   alias Mechanics.Accounts.User
+  alias Mechanics.Disclaimers
   alias Mechanics.Chats
   alias Mechanics.Chats.Notifications
   alias Mechanics.Listings.Listing
@@ -153,9 +154,38 @@ defmodule MechanicsWeb.ChatController do
             send_unauthorized(conn)
 
           true ->
+            disclaimer_accepted? =
+              conn.params
+              |> Map.get("disclaimer_accepted")
+              |> to_string()
+              |> String.trim()
+              |> then(&(&1 in ["true", "on", "1"]))
+
+            needs_customer_warranty? = not Disclaimers.agreement_exists?(user.id, :warranty)
+
             case Repo.get(User, mechanic_user_id) do
               %User{} = mechanic ->
                 if "mechanic" in mechanic.roles do
+                  if needs_customer_warranty? and not disclaimer_accepted? do
+                    conn
+                    |> put_flash(:info, "Please accept the customer warranty disclaimer to start chatting.")
+                    |> redirect(to: ~p"/")
+                    |> halt()
+                  end
+
+                  if needs_customer_warranty? do
+                    case Disclaimers.log_user_agreement(user.id, :warranty) do
+                      {:ok, _agreement} ->
+                        :ok
+
+                      {:error, _} ->
+                        conn
+                        |> put_flash(:error, "Could not record disclaimer acceptance.")
+                        |> redirect(to: ~p"/")
+                        |> halt()
+                    end
+                  end
+
                   case Chats.get_or_create_private_pm(user, mechanic) do
                     {:ok, chat} ->
                       redirect(conn, to: ~p"/chats/#{chat.id}")
@@ -196,8 +226,37 @@ defmodule MechanicsWeb.ChatController do
         if "mechanic" not in user.roles do
           send_unauthorized(conn)
         else
+          disclaimer_accepted? =
+            conn.params
+            |> Map.get("disclaimer_accepted")
+            |> to_string()
+            |> String.trim()
+            |> then(&(&1 in ["true", "on", "1"]))
+
+          needs_mechanic_liability? = not Disclaimers.agreement_exists?(user.id, :liability)
+
           case Chats.get_or_create_listing_chat(user, listing_id) do
             {:ok, chat} ->
+              if needs_mechanic_liability? do
+                if not disclaimer_accepted? do
+                  conn
+                  |> put_flash(:info, "Please accept the mechanic liability notice to discuss this listing.")
+                  |> redirect(to: ~p"/")
+                  |> halt()
+                end
+
+                case Disclaimers.log_user_agreement(user.id, :liability) do
+                  {:ok, _agreement} ->
+                    :ok
+
+                  {:error, _} ->
+                    conn
+                    |> put_flash(:error, "Could not record disclaimer acceptance.")
+                    |> redirect(to: ~p"/")
+                    |> halt()
+                end
+              end
+
               redirect(conn, to: ~p"/chats/#{chat.id}")
 
             {:error, :not_found} ->

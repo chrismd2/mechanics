@@ -2,6 +2,7 @@ defmodule MechanicsWeb.PageController do
   use MechanicsWeb, :controller
 
   alias Mechanics.Chats.Notifications
+  alias Mechanics.Disclaimers
   alias Mechanics.Listings
   alias Mechanics.Profiles
 
@@ -14,12 +15,26 @@ defmodule MechanicsWeb.PageController do
     listing_owner_card_bells = listing_owner_card_bells_map(user, listings)
     listing_mechanic_card_bells = listing_mechanic_card_bells_map(user, listings)
 
+    {customer_warranty_accepted, mechanic_liability_accepted} =
+      case user do
+        %_{} = u ->
+          {
+            "customer" in u.roles && Disclaimers.agreement_exists?(u.id, :warranty),
+            "mechanic" in u.roles && Disclaimers.agreement_exists?(u.id, :liability)
+          }
+
+        _ ->
+          {false, false}
+      end
+
     conn
     |> assign(:mechanics, mechanics)
     |> assign(:listings, listings)
     |> assign(:mechanic_card_bells, mechanic_card_bells)
     |> assign(:listing_owner_card_bells, listing_owner_card_bells)
     |> assign(:listing_mechanic_card_bells, listing_mechanic_card_bells)
+    |> assign(:customer_warranty_accepted, customer_warranty_accepted)
+    |> assign(:mechanic_liability_accepted, mechanic_liability_accepted)
     |> render(:home)
   end
 
