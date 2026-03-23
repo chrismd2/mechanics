@@ -52,6 +52,31 @@ defmodule Mechanics.Disclaimers do
   def warranty_disclaimer_text, do: disclaimer_text(@warranty_type)
   def liability_disclaimer_text, do: disclaimer_text(@liability_type)
 
+  @doc """
+  Returns true if the user already has an agreement logged for the canonical
+  disclaimer text of the given type.
+  """
+  def agreement_exists?(user_id, disclaimer_type)
+
+  def agreement_exists?(user_id, :warranty), do: agreement_exists?(user_id, @warranty_type)
+  def agreement_exists?(user_id, :liability), do: agreement_exists?(user_id, @liability_type)
+
+  def agreement_exists?(user_id, disclaimer_type) when is_binary(disclaimer_type) do
+    text = disclaimer_text(disclaimer_type)
+
+    case Repo.get_by(DisclaimerText, disclaimer_type: disclaimer_type, text: text) do
+      nil ->
+        false
+
+      %DisclaimerText{} = disclaimer_text_row ->
+        Repo.exists?(from a in UserDisclaimerAgreement,
+          where: a.user_id == ^user_id and a.disclaimer_text_id == ^disclaimer_text_row.id
+        )
+    end
+  end
+
+  def agreement_exists?(_user_id, other), do: {:error, {:invalid_disclaimer_type, other}}
+
   defp disclaimer_text(disclaimer_type) do
     paragraphs =
       case disclaimer_type do
