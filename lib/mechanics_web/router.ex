@@ -9,6 +9,8 @@ defmodule MechanicsWeb.Router do
     plug :protect_from_forgery
     plug :put_secure_browser_headers
     plug MechanicsWeb.Plugs.Authenticate
+    plug MechanicsWeb.Plugs.AssignDefaultLayout
+    plug MechanicsWeb.Plugs.AssignChatNotifications
   end
 
   pipeline :api do
@@ -27,12 +29,25 @@ defmodule MechanicsWeb.Router do
     post "/login", AuthController, :create_session
     delete "/logout", AuthController, :delete_user_session
 
+    get "/account", AccountController, :show
+    put "/account", AccountController, :update
+    post "/account/become-mechanic", AccountController, :become_mechanic
+    post "/account/password", AccountController, :update_password
+
     get "/profile", ProfileController, :show
     post "/profile", ProfileController, :save
     get "/listings/new", ListingController, :new
     post "/listings", ListingController, :create
     get "/listings/:id/edit", ListingController, :edit
     post "/listings/:id", ListingController, :update
+    get "/disclaimer", PageController, :disclaimer
+
+    get "/chats/open/mechanic/:mechanic_user_id", ChatController, :open_by_mechanic
+    get "/chats/open/listing/:listing_id", ChatController, :open_by_listing
+    get "/chats/open/listing_owner/:listing_id", ChatController, :open_listing_owner_next
+    get "/chats/open/mechanic_pm_next", ChatController, :open_mechanic_pm_next
+    post "/chats/:id/messages", ChatController, :create_message
+    get "/chats/:id", ChatController, :show
 
     get "/", PageController, :home
   end

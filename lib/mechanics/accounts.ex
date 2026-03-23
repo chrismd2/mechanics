@@ -21,6 +21,30 @@ defmodule Mechanics.Accounts do
     list_users_by_role("customer")
   end
 
+  @doc """
+  Adds the "mechanic" role to a signed-in user.
+
+  Customers can opt into being mechanics; this is idempotent.
+  """
+  def add_mechanic_role(%User{} = user) do
+    roles = user.roles || []
+
+    cond do
+      "mechanic" in roles ->
+        {:ok, user}
+
+      "customer" in roles ->
+        new_roles = roles ++ ["mechanic"] |> Enum.uniq()
+
+        user
+        |> User.roles_changeset(%{roles: new_roles})
+        |> Repo.update()
+
+      true ->
+        {:error, :not_customer}
+    end
+  end
+
   def get_user!(id), do: Repo.get!(User, id)
 
   def get_user_by_email(email) do
@@ -174,6 +198,25 @@ defmodule Mechanics.Accounts do
 
   def change_user(%User{} = user, attrs \\ %{}) do
     User.changeset(user, attrs)
+  end
+
+  def change_user_settings(%User{} = user, attrs \\ %{}) do
+    User.settings_changeset(user, attrs)
+  end
+
+  def update_user_settings(%User{} = user, attrs) when is_map(attrs) do
+    user
+    |> User.settings_changeset(attrs)
+    |> Repo.update()
+  end
+
+  @doc """
+  Updates password for a signed-in user (no reset token).
+  """
+  def update_user_password(%User{} = user, attrs) when is_map(attrs) do
+    user
+    |> User.password_changeset(attrs)
+    |> Repo.update()
   end
 
   @doc """

@@ -1,0 +1,74 @@
+<div class="mx-auto max-w-3xl space-y-6">
+  <div class="space-y-2">
+    <.link
+      href={~p"/"}
+      class="text-sm text-zinc-600 hover:text-zinc-900"
+      aria-label="Back to home"
+    >
+      &larr; Home
+    </.link>
+    <h1 class="text-2xl font-semibold text-zinc-900">Warranty & Liability Disclaimers</h1>
+    <p class="text-sm text-zinc-600">
+      Please read the relevant notice before proceeding. This information is provided for acknowledgement purposes and is not legal advice.
+    </p>
+  </div>
+
+  <% focus = @disclaimer_focus || "both" %>
+
+  <div class="flex flex-wrap gap-2">
+    <.link
+      href={~p"/disclaimer?type=warranty"}
+      class={[
+        "rounded-lg px-3 py-1 text-sm font-semibold",
+        if(focus in ["both", "warranty"], do: "bg-zinc-900 text-white", else: "bg-zinc-100 text-zinc-900 hover:bg-zinc-200/80")
+      ]}
+    >
+      Warranty (Customers)
+    </.link>
+
+    <.link
+      href={~p"/disclaimer?type=liability"}
+      class={[
+        "rounded-lg px-3 py-1 text-sm font-semibold",
+        if(focus in ["both", "liability"], do: "bg-zinc-900 text-white", else: "bg-zinc-100 text-zinc-900 hover:bg-zinc-200/80")
+      ]}
+    >
+      Liability (Mechanics)
+    </.link>
+
+    <.link
+      href={~p"/disclaimer?type=both"}
+      class={[
+        "rounded-lg px-3 py-1 text-sm font-semibold",
+        if(focus in ["both", nil], do: "bg-zinc-900 text-white", else: "bg-zinc-100 text-zinc-900 hover:bg-zinc-200/80")
+      ]}
+    >
+      Both
+    </.link>
+  </div>
+
+  <section
+    class={[
+      "rounded-xl border p-5",
+      if(focus in ["both", "warranty"], do: "border-zinc-200 bg-white", else: "border-zinc-200 bg-white/70")
+    ]}
+  >
+    <h2 class="text-lg font-semibold text-zinc-900">Customer Warranty Disclaimer</h2>
+    <div class="mt-3 space-y-3 text-sm leading-6 text-zinc-700">
+      <.customer_warranty_notice_exclusion_paragraph />
+    </div>
+  </section>
+
+  <section
+    class={[
+      "rounded-xl border p-5",
+      if(focus in ["both", "liability"], do: "border-zinc-200 bg-white", else: "border-zinc-200 bg-white/70")
+    ]}
+  >
+    <h2 class="text-lg font-semibold text-zinc-900">Mechanic Liability Notice</h2>
+    <div class="mt-3 space-y-3 text-sm leading-6 text-zinc-700">
+      <.mechanic_liability_notice_exclusion_paragraph />
+    </div>
+  </section>
+</div>
+

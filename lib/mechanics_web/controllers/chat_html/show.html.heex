@@ -1,0 +1,82 @@
+<div class="mx-auto max-w-2xl space-y-6 p-4">
+  <div>
+    <.link href={~p"/"} class="text-sm text-zinc-600 hover:text-zinc-900">&larr; Home</.link>
+    <h1 class="mt-2 text-xl font-semibold text-zinc-900"><%= @chat_header.title %></h1>
+    <%= if @chat_header.details != [] do %>
+      <section
+        class="mt-4 rounded-xl border border-zinc-200 bg-zinc-50/80 px-4 py-3"
+        aria-label="Conversation details"
+      >
+        <h2 class="text-xs font-semibold uppercase tracking-wide text-zinc-500">
+          Details
+        </h2>
+        <dl class="mt-2 space-y-3">
+          <%= for d <- @chat_header.details do %>
+            <div>
+              <dt class="text-xs font-medium text-zinc-500"><%= d.label %></dt>
+              <dd class="mt-0.5 whitespace-pre-wrap text-sm text-zinc-800"><%= d.value %></dd>
+            </div>
+          <% end %>
+        </dl>
+      </section>
+    <% end %>
+  </div>
+
+  <div class="space-y-2">
+    <div class="text-sm font-medium text-zinc-700">
+      Conversation
+    </div>
+    <div
+      id="chat_transcript"
+      class="max-h-64 overflow-y-auto rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-3"
+      role="log"
+      aria-label="Messages in this conversation with timestamps"
+    >
+      <%= if @messages == [] do %>
+        <p class="text-sm text-zinc-500" id="chat_empty_state">(No messages yet.)</p>
+      <% else %>
+        <ul id="chat_message_list" class="space-y-4" role="list">
+          <%= for msg <- @messages do %>
+            <li class="chat-message-row" data-message-id={msg.id}>
+              <div class="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+                <time
+                  class="text-xs tabular-nums text-zinc-500"
+                  datetime={datetime_html_attr(msg.inserted_at)}
+                  data-local-chat-time
+                >
+                  …
+                </time>
+                <span class="text-sm font-semibold text-zinc-900">
+                  <%= msg.sender && msg.sender.name || "Unknown" %>
+                </span>
+              </div>
+              <p class="mt-1 whitespace-pre-wrap text-sm text-zinc-700"><%= msg.body %></p>
+            </li>
+          <% end %>
+        </ul>
+      <% end %>
+    </div>
+  </div>
+
+  <form action={~p"/chats/#{@chat.id}/messages"} method="post" class="space-y-3 rounded-xl border border-zinc-200 bg-white p-4 shadow-sm">
+    <input type="hidden" name="_csrf_token" value={get_csrf_token()} />
+    <div class="space-y-2">
+      <label for="message_body" class="text-sm font-medium text-zinc-700">Your message</label>
+      <textarea
+        name="message[body]"
+        id="message_body"
+        rows="3"
+        required
+        class="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm text-zinc-900"
+        placeholder="Type a message… (Enter to send, Shift+Enter for new line)"
+      ></textarea>
+    </div>
+    <button
+      type="submit"
+      id="message_submit"
+      class="rounded-lg bg-zinc-900 px-4 py-2 text-sm font-semibold text-white hover:bg-zinc-800"
+    >
+      Send
+    </button>
+  </form>
+</div>

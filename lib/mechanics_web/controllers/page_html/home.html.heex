@@ -32,6 +32,8 @@
           </span>
         <% end %>
       </div>
+      <% can_message_mechanic? =
+        @current_user && "customer" in @current_user.roles %>
       <%= if Enum.any?(@mechanics) do %>
         <ul class="space-y-3" role="list">
           <%= for profile <- @mechanics do %>
@@ -48,13 +50,40 @@
                   <p class="text-sm text-zinc-600"><%= profile.bio %></p>
                 </.link>
               <% else %>
-                <div class="rounded-lg border border-zinc-100 px-4 py-3 space-y-1">
-                  <div>
-                    <span class="font-medium text-zinc-900"><%= profile.headline %></span>
-                    <span class="text-sm text-zinc-500 ml-2"><%= "#{profile.city}, #{profile.state}" %></span>
+                <%= if can_message_mechanic? do %>
+                  <% m_brief = Map.get(@mechanic_card_bells, profile.user_id, %{total_unread: 0, peers: []}) %>
+                  <div class="flex overflow-hidden rounded-lg border border-zinc-100 hover:bg-zinc-50">
+                    <.link
+                      href={~p"/chats/open/mechanic/#{profile.user_id}"}
+                      class="block flex-1 space-y-1 px-4 py-3"
+                      aria-label={"Message #{profile.headline}"}
+                      data-chat-disclaimer-type="warranty"
+                    >
+                      <div>
+                        <span class="font-medium text-zinc-900"><%= profile.headline %></span>
+                        <span class="text-sm text-zinc-500 ml-2"><%= "#{profile.city}, #{profile.state}" %></span>
+                      </div>
+                      <p class="text-sm text-zinc-600"><%= profile.bio %></p>
+                    </.link>
+                    <%= if m_brief.total_unread > 0 do %>
+                      <.bell_card
+                        id={"mechanic-card-notification-bell-#{profile.user_id}"}
+                        count={m_brief.total_unread}
+                        peers={m_brief.peers}
+                        data_test="mechanic-card-notification-bell"
+                        aria_label={"Open message details for #{profile.headline} (#{m_brief.total_unread} unread messages)"}
+                      />
+                    <% end %>
                   </div>
-                  <p class="text-sm text-zinc-600"><%= profile.bio %></p>
-                </div>
+                <% else %>
+                  <div class="rounded-lg border border-zinc-100 px-4 py-3 space-y-1">
+                    <div>
+                      <span class="font-medium text-zinc-900"><%= profile.headline %></span>
+                      <span class="text-sm text-zinc-500 ml-2"><%= "#{profile.city}, #{profile.state}" %></span>
+                    </div>
+                    <p class="text-sm text-zinc-600"><%= profile.bio %></p>
+                  </div>
+                <% end %>
               <% end %>
             </li>
           <% end %>
@@ -90,29 +119,70 @@
           </span>
         <% end %>
       </div>
+      <% can_open_listing_chat? =
+        @current_user && "mechanic" in @current_user.roles %>
       <%= if Enum.any?(@listings) do %>
         <ul class="space-y-3" role="list">
           <%= for listing <- @listings do %>
             <li>
               <%= if @current_user && listing.customer_id == @current_user.id do %>
-                <.link
-                  href={~p"/listings/#{listing.id}/edit"}
-                  class="block rounded-lg border border-zinc-100 px-4 py-3 space-y-1 hover:bg-zinc-50"
-                >
-                  <div>
-                    <%= listing.title %>
-                    <span class="text-sm text-zinc-500 ml-2"><%= "#{listing.price_cents} #{listing.currency}" %></span>
-                  </div>
-                  <p class="text-sm text-zinc-600"><%= listing.description %></p>
-                </.link>
-              <% else %>
-                <div class="rounded-lg border border-zinc-100 px-4 py-3 space-y-1">
-                  <div>
-                    <span class="font-medium text-zinc-900"><%= listing.title %></span>
-                    <span class="text-sm text-zinc-500 ml-2"><%= "#{listing.price_cents} #{listing.currency}" %></span>
-                  </div>
-                  <p class="text-sm text-zinc-600"><%= listing.description %></p>
+                <% lo_brief = Map.get(@listing_owner_card_bells, listing.id, %{total_unread: 0, peers: []}) %>
+                <div class="flex overflow-hidden rounded-lg border border-zinc-100 hover:bg-zinc-50">
+                  <.link
+                    href={~p"/listings/#{listing.id}/edit"}
+                    class="block flex-1 space-y-1 px-4 py-3"
+                  >
+                    <div>
+                      <%= listing.title %>
+                      <span class="text-sm text-zinc-500 ml-2"><%= "#{listing.price_cents} #{listing.currency}" %></span>
+                    </div>
+                    <p class="text-sm text-zinc-600"><%= listing.description %></p>
+                  </.link>
+                  <%= if lo_brief.total_unread > 0 do %>
+                    <.bell_card
+                      id={"listing-owner-notification-bell-#{listing.id}"}
+                      count={lo_brief.total_unread}
+                      peers={lo_brief.peers}
+                      data_test="listing-owner-notification-bell"
+                      aria_label={"Open mechanics who messaged about #{listing.title} (#{lo_brief.total_unread} unread messages)"}
+                    />
+                  <% end %>
                 </div>
+              <% else %>
+                <%= if can_open_listing_chat? do %>
+                  <% lm_brief = Map.get(@listing_mechanic_card_bells, listing.id, %{total_unread: 0, peers: []}) %>
+                  <div class="flex overflow-hidden rounded-lg border border-zinc-100 hover:bg-zinc-50">
+                    <.link
+                      href={~p"/chats/open/listing/#{listing.id}"}
+                      class="block flex-1 space-y-1 px-4 py-3"
+                      aria-label={"Discuss listing: #{listing.title}"}
+                      data-chat-disclaimer-type="liability"
+                    >
+                      <div>
+                        <span class="font-medium text-zinc-900"><%= listing.title %></span>
+                        <span class="text-sm text-zinc-500 ml-2"><%= "#{listing.price_cents} #{listing.currency}" %></span>
+                      </div>
+                      <p class="text-sm text-zinc-600"><%= listing.description %></p>
+                    </.link>
+                    <%= if lm_brief.total_unread > 0 do %>
+                      <.bell_card
+                        id={"listing-mechanic-notification-bell-#{listing.id}"}
+                        count={lm_brief.total_unread}
+                        peers={lm_brief.peers}
+                        data_test="listing-mechanic-notification-bell"
+                        aria_label={"Open poster details for #{listing.title} (#{lm_brief.total_unread} unread messages)"}
+                      />
+                    <% end %>
+                  </div>
+                <% else %>
+                  <div class="rounded-lg border border-zinc-100 px-4 py-3 space-y-1">
+                    <div>
+                      <span class="font-medium text-zinc-900"><%= listing.title %></span>
+                      <span class="text-sm text-zinc-500 ml-2"><%= "#{listing.price_cents} #{listing.currency}" %></span>
+                    </div>
+                    <p class="text-sm text-zinc-600"><%= listing.description %></p>
+                  </div>
+                <% end %>
               <% end %>
             </li>
           <% end %>
@@ -122,4 +192,142 @@
       <% end %>
     </div>
   </div>
+
+  <div
+    id="chat_disclaimer_modal"
+    hidden
+    class="fixed inset-0 z-50"
+    role="dialog"
+    aria-modal="true"
+  >
+    <div class="absolute inset-0 bg-zinc-900/60" data-chat-disclaimer-modal-overlay></div>
+    <div class="relative mx-auto mt-16 w-[95%] max-w-lg rounded-xl bg-white p-6 shadow-xl">
+      <div class="flex items-start justify-between gap-4">
+        <h2 id="chat_disclaimer_modal_title_warranty" class="text-lg font-semibold text-zinc-900">
+          Customer Warranty Disclaimer
+        </h2>
+        <h2 id="chat_disclaimer_modal_title_liability" class="text-lg font-semibold text-zinc-900 hidden">
+          Mechanic Liability Notice
+        </h2>
+        <button
+          type="button"
+          class="text-zinc-500 hover:text-zinc-700"
+          aria-label="Close"
+          data-chat-disclaimer-modal-close
+        >
+          &times;
+        </button>
+      </div>
+
+      <div class="mt-4 space-y-4 text-sm leading-6 text-zinc-700">
+        <div id="chat_disclaimer_modal_body_warranty">
+          <.customer_warranty_notice_exclusion_paragraph />
+        </div>
+        <div id="chat_disclaimer_modal_body_liability" hidden>
+          <.mechanic_liability_notice_exclusion_paragraph />
+        </div>
+      </div>
+
+      <div class="mt-6 flex gap-3">
+        <button
+          type="button"
+          id="chat_disclaimer_cancel"
+          class="flex-1 rounded-lg border border-zinc-200 bg-white px-4 py-2 text-sm font-semibold text-zinc-900 hover:bg-zinc-50"
+        >
+          Cancel
+        </button>
+        <button
+          type="button"
+          id="chat_disclaimer_accept"
+          class="flex-1 rounded-lg bg-zinc-900 px-4 py-2 text-sm font-semibold text-white hover:bg-zinc-800"
+        >
+          Accept
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    (function () {
+      var customerWarrantyAccepted = <%= if @customer_warranty_accepted, do: "true", else: "false" %>;
+      var mechanicLiabilityAccepted = <%= if @mechanic_liability_accepted, do: "true", else: "false" %>;
+
+      var modal = document.getElementById("chat_disclaimer_modal");
+      var modalTitleWarranty = document.getElementById("chat_disclaimer_modal_title_warranty");
+      var modalTitleLiability = document.getElementById("chat_disclaimer_modal_title_liability");
+      var bodyWarranty = document.getElementById("chat_disclaimer_modal_body_warranty");
+      var bodyLiability = document.getElementById("chat_disclaimer_modal_body_liability");
+      var cancelButton = document.getElementById("chat_disclaimer_cancel");
+      var acceptButton = document.getElementById("chat_disclaimer_accept");
+
+      if (!modal || !cancelButton || !acceptButton) return;
+
+      var pendingHref = null;
+
+      function closeModal() {
+        modal.hidden = true;
+        document.body.style.overflow = "";
+        pendingHref = null;
+      }
+
+      function openModal(type, href) {
+        pendingHref = href;
+        if (type === "liability") {
+          modalTitleWarranty.classList.add("hidden");
+          modalTitleLiability.classList.remove("hidden");
+          bodyWarranty.hidden = true;
+          bodyLiability.hidden = false;
+        } else {
+          modalTitleWarranty.classList.remove("hidden");
+          modalTitleLiability.classList.add("hidden");
+          bodyWarranty.hidden = false;
+          bodyLiability.hidden = true;
+        }
+
+        modal.hidden = false;
+        document.body.style.overflow = "hidden";
+      }
+
+      cancelButton.addEventListener("click", function () {
+        closeModal();
+      });
+
+      var overlay = modal.querySelector("[data-chat-disclaimer-modal-overlay]");
+      if (overlay) {
+        overlay.addEventListener("click", function () {
+          closeModal();
+        });
+      }
+
+      var closeButtons = modal.querySelectorAll("[data-chat-disclaimer-modal-close]");
+      closeButtons.forEach(function (btn) {
+        btn.addEventListener("click", function () {
+          closeModal();
+        });
+      });
+
+      acceptButton.addEventListener("click", function () {
+        if (!pendingHref) return;
+        var url = new URL(pendingHref, window.location.origin);
+        url.searchParams.set("disclaimer_accepted", "true");
+        window.location.href = url.toString();
+      });
+
+      function isAccepted(type) {
+        return type === "liability" ? mechanicLiabilityAccepted : customerWarrantyAccepted;
+      }
+
+      var gatedLinks = document.querySelectorAll("[data-chat-disclaimer-type]");
+      gatedLinks.forEach(function (link) {
+        link.addEventListener("click", function (e) {
+          var type = link.getAttribute("data-chat-disclaimer-type");
+          if (!type) return;
+          if (isAccepted(type)) return;
+
+          e.preventDefault();
+          openModal(type, link.getAttribute("href"));
+        });
+      });
+    })();
+  </script>
 </div>
