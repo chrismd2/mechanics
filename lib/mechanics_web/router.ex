@@ -20,6 +20,7 @@ defmodule MechanicsWeb.Router do
   scope "/", MechanicsWeb do
     pipe_through :browser
 
+    get "/altcha", AltchaController, :challenge
     get "/register", AuthController, :new_registration
     post "/register", AuthController, :create_registration
     get "/login", AuthController, :new_session

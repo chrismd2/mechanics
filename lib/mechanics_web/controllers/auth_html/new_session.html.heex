@@ -1,5 +1,6 @@
 <div class="mx-auto max-w-sm">
   <h2 class="text-xl font-semibold text-zinc-900 mb-4">Sign in</h2>
+  <script async defer type="module" src="https://cdn.jsdelivr.net/npm/altcha/dist/altcha.min.js"></script>
 
   <.form
     for={%{}}
@@ -45,6 +46,12 @@
         </svg>
       </button>
     </div>
+
+    <%= if @altcha_enabled do %>
+      <div class="pt-2">
+        <altcha-widget challengeurl={~p"/altcha"}></altcha-widget>
+      </div>
+    <% end %>
 
     <button
       type="submit"
