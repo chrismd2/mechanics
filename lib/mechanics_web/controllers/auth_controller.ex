@@ -40,7 +40,7 @@ defmodule MechanicsWeb.AuthController do
   def new_password_reset(conn, %{"token" => token}) do
     case Accounts.get_password_reset_token(token, DateTime.utc_now()) do
       {:ok, _reset_token} ->
-        render(conn, :edit_password_reset, token: token)
+        render(conn, :edit_password_reset, token: token, altcha_enabled: Altcha.enabled?())
 
       {:error, _} ->
         conn
@@ -50,47 +50,63 @@ defmodule MechanicsWeb.AuthController do
   end
 
   def new_password_reset(conn, _params) do
-    render(conn, :new_password_reset)
+    render(conn, :new_password_reset, altcha_enabled: Altcha.enabled?())
   end
 
-  def request_password_reset(conn, %{"password_reset" => %{"email" => email}}) do
-    _ = Accounts.request_password_reset(email, DateTime.utc_now() |> DateTime.truncate(:second))
+  def request_password_reset(conn, params) do
+    with :ok <- verify_altcha(params) do
+      case params do
+        %{"password_reset" => %{"email" => email}} ->
+          _ = Accounts.request_password_reset(email, DateTime.utc_now() |> DateTime.truncate(:second))
 
-    conn
-    |> put_flash(:info, "If you have an account with us, then we'll send you a reset request.")
-    |> redirect(to: ~p"/login")
-  end
+          conn
+          |> put_flash(:info, "If you have an account with us, then we'll send you a reset request.")
+          |> redirect(to: ~p"/login")
 
-  def request_password_reset(conn, _params) do
-    conn
-    |> put_flash(:info, "If you have an account with us, then we'll send you a reset request.")
-    |> redirect(to: ~p"/login")
+        _ ->
+          conn
+          |> put_flash(:info, "If you have an account with us, then we'll send you a reset request.")
+          |> redirect(to: ~p"/login")
+      end
+    else
+      _ ->
+        conn
+        |> put_flash(:error, "Captcha verification failed. Please try again.")
+        |> render(:new_password_reset, altcha_enabled: Altcha.enabled?())
+    end
   end
 
   def confirm_password_reset(conn, %{"password_reset" => %{"token" => token, "password" => password}} = params) do
     confirm = params["password_reset"]["password_confirmation"]
 
-    case Accounts.reset_password_with_token(token, %{
-           "password" => password,
-           "password_confirmation" => confirm
-         }) do
-      {:ok, _user} ->
-        conn
-        |> put_flash(:info, "Password reset successful. You can sign in now.")
-        |> redirect(to: ~p"/login")
+    with :ok <- verify_altcha(params) do
+      case Accounts.reset_password_with_token(token, %{
+             "password" => password,
+             "password_confirmation" => confirm
+           }) do
+        {:ok, _user} ->
+          conn
+          |> put_flash(:info, "Password reset successful. You can sign in now.")
+          |> redirect(to: ~p"/login")
 
-      {:error, :invalid_token} ->
-        conn
-        |> put_flash(:info, "If you have an account with us, then we'll send you a reset request.")
-        |> redirect(to: ~p"/login")
+        {:error, :invalid_token} ->
+          conn
+          |> put_flash(:info, "If you have an account with us, then we'll send you a reset request.")
+          |> redirect(to: ~p"/login")
 
-      {:error, :expired_token} ->
-        conn
-        |> put_flash(:info, "If you have an account with us, then we'll send you a reset request.")
-        |> redirect(to: ~p"/login")
+        {:error, :expired_token} ->
+          conn
+          |> put_flash(:info, "If you have an account with us, then we'll send you a reset request.")
+          |> redirect(to: ~p"/login")
 
-      {:error, %Ecto.Changeset{}} = _err ->
-        render(conn, :edit_password_reset, token: token)
+        {:error, %Ecto.Changeset{}} = _err ->
+          render(conn, :edit_password_reset, token: token, altcha_enabled: Altcha.enabled?())
+      end
+    else
+      _ ->
+        conn
+        |> put_flash(:error, "Captcha verification failed. Please try again.")
+        |> render(:edit_password_reset, token: token, altcha_enabled: Altcha.enabled?())
     end
   end
 
