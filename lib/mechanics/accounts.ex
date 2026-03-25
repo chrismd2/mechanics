@@ -133,7 +133,7 @@ defmodule Mechanics.Accounts do
   Returns `{:ok, :sent}` if a reset email was sent, otherwise `{:ok, :not_sent}`
   (response content is intentionally ambiguous at the web layer).
   """
-  def request_password_reset(email, now \\ DateTime.utc_now()) do
+  def request_password_reset(email, now \\ DateTime.utc_now(), opts \\ []) do
     # Ecto :utc_datetime columns in this project are configured to reject microseconds.
     # Truncate to second precision to avoid "expects microseconds to be empty" errors.
     now = DateTime.truncate(now, :second)
@@ -173,7 +173,7 @@ defmodule Mechanics.Accounts do
             })
             |> Repo.insert!()
 
-            PasswordResetEmail.deliver(user, token)
+            PasswordResetEmail.deliver(user, token, opts)
 
             user
             |> Ecto.Changeset.change(%{

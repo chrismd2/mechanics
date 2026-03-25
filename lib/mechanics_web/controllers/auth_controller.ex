@@ -43,7 +43,10 @@ defmodule MechanicsWeb.AuthController do
   end
 
   def request_password_reset(conn, %{"password_reset" => %{"email" => email}}) do
-    _ = Accounts.request_password_reset(email, DateTime.utc_now() |> DateTime.truncate(:second))
+    now = DateTime.utc_now() |> DateTime.truncate(:second)
+    base_url = request_base_url(conn)
+
+    _ = Accounts.request_password_reset(email, now, base_url: base_url)
 
     conn
     |> put_flash(:info, "If you have an account with us, then we'll send you a reset request.")
@@ -141,4 +144,14 @@ defmodule MechanicsWeb.AuthController do
 
   defp wants_listing?(%{"wants_listing" => value}), do: value in [true, "true", "on", "1"]
   defp wants_listing?(_params), do: false
+
+  defp request_base_url(conn) do
+    host =
+      case Plug.Conn.get_req_header(conn, "x-forwarded-host") do
+        [h | _] when is_binary(h) and h != "" -> h
+        _ -> conn.host
+      end
+
+    "https://#{host}"
+  end
 end
