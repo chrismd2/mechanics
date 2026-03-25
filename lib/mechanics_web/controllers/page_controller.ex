@@ -38,6 +38,10 @@ defmodule MechanicsWeb.PageController do
     |> render(:home)
   end
 
+  def redirect_home(conn, _params) do
+    redirect(conn, to: ~p"/")
+  end
+
   def disclaimer(conn, params) do
     focus =
       params

@@ -20,6 +20,7 @@ defmodule MechanicsWeb.Router do
   scope "/", MechanicsWeb do
     pipe_through :browser
 
+    get "/altcha", AltchaController, :challenge
     get "/register", AuthController, :new_registration
     post "/register", AuthController, :create_registration
     get "/login", AuthController, :new_session
@@ -58,7 +59,7 @@ defmodule MechanicsWeb.Router do
   # end
 
   # Enable LiveDashboard and Swoosh mailbox preview in development
-  if Application.compile_env(:mechanics, :dev_routes) do
+  if Mix.env() == :dev and Application.compile_env(:mechanics, :dev_routes, false) do
     # If you want to use the LiveDashboard in production, you should put
     # it behind authentication and allow only admins to access it.
     # If your application does not have an admins-only section yet,
@@ -66,11 +67,21 @@ defmodule MechanicsWeb.Router do
     # as long as you are also using SSL (which you should anyway).
     import Phoenix.LiveDashboard.Router
 
+    pipeline :dev_routes do
+      plug MechanicsWeb.Plugs.DevRoutes
+    end
+
     scope "/dev" do
-      pipe_through :browser
+      pipe_through [:dev_routes, :browser]
 
       live_dashboard "/dashboard", metrics: MechanicsWeb.Telemetry
       forward "/mailbox", Plug.Swoosh.MailboxPreview
     end
+  end
+
+  scope "/", MechanicsWeb do
+    pipe_through :browser
+
+    get "/*path", PageController, :redirect_home
   end
 end

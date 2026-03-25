@@ -20,6 +20,10 @@ if System.get_env("PHX_SERVER") do
   config :mechanics, MechanicsWeb.Endpoint, server: true
 end
 
+config :mechanics, :altcha,
+  enabled: System.get_env("ALTCHA_ENABLED") in ~w(true 1),
+  hmac_key: System.get_env("ALTCHA_HMAC_KEY") || "dev-altcha-hmac-key"
+
 if config_env() == :prod do
   database_url =
     System.get_env("DATABASE_URL") ||
