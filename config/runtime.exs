@@ -96,22 +96,97 @@ if config_env() == :prod do
   #       force_ssl: [hsts: true]
   #
   # Check `Plug.SSL` for all available options in `force_ssl`.
+end
 
-  # ## Configuring the mailer
+# Outbound email (Zepto sandbox key in .env is OK for local dev):
+#   • :prod or ENV=prod — require Zepto or SMTP (fail fast if neither)
+#   • :dev — only if ZEPTO_SEND_MAIL_TOKEN or SMTP_HOST is set (otherwise keep Swoosh Local + /dev/mailbox)
+# Never in :test (keeps Swoosh.Test; avoids ENV=prod in CI hijacking mail).
+zepto_token = System.get_env("ZEPTO_SEND_MAIL_TOKEN")
+zepto_configured = zepto_token not in [nil, ""]
+smtp_host = System.get_env("SMTP_HOST")
+smtp_configured = smtp_host not in [nil, ""]
+
+prod_outbound_mail =
+  config_env() != :test and
+    (config_env() == :prod or System.get_env("ENV") == "prod")
+
+dev_outbound_mail =
+  config_env() == :dev and (zepto_configured or smtp_configured)
+
+if prod_outbound_mail or dev_outbound_mail do
+  # ZeptoMail (HTTP via Mechanics.Finch):
+  #   ZEPTO_SEND_MAIL_TOKEN
+  #   ZEPTO_FROM_ADDRESS or MAIL_FROM_EMAIL (verified sender)
+  #   ZEPTO_BOUNCE_ADDRESS (optional)
   #
-  # In production you need to configure the mailer to use a different adapter.
-  # Also, you may need to configure the Swoosh API client of your choice if you
-  # are not using SMTP. Here is an example of the configuration:
+  # Optional SMTP fallback (Swoosh), same idea as Phoenix runtime docs / electricquestlog comments:
+  #   SMTP_HOST, SMTP_USERNAME, SMTP_PASSWORD
+  #   Optional: SMTP_PORT (default 587), SMTP_TLS, SMTP_SSL
   #
-  #     config :mechanics, Mechanics.Mailer,
-  #       adapter: Swoosh.Adapters.Mailgun,
-  #       api_key: System.get_env("MAILGUN_API_KEY"),
-  #       domain: System.get_env("MAILGUN_DOMAIN")
-  #
-  # For this example you need include a HTTP client required by Swoosh API client.
-  # Swoosh supports Hackney and Finch out of the box:
-  #
-  #     config :swoosh, :api_client, Swoosh.ApiClient.Hackney
-  #
-  # See https://hexdocs.pm/swoosh/Swoosh.html#module-installation for details.
+  # MAIL_FROM_NAME optional (default "Mechanics"). For SMTP without Zepto, set MAIL_FROM_EMAIL.
+  mail_from_email =
+    cond do
+      zepto_configured ->
+        System.get_env("ZEPTO_FROM_ADDRESS") || System.get_env("MAIL_FROM_EMAIL") ||
+          raise """
+          ZeptoMail is configured (ZEPTO_SEND_MAIL_TOKEN) but no sender address was set.
+          Set ZEPTO_FROM_ADDRESS or MAIL_FROM_EMAIL to your verified ZeptoMail from address.
+          """
+
+      true ->
+        System.get_env("MAIL_FROM_EMAIL") ||
+          raise """
+          environment variable MAIL_FROM_EMAIL is missing.
+          Set the verified sender address for SMTP (e.g. noreply@yourdomain.com).
+          """
+    end
+
+  mail_from_name = System.get_env("MAIL_FROM_NAME") || "Mechanics"
+  config :mechanics, :mailer_default_from, {mail_from_name, mail_from_email}
+
+  cond do
+    zepto_configured ->
+      config :mechanics, :transactional_email_backend, :zepto
+
+    smtp_host not in [nil, ""] ->
+      smtp_user = System.get_env("SMTP_USERNAME")
+      smtp_pass = System.get_env("SMTP_PASSWORD")
+
+      auth =
+        if smtp_user not in [nil, ""] and smtp_pass not in [nil, ""],
+          do: :always,
+          else: :never
+
+      tls =
+        case System.get_env("SMTP_TLS") || "always" do
+          "never" -> :never
+          "if_available" -> :if_available
+          _ -> :always
+        end
+
+      ssl = System.get_env("SMTP_SSL") in ~w(true 1)
+
+      config :mechanics, Mechanics.Mailer,
+        adapter: Swoosh.Adapters.SMTP,
+        relay: smtp_host,
+        username: smtp_user,
+        password: smtp_pass,
+        port: String.to_integer(System.get_env("SMTP_PORT") || "587"),
+        ssl: ssl,
+        tls: tls,
+        auth: auth,
+        retries: 2
+
+    true ->
+      raise """
+      Outbound email is not configured. Set one of:
+
+        • ZeptoMail: ZEPTO_SEND_MAIL_TOKEN and ZEPTO_FROM_ADDRESS (or MAIL_FROM_EMAIL)
+        • SMTP: SMTP_HOST (and usually SMTP_USERNAME / SMTP_PASSWORD)
+
+      Activated when MIX_ENV=prod, ENV=prod, or (MIX_ENV=dev with ZEPTO_SEND_MAIL_TOKEN or SMTP_HOST).
+      See comments above in config/runtime.exs.
+      """
+  end
 end
