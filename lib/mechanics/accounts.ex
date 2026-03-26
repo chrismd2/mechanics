@@ -277,10 +277,32 @@ defmodule Mechanics.Accounts do
     User.settings_changeset(user, attrs)
   end
 
-  def update_user_settings(%User{} = user, attrs) when is_map(attrs) do
-    user
-    |> User.settings_changeset(attrs)
-    |> Repo.update()
+  def update_user_settings(%User{} = user, attrs, opts \\ []) when is_map(attrs) do
+    changeset = User.settings_changeset(user, attrs)
+    email_changed? = not is_nil(Ecto.Changeset.get_change(changeset, :email))
+
+    changeset =
+      if email_changed? do
+        changeset
+        |> Ecto.Changeset.put_change(:email_verified, false)
+        |> Ecto.Changeset.put_change(:email_verification_token, nil)
+        |> Ecto.Changeset.put_change(:email_verification_sent_at, nil)
+        |> Ecto.Changeset.put_change(:email_verification_expires_at, nil)
+      else
+        changeset
+      end
+
+    case Repo.update(changeset) do
+      {:ok, updated_user} ->
+        if email_changed? do
+          _ = request_email_verification(updated_user, Keyword.get(opts, :base_url))
+        end
+
+        {:ok, updated_user}
+
+      {:error, changeset} ->
+        {:error, changeset}
+    end
   end
 
   @doc """

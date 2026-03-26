@@ -34,10 +34,16 @@ defmodule MechanicsWeb.AccountController do
       %User{} = user ->
         case Map.get(params, "account") do
           account_params when is_map(account_params) ->
-            case Accounts.update_user_settings(user, account_params) do
-              {:ok, _} ->
+            case Accounts.update_user_settings(user, account_params, base_url: request_base_url(conn)) do
+              {:ok, updated_user} ->
                 conn
-                |> put_flash(:info, "Account settings updated.")
+                |> put_flash(
+                  :info,
+                  if(updated_user.email != user.email,
+                    do: "Account settings updated. Please verify your new email address.",
+                    else: "Account settings updated."
+                  )
+                )
                 |> redirect(to: account_path(tab: "settings"))
 
               {:error, %Ecto.Changeset{} = changeset} ->
@@ -185,6 +191,16 @@ defmodule MechanicsWeb.AccountController do
       tab when is_binary(tab) -> "#{base}?#{URI.encode_query(%{"tab" => tab})}"
       _ -> base
     end
+  end
+
+  defp request_base_url(conn) do
+    host =
+      case Plug.Conn.get_req_header(conn, "x-forwarded-host") do
+        [h | _] when is_binary(h) and h != "" -> h
+        _ -> conn.host
+      end
+
+    "https://#{host}"
   end
 
   defp normalize_account_tab(requested, user_listings) do
