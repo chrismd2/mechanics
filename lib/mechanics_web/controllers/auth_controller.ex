@@ -14,9 +14,11 @@ defmodule MechanicsWeb.AuthController do
     with :ok <- verify_altcha(params) do
       case Accounts.create_user(user_params) do
         {:ok, user} ->
+          _ = Accounts.request_email_verification(user, request_base_url(conn))
+
           conn
           |> put_session(:current_user_id, user.id)
-          |> put_flash(:info, "Account created successfully!")
+          |> put_flash(:info, "Account created. Verify your email to publish listings and make your profile public.")
           |> redirect(to: registration_redirect_path(user, user_params))
 
         {:error, %Ecto.Changeset{} = changeset} ->
@@ -53,14 +55,33 @@ defmodule MechanicsWeb.AuthController do
     render(conn, :new_password_reset, altcha_enabled: Altcha.enabled?())
   end
 
+  def verify_email(conn, %{"token" => token}) do
+    case Accounts.confirm_email_verification(token) do
+      {:ok, _user} ->
+        conn
+        |> put_flash(:info, "Email verified successfully.")
+        |> redirect(to: ~p"/")
+
+      {:error, :expired_token} ->
+        conn
+        |> put_flash(:error, "That verification link expired. Please contact support.")
+        |> redirect(to: ~p"/")
+
+      {:error, _} ->
+        conn
+        |> put_flash(:error, "That verification link is invalid.")
+        |> redirect(to: ~p"/")
+    end
+  end
+
   def request_password_reset(conn, params) do
     with :ok <- verify_altcha(params) do
       case params do
         %{"password_reset" => %{"email" => email}} ->
           now = DateTime.utc_now() |> DateTime.truncate(:second)
-    base_url = request_base_url(conn)
+          base_url = request_base_url(conn)
 
-    _ = Accounts.request_password_reset(email, now, base_url: base_url)
+          _ = Accounts.request_password_reset(email, now, base_url: base_url)
 
           conn
           |> put_flash(:info, "If you have an account with us, then we'll send you a reset request.")
@@ -190,4 +211,5 @@ defmodule MechanicsWeb.AuthController do
 
     "https://#{host}"
   end
+
 end

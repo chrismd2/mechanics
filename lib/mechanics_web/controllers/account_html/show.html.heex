@@ -1,5 +1,6 @@
 <% u_name = to_string(@user_form[:name].value || "") %>
 <% u_email = to_string(@user_form[:email].value || "") %>
+<% can_publish = @current_user && @current_user.email_verified %>
 
 <div id="account-page" class="mx-auto max-w-5xl space-y-6">
   <div>
@@ -320,10 +321,14 @@
                     id="account_profile_is_public"
                     value="true"
                     checked={is_public}
+                    disabled={not can_publish}
                     class="rounded border-zinc-300 text-zinc-900 focus:ring-0"
                   />
                   Make my profile public
                 </label>
+                <%= if not can_publish do %>
+                  <p class="text-xs text-zinc-500">Verify your email before making your profile public.</p>
+                <% end %>
               </div>
 
               <div class="space-y-2">
@@ -486,6 +491,26 @@
             </script>
           </div>
         <% end %>
+
+        <div class="rounded-xl border border-rose-200 bg-rose-50 p-6 shadow-sm">
+          <h2 class="text-lg font-semibold text-rose-900">Delete account</h2>
+          <p class="mt-1 text-sm text-rose-800">
+            This permanently deletes your account and cannot be undone.
+          </p>
+
+          <form action={~p"/account"} method="post" class="mt-6">
+            <input type="hidden" name="_csrf_token" value={get_csrf_token()} />
+            <input type="hidden" name="_method" value="delete" />
+            <button
+              type="submit"
+              id="account-delete-submit"
+              data-confirm="Delete your account permanently?"
+              class="rounded-lg bg-rose-700 px-4 py-2 text-sm font-semibold text-white hover:bg-rose-800"
+            >
+              Delete account
+            </button>
+          </form>
+        </div>
       </section>
     </div>
   </div>

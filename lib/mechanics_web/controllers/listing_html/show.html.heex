@@ -4,6 +4,7 @@
   price_cents = Ecto.Changeset.get_field(@changeset, :price_cents)
   currency = Ecto.Changeset.get_field(@changeset, :currency) || ""
   is_public = Ecto.Changeset.get_field(@changeset, :is_public) == true
+  can_publish = @current_user && @current_user.email_verified
 
   is_edit = not is_nil(@listing)
   form_action = if is_edit, do: ~p"/listings/#{@listing.id}", else: ~p"/listings"
@@ -85,10 +86,14 @@
             name="listing[is_public]"
             value="true"
             checked={is_public}
+            disabled={not can_publish}
             class="rounded border-zinc-300 text-zinc-900 focus:ring-0"
           />
           Make this listing public
         </label>
+        <%= if not can_publish do %>
+          <p class="text-xs text-zinc-500">Verify your email before publishing listings.</p>
+        <% end %>
       </div>
 
       <div class="space-y-2">
