@@ -90,7 +90,8 @@ defmodule MechanicsWeb.AuthControllerTest do
         |> post(~p"/register", %{"user" => @valid_params})
 
       assert redirected_to(conn) == ~p"/"
-      assert Phoenix.Flash.get(conn.assigns[:flash], :info) == "Account created successfully!"
+      assert Phoenix.Flash.get(conn.assigns[:flash], :info) ==
+               "Account created. Verify your email to publish listings and make your profile public."
       user_id = get_session(conn, :current_user_id)
       assert user_id
 
@@ -107,7 +108,8 @@ defmodule MechanicsWeb.AuthControllerTest do
         |> post(~p"/register", %{"user" => params})
 
       assert redirected_to(conn) == ~p"/"
-      assert Phoenix.Flash.get(conn.assigns[:flash], :info) == "Account created successfully!"
+      assert Phoenix.Flash.get(conn.assigns[:flash], :info) ==
+               "Account created. Verify your email to publish listings and make your profile public."
       user_id = get_session(conn, :current_user_id)
       assert user_id
 
@@ -122,7 +124,8 @@ defmodule MechanicsWeb.AuthControllerTest do
         |> post(~p"/register", %{"user" => @valid_params |> Map.put("wants_listing", "true")})
 
       assert redirected_to(conn) == ~p"/profile"
-      assert Phoenix.Flash.get(conn.assigns[:flash], :info) == "Account created successfully!"
+      assert Phoenix.Flash.get(conn.assigns[:flash], :info) ==
+               "Account created. Verify your email to publish listings and make your profile public."
       user_id = get_session(conn, :current_user_id)
       assert user_id
 
@@ -140,7 +143,8 @@ defmodule MechanicsWeb.AuthControllerTest do
         |> post(~p"/register", %{"user" => params})
 
       assert redirected_to(conn) == ~p"/listings/new"
-      assert Phoenix.Flash.get(conn.assigns[:flash], :info) == "Account created successfully!"
+      assert Phoenix.Flash.get(conn.assigns[:flash], :info) ==
+               "Account created. Verify your email to publish listings and make your profile public."
       user_id = get_session(conn, :current_user_id)
       assert user_id
 

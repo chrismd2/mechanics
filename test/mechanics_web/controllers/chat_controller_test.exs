@@ -22,6 +22,12 @@ defmodule MechanicsWeb.ChatControllerTest do
     |> List.first()
   end
 
+  defp verify_email!(user) do
+    user
+    |> Ecto.Changeset.change(email_verified: true)
+    |> Repo.update!()
+  end
+
   defp customer_and_mechanic do
     suffix = System.unique_integer([:positive])
 
@@ -43,6 +49,9 @@ defmodule MechanicsWeb.ChatControllerTest do
         "password_confirmation" => "securepw123"
       })
 
+    mechanic = verify_email!(mechanic)
+    customer = verify_email!(customer)
+
     %{mechanic: mechanic, customer: customer}
   end
 
@@ -56,6 +65,8 @@ defmodule MechanicsWeb.ChatControllerTest do
           "password" => "securepw123",
           "password_confirmation" => "securepw123"
         })
+
+      mechanic = verify_email!(mechanic)
 
       {:ok, _} =
         Profiles.create_profile(%{
@@ -75,6 +86,8 @@ defmodule MechanicsWeb.ChatControllerTest do
           "password" => "securepw123",
           "password_confirmation" => "securepw123"
         })
+
+      customer = verify_email!(customer)
 
       conn = build_conn() |> login(customer)
 
@@ -126,6 +139,8 @@ defmodule MechanicsWeb.ChatControllerTest do
           "password_confirmation" => "securepw123"
         })
 
+      customer = verify_email!(customer)
+
       {:ok, listing} =
         Listings.create_listing(%{
           "title" => "AC recharge",
@@ -144,6 +159,8 @@ defmodule MechanicsWeb.ChatControllerTest do
           "password" => "securepw123",
           "password_confirmation" => "securepw123"
         })
+
+      mechanic = verify_email!(mechanic)
 
       conn = build_conn() |> login(mechanic)
       conn = get(conn, ~p"/chats/open/listing/#{listing.id}")
@@ -216,6 +233,8 @@ defmodule MechanicsWeb.ChatControllerTest do
           "password_confirmation" => "securepw123"
         })
 
+      mechanic = verify_email!(mechanic)
+
       {:ok, _} =
         Profiles.create_profile(%{
           "headline" => "Visible mech",
@@ -235,6 +254,8 @@ defmodule MechanicsWeb.ChatControllerTest do
           "password_confirmation" => "securepw123"
         })
 
+      customer = verify_email!(customer)
+
       conn = build_conn() |> login(customer)
       html = html_response(get(conn, ~p"/"), 200)
       assert html =~ ~s(href="/chats/open/mechanic/#{mechanic.id}")
@@ -249,6 +270,8 @@ defmodule MechanicsWeb.ChatControllerTest do
           "password" => "securepw123",
           "password_confirmation" => "securepw123"
         })
+
+      customer = verify_email!(customer)
 
       {:ok, listing} =
         Listings.create_listing(%{
@@ -268,6 +291,8 @@ defmodule MechanicsWeb.ChatControllerTest do
           "password" => "securepw123",
           "password_confirmation" => "securepw123"
         })
+
+      mechanic = verify_email!(mechanic)
 
       conn = build_conn() |> login(mechanic)
       html = html_response(get(conn, ~p"/"), 200)

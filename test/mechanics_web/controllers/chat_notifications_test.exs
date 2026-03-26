@@ -14,6 +14,12 @@ defmodule MechanicsWeb.ChatNotificationsTest do
     init_test_session(conn, %{current_user_id: user.id})
   end
 
+  defp verify_email!(user) do
+    user
+    |> Ecto.Changeset.change(email_verified: true)
+    |> Repo.update!()
+  end
+
   describe "header bell next to Welcome" do
     test "shows bell, unread badge, and dropdown with chat title plus latest message preview when user has unread" do
       {:ok, mechanic} =
@@ -24,6 +30,8 @@ defmodule MechanicsWeb.ChatNotificationsTest do
           "password" => "securepw123",
           "password_confirmation" => "securepw123"
         })
+
+      mechanic = verify_email!(mechanic)
 
       {:ok, _} =
         Profiles.create_profile(%{
@@ -43,6 +51,8 @@ defmodule MechanicsWeb.ChatNotificationsTest do
           "password" => "securepw123",
           "password_confirmation" => "securepw123"
         })
+
+      customer = verify_email!(customer)
 
       {:ok, chat} = Chats.get_or_create_private_pm(customer, mechanic)
       {:ok, _} = Chats.create_message(chat.id, mechanic, %{body: "Unread ping from mechanic."})
@@ -100,6 +110,8 @@ defmodule MechanicsWeb.ChatNotificationsTest do
           "password_confirmation" => "securepw123"
         })
 
+      mechanic = verify_email!(mechanic)
+
       {:ok, _} =
         Profiles.create_profile(%{
           "headline" => "Read Co",
@@ -118,6 +130,8 @@ defmodule MechanicsWeb.ChatNotificationsTest do
           "password" => "securepw123",
           "password_confirmation" => "securepw123"
         })
+
+      customer = verify_email!(customer)
 
       {:ok, chat} = Chats.get_or_create_private_pm(customer, mechanic)
       {:ok, _} = Chats.create_message(chat.id, mechanic, %{body: "Please read me."})
@@ -147,6 +161,8 @@ defmodule MechanicsWeb.ChatNotificationsTest do
           "password" => "securepw123",
           "password_confirmation" => "securepw123"
         })
+
+      mechanic = verify_email!(mechanic)
 
       {:ok, c1} =
         Accounts.create_user(%{
@@ -222,6 +238,8 @@ defmodule MechanicsWeb.ChatNotificationsTest do
           "password" => "securepw123",
           "password_confirmation" => "securepw123"
         })
+
+      customer = verify_email!(customer)
 
       {:ok, chat} = Chats.get_or_create_private_pm(customer, mechanic)
       {:ok, _} = Chats.create_message(chat.id, mechanic, %{body: "One"})
@@ -410,6 +428,8 @@ defmodule MechanicsWeb.ChatNotificationsTest do
           "password_confirmation" => "securepw123"
         })
 
+      customer = verify_email!(customer)
+
       {:ok, listing} =
         Listings.create_listing(%{
           "title" => "Tire rotation",
@@ -428,6 +448,8 @@ defmodule MechanicsWeb.ChatNotificationsTest do
           "password" => "securepw123",
           "password_confirmation" => "securepw123"
         })
+
+      mechanic = verify_email!(mechanic)
 
       {:ok, chat} = Chats.get_or_create_listing_chat(mechanic, listing.id)
       {:ok, _} = Chats.create_message(chat.id, customer, %{body: "Thanks for reaching out!"})

@@ -12,6 +12,7 @@ defmodule Mechanics.AccountsFixtures do
       name: Map.get(attrs, :name, "Test User"),
       password_hash: Bcrypt.hash_pwd_salt(Map.get(attrs, :password, "secret123")),
       roles: Map.get(attrs, :roles, []),
+      email_verified: Map.get(attrs, :email_verified, true),
       inserted_at: Map.get(attrs, :inserted_at, now) |> truncate_datetime(),
       updated_at: Map.get(attrs, :updated_at, now) |> truncate_datetime()
     }
