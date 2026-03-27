@@ -41,8 +41,8 @@ defmodule MechanicsWeb.ListingControllerTest do
 
       assert Floki.find(parsed, "input#listing_title[name='listing[title]']") != []
       assert Floki.find(parsed, "textarea#listing_description[name='listing[description]']") != []
-      assert Floki.find(parsed, "input#listing_price_cents[name='listing[price_cents]']") != []
-      assert Floki.find(parsed, "input#listing_currency[name='listing[currency]']") != []
+      assert Floki.find(parsed, "input#listing_price[name='listing[price]']") != []
+      assert Floki.find(parsed, "select#listing_currency[name='listing[currency]']") != []
       assert Floki.find(parsed, "input#listing_is_public[type='checkbox'][name='listing[is_public]']") != []
       assert Floki.find(parsed, "input#listing_warranty_disclaimer[type='checkbox'][name='listing[warranty_disclaimer_accepted]']") != []
 
@@ -75,7 +75,7 @@ defmodule MechanicsWeb.ListingControllerTest do
           "listing" => %{
             "title" => "Brake pad replacement",
             "description" => "Need front brake pads replaced this week.",
-            "price_cents" => 12_500,
+            "price" => "125.00",
             "currency" => "USD",
             "is_public" => "true",
             "warranty_disclaimer_accepted" => "true"
@@ -86,7 +86,7 @@ defmodule MechanicsWeb.ListingControllerTest do
 
       html = html_response(get(conn, ~p"/"), 200)
       assert html =~ "Brake pad replacement"
-      assert html =~ "12500 USD"
+      assert html =~ "$125.00"
 
       # Owner can edit from the homepage.
       listing =
@@ -110,7 +110,7 @@ defmodule MechanicsWeb.ListingControllerTest do
           "listing" => %{
             "title" => "Hidden listing",
             "description" => "Should not appear on the home page.",
-            "price_cents" => 1_000,
+            "price" => "10.00",
             "currency" => "USD",
             "is_public" => "false",
             "warranty_disclaimer_accepted" => "true"
@@ -206,7 +206,7 @@ defmodule MechanicsWeb.ListingControllerTest do
           "listing" => %{
             "title" => "Now private listing",
             "description" => "Should disappear from home.",
-            "price_cents" => 20_000,
+            "price" => "200.00",
             "currency" => "USD",
             "is_public" => "false",
             "warranty_disclaimer_accepted" => "true"
