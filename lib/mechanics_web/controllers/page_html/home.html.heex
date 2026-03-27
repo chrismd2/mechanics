@@ -147,6 +147,19 @@
                       aria_label={"Open mechanics who messaged about #{listing.title} (#{lo_brief.total_unread} unread messages)"}
                     />
                   <% end %>
+                  <form action={~p"/listings/#{listing.id}"} method="post" class="m-2 self-start">
+                    <input type="hidden" name="_csrf_token" value={get_csrf_token()} />
+                    <input type="hidden" name="_method" value="delete" />
+                    <button
+                      type="submit"
+                      id={"home-listing-delete-#{listing.id}"}
+                      aria-label={"Delete listing #{listing.title}"}
+                      data-confirm="Delete this listing?"
+                      class="rounded-md border border-rose-200 bg-rose-50 px-2 py-1 text-rose-700 hover:bg-rose-100"
+                    >
+                      &#128465;
+                    </button>
+                  </form>
                 </div>
               <% else %>
                 <%= if can_open_listing_chat? do %>

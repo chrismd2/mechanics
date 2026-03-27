@@ -262,5 +262,38 @@ defmodule MechanicsWeb.AccountControllerTest do
       assert html =~ ~s(href="/listings/#{listing.id}/edit")
       assert html =~ "Oil change"
     end
+
+    test "shows a delete listing button on each listing card", %{conn: conn} do
+      {:ok, customer} =
+        Accounts.create_user(%{
+          "email" => "lst-acct-del-#{System.unique_integer([:positive])}@example.com",
+          "name" => "Listing Delete Account",
+          "roles" => ["customer"],
+          "password" => "securepw123",
+          "password_confirmation" => "securepw123"
+        })
+
+      {:ok, listing} =
+        Mechanics.Listings.create_listing(%{
+          "title" => "Delete from account card",
+          "description" => "Synthetic",
+          "price_cents" => 9_000,
+          "currency" => "USD",
+          "customer_id" => customer.id,
+          "is_public" => true
+        })
+
+      html =
+        build_conn()
+        |> login(customer)
+        |> get(~p"/account")
+        |> html_response(200)
+
+      parsed = Floki.parse_document!(html)
+      delete_form = Floki.find(parsed, ~s(form[action="/listings/#{listing.id}"][method="post"]))
+      assert delete_form != []
+      assert Floki.find(parsed, ~s(form[action="/listings/#{listing.id}"] input[name="_method"][value="delete"])) != []
+      assert Floki.find(parsed, ~s(button[id="account-listing-delete-#{listing.id}"])) != []
+    end
   end
 end

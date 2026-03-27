@@ -220,4 +220,78 @@ defmodule MechanicsWeb.ListingControllerTest do
       refute html =~ "Public listing"
     end
   end
+
+  describe "DELETE /listings/:id" do
+    test "owner can delete their listing", %{conn: conn} do
+      {:ok, conn: conn, customer: customer} = create_customer(conn)
+
+      {:ok, listing} =
+        Listings.create_listing(%{
+          "title" => "Delete me",
+          "description" => "This listing should be removed.",
+          "price_cents" => 15_000,
+          "currency" => "USD",
+          "customer_id" => customer.id,
+          "is_public" => true
+        })
+
+      conn = delete(conn, "/listings/#{listing.id}")
+      assert redirected_to(conn) == ~p"/"
+      assert_raise Ecto.NoResultsError, fn -> Listings.get_listing!(listing.id) end
+    end
+
+    test "non-owner cannot delete another customer's listing", %{conn: conn} do
+      {:ok, conn: conn, customer: customer} = create_customer(conn)
+
+      {:ok, listing} =
+        Listings.create_listing(%{
+          "title" => "Keep me",
+          "description" => "Only owner can delete.",
+          "price_cents" => 8_000,
+          "currency" => "USD",
+          "customer_id" => customer.id,
+          "is_public" => true
+        })
+
+      {:ok, other_customer} =
+        Accounts.create_user(%{
+          "email" => "other-delete-customer-#{System.unique_integer([:positive])}@example.com",
+          "name" => "Other Customer",
+          "roles" => ["customer"],
+          "password" => "securepw123",
+          "password_confirmation" => "securepw123"
+        })
+
+      conn = init_test_session(conn, %{current_user_id: other_customer.id})
+
+      conn = delete(conn, "/listings/#{listing.id}")
+      assert redirected_to(conn) == ~p"/"
+      assert Listings.get_listing!(listing.id).id == listing.id
+    end
+
+    test "logged out user cannot delete a listing", %{conn: conn} do
+      {:ok, owner} =
+        Accounts.create_user(%{
+          "email" => "owner-delete-customer-#{System.unique_integer([:positive])}@example.com",
+          "name" => "Owner Customer",
+          "roles" => ["customer"],
+          "password" => "securepw123",
+          "password_confirmation" => "securepw123"
+        })
+
+      {:ok, listing} =
+        Listings.create_listing(%{
+          "title" => "Protected listing",
+          "description" => "Should stay when logged out.",
+          "price_cents" => 11_000,
+          "currency" => "USD",
+          "customer_id" => owner.id,
+          "is_public" => true
+        })
+
+      conn = delete(conn, "/listings/#{listing.id}")
+      assert redirected_to(conn) == ~p"/"
+      assert Listings.get_listing!(listing.id).id == listing.id
+    end
+  end
 end

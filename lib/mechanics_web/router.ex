@@ -51,6 +51,7 @@ defmodule MechanicsWeb.Router do
     post "/listings", ListingController, :create
     get "/listings/:id/edit", ListingController, :edit
     post "/listings/:id", ListingController, :update
+    delete "/listings/:id", ListingController, :delete
 
     get "/chats/open/mechanic/:mechanic_user_id", ChatController, :open_by_mechanic
     get "/chats/open/listing/:listing_id", ChatController, :open_by_listing
