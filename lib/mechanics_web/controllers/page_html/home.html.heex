@@ -144,7 +144,9 @@
                   >
                     <div>
                       <%= listing.title %>
-                      <span class="text-sm text-zinc-500 ml-2"><%= "#{listing.price_cents} #{listing.currency}" %></span>
+                      <span class="text-sm text-zinc-500 ml-2">
+                        <%= "#{MechanicsWeb.Helpers.CurrencyFormatter.get_symbol(listing.currency) }#{MechanicsWeb.Helpers.CurrencyFormatter.format_number(listing.price_cents, listing.currency)}" %>
+                      </span>
                     </div>
                     <p class="text-sm text-zinc-600 line-clamp-1 break-words"><%= desc_first_line %></p>
                   </.link>
@@ -183,7 +185,9 @@
                     >
                       <div>
                         <span class="font-medium text-zinc-900"><%= listing.title %></span>
-                        <span class="text-sm text-zinc-500 ml-2"><%= "#{listing.price_cents} #{listing.currency}" %></span>
+                        <span class="text-sm text-zinc-500 ml-2">
+                          <%= "#{MechanicsWeb.Helpers.CurrencyFormatter.get_symbol(listing.currency) }#{MechanicsWeb.Helpers.CurrencyFormatter.format_number(listing.price_cents, listing.currency)}" %>
+                        </span>
                       </div>
                       <p class="text-sm text-zinc-600 line-clamp-1 break-words"><%= desc_first_line %></p>
                     </.link>
@@ -201,7 +205,9 @@
                   <div class="rounded-lg border border-zinc-100 px-4 py-3 space-y-1">
                     <div>
                       <span class="font-medium text-zinc-900"><%= listing.title %></span>
-                      <span class="text-sm text-zinc-500 ml-2"><%= "#{listing.price_cents} #{listing.currency}" %></span>
+                      <span class="text-sm text-zinc-500 ml-2">
+                        <%= "#{MechanicsWeb.Helpers.CurrencyFormatter.get_symbol(listing.currency) }#{MechanicsWeb.Helpers.CurrencyFormatter.format_number(listing.price_cents, listing.currency)}" %>
+                      </span>
                     </div>
                     <p class="text-sm text-zinc-600 line-clamp-1 break-words"><%= desc_first_line %></p>
                   </div>
