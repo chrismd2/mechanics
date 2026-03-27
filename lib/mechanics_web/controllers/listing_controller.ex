@@ -138,6 +138,24 @@ defmodule MechanicsWeb.ListingController do
     end
   end
 
+  def delete(conn, %{"id" => id}) do
+    current_user = conn.assigns[:current_user]
+
+    with true <- current_user && "customer" in current_user.roles,
+         %Mechanics.Listings.Listing{} = listing <- Listings.get_listing!(id),
+         true <- listing.customer_id == current_user.id,
+         {:ok, _deleted_listing} <- Listings.delete_listing(listing) do
+      conn
+      |> put_flash(:info, "Listing deleted successfully.")
+      |> redirect(to: ~p"/")
+    else
+      _ ->
+        conn
+        |> put_flash(:error, "You cannot delete that listing.")
+        |> redirect(to: ~p"/")
+    end
+  end
+
   defp enforce_private_if_unverified(attrs, current_user) do
     wants_public? = attrs["is_public"] in [true, "true", "on", "1"]
 
