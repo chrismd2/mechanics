@@ -264,7 +264,7 @@ defmodule MechanicsWeb.PageControllerTest do
 
       assert html =~ "Brake pad replacement"
       assert html =~ "Need front brake pads replaced this week"
-      assert html =~ "12500 USD"
+      assert html =~ "$125.00"
     end
 
     test "does not list job listings marked as non-public on the home page", %{conn: conn} do

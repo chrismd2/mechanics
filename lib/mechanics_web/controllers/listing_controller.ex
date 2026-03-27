@@ -4,6 +4,8 @@ defmodule MechanicsWeb.ListingController do
   alias Mechanics.Listings
   alias Mechanics.Disclaimers
   alias Mechanics.Repo
+  alias Mechanics.Listings.Listing
+  alias MechanicsWeb.Helpers.CurrencyFormatter
 
   def new(conn, _params) do
     current_user = conn.assigns[:current_user]
@@ -25,16 +27,27 @@ defmodule MechanicsWeb.ListingController do
       warranty_accepted? =
         listing_params["warranty_disclaimer_accepted"] in ["true", "on", "1"]
 
+      {money_attrs, money_error} = normalize_listing_money(listing_params)
+
       attrs =
-        listing_params
+        money_attrs
         |> Map.put("customer_id", current_user.id)
 
       {attrs, forced_private?} = enforce_private_if_unverified(attrs, current_user)
 
-      if warranty_accepted? do
+      cond do
+        money_error ->
+          changeset =
+            %Listing{}
+            |> Listings.change_listing(attrs)
+            |> Ecto.Changeset.add_error(:price_cents, money_error)
+
+          render(conn, :show, listing: nil, changeset: changeset, warranty_acknowledged: false)
+
+        warranty_accepted? ->
         result =
           Repo.transaction(fn ->
-            case Listings.create_listing(Map.drop(attrs, ["warranty_disclaimer_accepted"])) do
+            case Listings.create_listing(Map.drop(attrs, ["warranty_disclaimer_accepted", "price"])) do
               {:ok, %Mechanics.Listings.Listing{} = listing} ->
                 with {:ok, _agreement} <- Disclaimers.log_user_agreement(current_user.id, :warranty) do
                   listing
@@ -64,9 +77,10 @@ defmodule MechanicsWeb.ListingController do
             changeset = Listings.change_listing(%Mechanics.Listings.Listing{}, attrs)
             render(conn, :show, listing: nil, changeset: changeset, warranty_acknowledged: false)
         end
-      else
-        changeset = Listings.change_listing(%Mechanics.Listings.Listing{}, attrs)
-        render(conn, :show, listing: nil, changeset: changeset, warranty_acknowledged: false)
+
+        true ->
+          changeset = Listings.change_listing(%Mechanics.Listings.Listing{}, attrs)
+          render(conn, :show, listing: nil, changeset: changeset, warranty_acknowledged: false)
       end
     end
   end
@@ -94,13 +108,23 @@ defmodule MechanicsWeb.ListingController do
       warranty_accepted? =
         listing_params["warranty_disclaimer_accepted"] in ["true", "on", "1"]
 
-      attrs = Map.put(listing_params, "customer_id", current_user.id)
+      {money_attrs, money_error} = normalize_listing_money(listing_params)
+      attrs = Map.put(money_attrs, "customer_id", current_user.id)
       {attrs, forced_private?} = enforce_private_if_unverified(attrs, current_user)
 
-      if warranty_accepted? do
+      cond do
+        money_error ->
+          changeset =
+            listing
+            |> Listings.change_listing(attrs)
+            |> Ecto.Changeset.add_error(:price_cents, money_error)
+
+          render(conn, :show, listing: listing, changeset: changeset, warranty_acknowledged: false)
+
+        warranty_accepted? ->
         result =
           Repo.transaction(fn ->
-            case Listings.update_listing(listing, Map.drop(attrs, ["warranty_disclaimer_accepted"])) do
+            case Listings.update_listing(listing, Map.drop(attrs, ["warranty_disclaimer_accepted", "price"])) do
               {:ok, %Mechanics.Listings.Listing{} = updated_listing} ->
                 with {:ok, _agreement} <- Disclaimers.log_user_agreement(current_user.id, :warranty) do
                   updated_listing
@@ -128,9 +152,10 @@ defmodule MechanicsWeb.ListingController do
           {:error, _other} ->
             render(conn, :show, listing: listing, changeset: Listings.change_listing(listing, attrs), warranty_acknowledged: false)
         end
-      else
-        changeset = Listings.change_listing(listing, attrs)
-        render(conn, :show, listing: listing, changeset: changeset, warranty_acknowledged: false)
+
+        true ->
+          changeset = Listings.change_listing(listing, attrs)
+          render(conn, :show, listing: listing, changeset: changeset, warranty_acknowledged: false)
       end
     else
       _ ->
@@ -163,6 +188,32 @@ defmodule MechanicsWeb.ListingController do
       {attrs, false}
     else
       {Map.put(attrs, "is_public", false), wants_public?}
+    end
+  end
+
+  defp normalize_listing_money(attrs) do
+    currency =
+      attrs
+      |> Map.get("currency", "")
+      |> to_string()
+      |> String.upcase()
+
+    attrs = Map.put(attrs, "currency", currency)
+    price = Map.get(attrs, "price", "")
+    valid_currency? = currency in CurrencyFormatter.valid_currency_codes()
+
+    cond do
+      not valid_currency? ->
+        {Map.delete(attrs, "price_cents"), "Choose a valid currency."}
+
+      true ->
+        case CurrencyFormatter.parse_major_to_minor(to_string(price), currency) do
+          {:ok, price_cents} ->
+            {Map.put(attrs, "price_cents", price_cents), nil}
+
+          {:error, :invalid_amount} ->
+            {Map.delete(attrs, "price_cents"), "Enter a valid amount for the selected currency."}
+        end
     end
   end
 end

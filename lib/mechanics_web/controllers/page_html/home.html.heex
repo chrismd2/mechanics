@@ -37,6 +37,11 @@
       <%= if Enum.any?(@mechanics) do %>
         <ul class="space-y-3" role="list">
           <%= for profile <- @mechanics do %>
+            <% bio_first_line =
+              profile.bio
+              |> to_string()
+              |> String.split(~r/\R/, parts: 2)
+              |> hd() %>
             <li>
               <%= if @current_user && profile.user_id == @current_user.id do %>
                 <.link
@@ -47,7 +52,7 @@
                     <span class="font-medium text-zinc-900"><%= profile.headline %></span>
                     <span class="text-sm text-zinc-500 ml-2"><%= "#{profile.city}, #{profile.state}" %></span>
                   </div>
-                  <p class="text-sm text-zinc-600"><%= profile.bio %></p>
+                  <p class="text-sm text-zinc-600 line-clamp-1 break-words"><%= bio_first_line %></p>
                 </.link>
               <% else %>
                 <%= if can_message_mechanic? do %>
@@ -63,7 +68,7 @@
                         <span class="font-medium text-zinc-900"><%= profile.headline %></span>
                         <span class="text-sm text-zinc-500 ml-2"><%= "#{profile.city}, #{profile.state}" %></span>
                       </div>
-                      <p class="text-sm text-zinc-600"><%= profile.bio %></p>
+                      <p class="text-sm text-zinc-600 line-clamp-1 break-words"><%= bio_first_line %></p>
                     </.link>
                     <%= if m_brief.total_unread > 0 do %>
                       <.bell_card
@@ -81,7 +86,7 @@
                       <span class="font-medium text-zinc-900"><%= profile.headline %></span>
                       <span class="text-sm text-zinc-500 ml-2"><%= "#{profile.city}, #{profile.state}" %></span>
                     </div>
-                    <p class="text-sm text-zinc-600"><%= profile.bio %></p>
+                    <p class="text-sm text-zinc-600 line-clamp-1 break-words"><%= bio_first_line %></p>
                   </div>
                 <% end %>
               <% end %>
@@ -124,6 +129,11 @@
       <%= if Enum.any?(@listings) do %>
         <ul class="space-y-3" role="list">
           <%= for listing <- @listings do %>
+            <% desc_first_line =
+              listing.description
+              |> to_string()
+              |> String.split(~r/\R/, parts: 2)
+              |> hd() %>
             <li>
               <%= if @current_user && listing.customer_id == @current_user.id do %>
                 <% lo_brief = Map.get(@listing_owner_card_bells, listing.id, %{total_unread: 0, peers: []}) %>
@@ -134,9 +144,11 @@
                   >
                     <div>
                       <%= listing.title %>
-                      <span class="text-sm text-zinc-500 ml-2"><%= "#{listing.price_cents} #{listing.currency}" %></span>
+                      <span class="text-sm text-zinc-500 ml-2">
+                        <%= "#{MechanicsWeb.Helpers.CurrencyFormatter.get_symbol(listing.currency) }#{MechanicsWeb.Helpers.CurrencyFormatter.format_number(listing.price_cents, listing.currency)}" %>
+                      </span>
                     </div>
-                    <p class="text-sm text-zinc-600"><%= listing.description %></p>
+                    <p class="text-sm text-zinc-600 line-clamp-1 break-words"><%= desc_first_line %></p>
                   </.link>
                   <%= if lo_brief.total_unread > 0 do %>
                     <.bell_card
@@ -173,9 +185,11 @@
                     >
                       <div>
                         <span class="font-medium text-zinc-900"><%= listing.title %></span>
-                        <span class="text-sm text-zinc-500 ml-2"><%= "#{listing.price_cents} #{listing.currency}" %></span>
+                        <span class="text-sm text-zinc-500 ml-2">
+                          <%= "#{MechanicsWeb.Helpers.CurrencyFormatter.get_symbol(listing.currency) }#{MechanicsWeb.Helpers.CurrencyFormatter.format_number(listing.price_cents, listing.currency)}" %>
+                        </span>
                       </div>
-                      <p class="text-sm text-zinc-600"><%= listing.description %></p>
+                      <p class="text-sm text-zinc-600 line-clamp-1 break-words"><%= desc_first_line %></p>
                     </.link>
                     <%= if lm_brief.total_unread > 0 do %>
                       <.bell_card
@@ -191,9 +205,11 @@
                   <div class="rounded-lg border border-zinc-100 px-4 py-3 space-y-1">
                     <div>
                       <span class="font-medium text-zinc-900"><%= listing.title %></span>
-                      <span class="text-sm text-zinc-500 ml-2"><%= "#{listing.price_cents} #{listing.currency}" %></span>
+                      <span class="text-sm text-zinc-500 ml-2">
+                        <%= "#{MechanicsWeb.Helpers.CurrencyFormatter.get_symbol(listing.currency) }#{MechanicsWeb.Helpers.CurrencyFormatter.format_number(listing.price_cents, listing.currency)}" %>
+                      </span>
                     </div>
-                    <p class="text-sm text-zinc-600"><%= listing.description %></p>
+                    <p class="text-sm text-zinc-600 line-clamp-1 break-words"><%= desc_first_line %></p>
                   </div>
                 <% end %>
               <% end %>
