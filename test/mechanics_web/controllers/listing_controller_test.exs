@@ -3,6 +3,7 @@ defmodule MechanicsWeb.ListingControllerTest do
 
   alias Mechanics.Accounts
   alias Mechanics.Listings
+  alias Mechanics.Repo
 
   defp create_customer(conn) do
     suffix = System.unique_integer([:positive])
@@ -16,6 +17,11 @@ defmodule MechanicsWeb.ListingControllerTest do
         "password" => "securepw123",
         "password_confirmation" => "securepw123"
       })
+
+    customer =
+      customer
+      |> Ecto.Changeset.change(email_verified: true)
+      |> Repo.update!()
 
     conn = init_test_session(conn, %{current_user_id: customer.id})
     {:ok, conn: conn, customer: customer}

@@ -4,6 +4,13 @@ defmodule MechanicsWeb.PageControllerTest do
   alias Mechanics.Accounts
   alias Mechanics.Listings
   alias Mechanics.Profiles
+  alias Mechanics.Repo
+
+  defp verify_email!(user) do
+    user
+    |> Ecto.Changeset.change(email_verified: true)
+    |> Repo.update!()
+  end
 
   describe "GET / shows a home page with core functionality of this page" do
     test "Checking for tagline ", %{conn: conn} do
@@ -69,6 +76,8 @@ defmodule MechanicsWeb.PageControllerTest do
           "password_confirmation" => "securepw123"
         })
 
+      mechanic = verify_email!(mechanic)
+
       {:ok, _profile} =
         Profiles.create_profile(%{
           "headline" => "Shop mechanic",
@@ -97,6 +106,8 @@ defmodule MechanicsWeb.PageControllerTest do
           "password" => "securepw123",
           "password_confirmation" => "securepw123"
         })
+
+      mechanic = verify_email!(mechanic)
 
       {:ok, _profile} =
         Profiles.create_profile(%{
@@ -145,6 +156,7 @@ defmodule MechanicsWeb.PageControllerTest do
           "password" => "securepw123",
           "password_confirmation" => "securepw123"
         })
+      |> then(fn {:ok, user} -> {:ok, verify_email!(user)} end)
 
       conn =
         post(conn, ~p"/login", %{
@@ -168,6 +180,7 @@ defmodule MechanicsWeb.PageControllerTest do
           "password" => "securepw123",
           "password_confirmation" => "securepw123"
         })
+      |> then(fn {:ok, user} -> {:ok, verify_email!(user)} end)
 
       conn =
         post(conn, ~p"/login", %{
@@ -226,6 +239,8 @@ defmodule MechanicsWeb.PageControllerTest do
           "password" => "securepw123",
           "password_confirmation" => "securepw123"
         })
+
+      customer = verify_email!(customer)
 
       {:ok, _listing} =
         Listings.create_listing(%{

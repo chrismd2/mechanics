@@ -15,6 +15,11 @@
         >
           Welcome, <%= @current_user.name || @current_user.email %>!
         </.link>
+        <%= if not @current_user.email_verified do %>
+          <span class="rounded-md bg-amber-100 px-2 py-1 text-xs font-medium text-amber-900">
+            Email not verified
+          </span>
+        <% end %>
         <%= if @chat_notification_feed && @chat_notification_feed.items != [] do %>
           <details id="header-chat-notifications" class="relative">
             <summary

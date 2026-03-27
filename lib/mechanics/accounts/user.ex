@@ -8,6 +8,10 @@ defmodule Mechanics.Accounts.User do
   schema "users" do
     field :email, :string
     field :name, :string
+    field :email_verified, :boolean, default: true
+    field :email_verification_token, :string
+    field :email_verification_sent_at, :utc_datetime
+    field :email_verification_expires_at, :utc_datetime
     field :password_hash, :string
     field :password, :string, virtual: true
     field :password_confirmation, :string, virtual: true
@@ -26,7 +30,7 @@ defmodule Mechanics.Accounts.User do
   @doc false
   def changeset(user, attrs) do
     user
-    |> cast(attrs, [:email, :name, :password, :password_confirmation, :roles])
+    |> cast(attrs, [:email, :name, :password, :password_confirmation, :roles, :email_verified])
     |> validate_required([:email, :name, :password, :password_confirmation, :roles])
     |> validate_format(:email, ~r/@/)
     |> validate_roles()

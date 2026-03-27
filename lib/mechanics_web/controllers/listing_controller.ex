@@ -29,6 +29,8 @@ defmodule MechanicsWeb.ListingController do
         listing_params
         |> Map.put("customer_id", current_user.id)
 
+      {attrs, forced_private?} = enforce_private_if_unverified(attrs, current_user)
+
       if warranty_accepted? do
         result =
           Repo.transaction(fn ->
@@ -48,7 +50,10 @@ defmodule MechanicsWeb.ListingController do
         case result do
           {:ok, _listing} ->
             conn
-            |> put_flash(:info, "Listing created successfully.")
+            |> put_flash(
+              :info,
+              if(forced_private?, do: "Listing created successfully. Verify your email to publish it.", else: "Listing created successfully.")
+            )
             |> redirect(to: ~p"/")
 
           {:error, %Ecto.Changeset{} = changeset} ->
@@ -90,6 +95,7 @@ defmodule MechanicsWeb.ListingController do
         listing_params["warranty_disclaimer_accepted"] in ["true", "on", "1"]
 
       attrs = Map.put(listing_params, "customer_id", current_user.id)
+      {attrs, forced_private?} = enforce_private_if_unverified(attrs, current_user)
 
       if warranty_accepted? do
         result =
@@ -110,7 +116,10 @@ defmodule MechanicsWeb.ListingController do
         case result do
           {:ok, _listing} ->
             conn
-            |> put_flash(:info, "Listing updated successfully.")
+            |> put_flash(
+              :info,
+              if(forced_private?, do: "Listing updated. Verify your email to publish it.", else: "Listing updated successfully.")
+            )
             |> redirect(to: ~p"/")
 
           {:error, %Ecto.Changeset{} = changeset} ->
@@ -126,6 +135,16 @@ defmodule MechanicsWeb.ListingController do
     else
       _ ->
         redirect(conn, to: ~p"/")
+    end
+  end
+
+  defp enforce_private_if_unverified(attrs, current_user) do
+    wants_public? = attrs["is_public"] in [true, "true", "on", "1"]
+
+    if current_user.email_verified do
+      {attrs, false}
+    else
+      {Map.put(attrs, "is_public", false), wants_public?}
     end
   end
 end

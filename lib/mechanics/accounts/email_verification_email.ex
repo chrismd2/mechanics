@@ -1,4 +1,4 @@
-defmodule Mechanics.Accounts.PasswordResetEmail do
+defmodule Mechanics.Accounts.EmailVerificationEmail do
   @moduledoc false
 
   alias Mechanics.Accounts.User
@@ -10,6 +10,7 @@ defmodule Mechanics.Accounts.PasswordResetEmail do
       :zepto ->
         {_name, from_email} = default_from()
         msg = build(email, token, Keyword.merge(opts, full_urls: true))
+
         ZeptoMail.send_email(
           email,
           msg.subject,
@@ -24,32 +25,32 @@ defmodule Mechanics.Accounts.PasswordResetEmail do
   end
 
   def build(email, token, opts \\ []) do
-    reset_link =
+    verify_link =
       if Keyword.get(opts, :full_urls, false) do
-        public_reset_url(token, Keyword.get(opts, :base_url))
+        public_verify_url(token, Keyword.get(opts, :base_url))
       else
-        "/password/reset?token=#{token}"
+        "/email/verify?token=#{token}"
       end
 
     text_body =
-      "If you have an account with us, then we'll send you a reset request.\n\n" <>
-        "Reset link: #{reset_link}"
+      "Welcome! Please verify your email to unlock profile, listing, and chat features.\n\n" <>
+        "Verify email: #{verify_link}"
 
     html_body = """
-    <p>If you have an account with us, then we'll send you a reset request.</p>
-    <p><a href="#{reset_link}">Reset your password</a></p>
+    <p>Welcome! Please verify your email to unlock profile, listing, and chat features.</p>
+    <p><a href="#{verify_link}">Verify your email</a></p>
     """
 
     Swoosh.Email.new(
       to: email,
       from: default_from(),
-      subject: "Password reset request",
+      subject: "Verify your email",
       text_body: text_body,
       html_body: html_body
     )
   end
 
-  defp public_reset_url(token, base_url) do
+  defp public_verify_url(token, base_url) do
     base_url =
       cond do
         is_binary(base_url) and base_url != "" ->
@@ -66,7 +67,7 @@ defmodule Mechanics.Accounts.PasswordResetEmail do
           endpoint_url || "https://#{System.get_env("PHX_HOST") || "localhost"}"
       end
 
-    "#{base_url}/password/reset?token=#{token}"
+    "#{base_url}/email/verify?token=#{token}"
   end
 
   defp default_from do

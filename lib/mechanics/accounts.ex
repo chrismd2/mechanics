@@ -8,6 +8,7 @@ defmodule Mechanics.Accounts do
   alias Mechanics.Accounts.User
   alias Mechanics.Accounts.PasswordResetEmail
   alias Mechanics.Accounts.PasswordResetToken
+  alias Mechanics.Accounts.EmailVerificationEmail
 
   def list_users do
     Repo.all(User)
@@ -52,11 +53,73 @@ defmodule Mechanics.Accounts do
   end
 
   def create_user(attrs \\ %{}) do
-    attrs = normalize_roles(attrs)
+    attrs =
+      attrs
+      |> normalize_roles()
+      |> put_email_verified_false()
 
     %User{}
     |> User.changeset(attrs)
     |> Repo.insert()
+  end
+
+  @doc """
+  Creates and sends an email verification token for a user.
+  """
+  def request_email_verification(%User{} = user, base_url \\ nil, now \\ DateTime.utc_now()) do
+    now = DateTime.truncate(now, :second)
+    token = generate_password_reset_token()
+    expires_at = DateTime.add(now, 24 * 60 * 60, :second)
+
+    case user
+         |> Ecto.Changeset.change(%{
+           email_verification_token: token,
+           email_verification_sent_at: now,
+           email_verification_expires_at: expires_at
+         })
+         |> Repo.update() do
+      {:ok, refreshed_user} ->
+        _ = EmailVerificationEmail.deliver(refreshed_user, token, base_url: base_url)
+        {:ok, :sent}
+
+      {:error, changeset} ->
+        {:error, changeset}
+    end
+  end
+
+  @doc """
+  Marks a user email as verified if token is valid and unexpired.
+  """
+  def confirm_email_verification(token, now \\ DateTime.utc_now()) do
+    now = DateTime.truncate(now, :second)
+
+    case Repo.get_by(User, email_verification_token: token) do
+      nil ->
+        {:error, :invalid_token}
+
+      %User{} = user ->
+        expires_at = user.email_verification_expires_at
+
+        cond do
+          user.email_verified ->
+            {:ok, user}
+
+          is_nil(expires_at) ->
+            {:error, :invalid_token}
+
+          DateTime.compare(expires_at, now) == :lt ->
+            {:error, :expired_token}
+
+          true ->
+            user
+            |> Ecto.Changeset.change(%{
+              email_verified: true,
+              email_verification_token: nil,
+              email_verification_expires_at: nil
+            })
+            |> Repo.update()
+        end
+    end
   end
 
   # Form and seeds send `role` (single); User schema stores `roles` (list).
@@ -101,6 +164,16 @@ defmodule Mechanics.Accounts do
     Map.put(Map.drop(attrs, ["roles", :roles]), "roles", roles_list)
   end
 
+  defp put_email_verified_false(attrs) when is_map(attrs) do
+    cond do
+      Enum.any?(Map.keys(attrs), &is_atom/1) ->
+        Map.put(attrs, :email_verified, false)
+
+      true ->
+        Map.put(attrs, "email_verified", false)
+    end
+  end
+
   def authenticate_user(email, password) do
     user = get_user_by_email(email)
 
@@ -133,7 +206,7 @@ defmodule Mechanics.Accounts do
   Returns `{:ok, :sent}` if a reset email was sent, otherwise `{:ok, :not_sent}`
   (response content is intentionally ambiguous at the web layer).
   """
-  def request_password_reset(email, now \\ DateTime.utc_now()) do
+  def request_password_reset(email, now \\ DateTime.utc_now(), opts \\ []) do
     # Ecto :utc_datetime columns in this project are configured to reject microseconds.
     # Truncate to second precision to avoid "expects microseconds to be empty" errors.
     now = DateTime.truncate(now, :second)
@@ -173,7 +246,7 @@ defmodule Mechanics.Accounts do
             })
             |> Repo.insert!()
 
-            PasswordResetEmail.deliver(user, token)
+            PasswordResetEmail.deliver(user, token, opts)
 
             user
             |> Ecto.Changeset.change(%{
@@ -204,10 +277,32 @@ defmodule Mechanics.Accounts do
     User.settings_changeset(user, attrs)
   end
 
-  def update_user_settings(%User{} = user, attrs) when is_map(attrs) do
-    user
-    |> User.settings_changeset(attrs)
-    |> Repo.update()
+  def update_user_settings(%User{} = user, attrs, opts \\ []) when is_map(attrs) do
+    changeset = User.settings_changeset(user, attrs)
+    email_changed? = not is_nil(Ecto.Changeset.get_change(changeset, :email))
+
+    changeset =
+      if email_changed? do
+        changeset
+        |> Ecto.Changeset.put_change(:email_verified, false)
+        |> Ecto.Changeset.put_change(:email_verification_token, nil)
+        |> Ecto.Changeset.put_change(:email_verification_sent_at, nil)
+        |> Ecto.Changeset.put_change(:email_verification_expires_at, nil)
+      else
+        changeset
+      end
+
+    case Repo.update(changeset) do
+      {:ok, updated_user} ->
+        if email_changed? do
+          _ = request_email_verification(updated_user, Keyword.get(opts, :base_url))
+        end
+
+        {:ok, updated_user}
+
+      {:error, changeset} ->
+        {:error, changeset}
+    end
   end
 
   @doc """
@@ -217,6 +312,13 @@ defmodule Mechanics.Accounts do
     user
     |> User.password_changeset(attrs)
     |> Repo.update()
+  end
+
+  @doc """
+  Deletes a user account.
+  """
+  def delete_user(%User{} = user) do
+    Repo.delete(user)
   end
 
   @doc """

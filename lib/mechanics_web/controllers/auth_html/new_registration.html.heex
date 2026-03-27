@@ -29,16 +29,31 @@
     </div>
 
     <div>
-      <label for="user_role" class="block text-sm font-medium text-zinc-700">I am a</label>
+      <label for="user_primary_role" class="block text-sm font-medium text-zinc-700">I am a</label>
       <select
-        name="user[role]"
-        id="user_role"
+        name="user[roles][]"
+        id="user_primary_role"
         required
         class="mt-1 block w-full rounded-lg border-zinc-300 shadow-sm focus:border-zinc-500 focus:ring-zinc-500 sm:text-sm"
       >
         <option value="mechanic">Mechanic looking for work</option>
         <option value="customer">Customer looking for a mechanic</option>
       </select>
+      <input type="hidden" name="user[roles][]" id="user_customer_role" value="customer" />
+      <script>
+        (function () {
+          var primaryRole = document.getElementById("user_primary_role");
+          var customerRole = document.getElementById("user_customer_role");
+          if (!primaryRole || !customerRole) return;
+
+          function syncCustomerRole() {
+            customerRole.disabled = primaryRole.value !== "mechanic";
+          }
+
+          syncCustomerRole();
+          primaryRole.addEventListener("change", syncCustomerRole);
+        })();
+      </script>
     </div>
 
     <div>
@@ -109,6 +124,10 @@
       Sign up
     </button>
   </.form>
+
+  <p class="mt-4 text-sm text-zinc-600">
+    You will need to verify your email before creating profiles, listings, or chats.
+  </p>
 
   <p class="mt-4 text-sm text-zinc-600">
     Already have an account?

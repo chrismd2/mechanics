@@ -3,6 +3,7 @@
 <% city = Ecto.Changeset.get_field(@changeset, :city) || "" %>
 <% state = Ecto.Changeset.get_field(@changeset, :state) || "" %>
 <% is_public = Ecto.Changeset.get_field(@changeset, :is_public) == true %>
+<% can_publish = @current_user && @current_user.email_verified %>
 
 <div class="mx-auto max-w-2xl space-y-6">
   <div class="space-y-2">
@@ -79,10 +80,14 @@
             id="profile_is_public"
             value="true"
             checked={is_public}
+            disabled={not can_publish}
             class="rounded border-zinc-300 text-zinc-900 focus:ring-0"
           />
           Make my profile public
         </label>
+        <%= if not can_publish do %>
+          <p class="text-xs text-zinc-500">Verify your email before making your profile public.</p>
+        <% end %>
       </div>
 
       <div class="space-y-2">
