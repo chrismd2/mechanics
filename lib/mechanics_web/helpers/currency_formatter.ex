@@ -63,6 +63,12 @@ defmodule MechanicsWeb.Helpers.CurrencyFormatter do
     Map.get(@currency_symbols, code, code)  # fallback to code if unknown
   end
 
+  def valid_currency_codes do
+    @currency_exponents
+    |> Map.keys()
+    |> Enum.sort()
+  end
+
   # ======================
   # Main formatting functions (fixed decimals by default)
   # ======================
@@ -99,6 +105,32 @@ defmodule MechanicsWeb.Helpers.CurrencyFormatter do
   """
   def symbol(currency_code) do
     get_symbol(currency_code)
+  end
+
+  @doc """
+  Parses a major-unit amount string and converts it to minor units.
+  Returns `{:ok, integer_minor_units}` or `{:error, :invalid_amount}`.
+  """
+  def parse_major_to_minor(amount, currency_code) when is_binary(amount) do
+    exponent = get_exponent(currency_code)
+    multiplier = Decimal.new(10 ** exponent)
+
+    case Decimal.parse(String.trim(amount)) do
+      {decimal_amount, ""} ->
+        if Decimal.compare(decimal_amount, 0) in [:eq, :gt] and Decimal.scale(decimal_amount) <= exponent do
+          minor_units =
+            decimal_amount
+            |> Decimal.mult(multiplier)
+            |> Decimal.to_integer()
+
+          {:ok, minor_units}
+        else
+          {:error, :invalid_amount}
+        end
+
+      _ ->
+        {:error, :invalid_amount}
+    end
   end
 
   defp to_fixed_decimal_string(decimal_amount, exponent) do

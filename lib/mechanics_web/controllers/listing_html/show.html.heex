@@ -2,7 +2,23 @@
   title = Ecto.Changeset.get_field(@changeset, :title) || ""
   description = Ecto.Changeset.get_field(@changeset, :description) || ""
   price_cents = Ecto.Changeset.get_field(@changeset, :price_cents)
-  currency = Ecto.Changeset.get_field(@changeset, :currency) || ""
+  currency =
+    @changeset
+    |> Ecto.Changeset.get_field(:currency)
+    |> case do
+      value when is_binary(value) and value != "" -> value
+      _ -> "USD"
+    end
+  submitted_price = (@changeset.params || %{}) |> Map.get("price")
+  price_value =
+    cond do
+      is_binary(submitted_price) -> submitted_price
+      is_integer(price_cents) -> MechanicsWeb.Helpers.CurrencyFormatter.format_number(price_cents, currency)
+      true -> ""
+    end
+  currency_codes = MechanicsWeb.Helpers.CurrencyFormatter.valid_currency_codes()
+  current_exponent = MechanicsWeb.Helpers.CurrencyFormatter.get_exponent(currency)
+  price_step = if current_exponent == 0, do: "1", else: "0." <> String.duplicate("0", current_exponent - 1) <> "1"
   is_public = Ecto.Changeset.get_field(@changeset, :is_public) == true
   can_publish = @current_user && @current_user.email_verified
 
@@ -50,15 +66,16 @@
 
       <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div class="space-y-2">
-          <label for="listing_price_cents" class="block text-sm font-semibold leading-6 text-zinc-800">
-            Price (cents)
+          <label for="listing_price" class="block text-sm font-semibold leading-6 text-zinc-800">
+            Price
           </label>
           <input
             type="number"
-            id="listing_price_cents"
-            name="listing[price_cents]"
-            value={price_cents || ""}
+            id="listing_price"
+            name="listing[price]"
+            value={price_value}
             min="0"
+            step={price_step}
             class="mt-1 block w-full rounded-lg border-zinc-300 shadow-sm focus:border-zinc-500 focus:ring-zinc-500 sm:text-sm"
           />
         </div>
@@ -67,13 +84,15 @@
           <label for="listing_currency" class="block text-sm font-semibold leading-6 text-zinc-800">
             Currency
           </label>
-          <input
-            type="text"
+          <select
             id="listing_currency"
             name="listing[currency]"
-            value={currency}
             class="mt-1 block w-full rounded-lg border-zinc-300 shadow-sm focus:border-zinc-500 focus:ring-zinc-500 sm:text-sm"
-          />
+          >
+            <%= for code <- currency_codes do %>
+              <option value={code} selected={code == currency}><%= code %></option>
+            <% end %>
+          </select>
         </div>
       </div>
 
