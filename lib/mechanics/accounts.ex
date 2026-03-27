@@ -123,20 +123,15 @@ defmodule Mechanics.Accounts do
   end
 
   # Form and seeds send `role` (single); User schema stores `roles` (list).
-  # Choosing "mechanic" at registration includes `customer` so mechanics can post listings too.
+  # A user only has `customer` role if it was assigned.
   defp normalize_roles(attrs) when is_map(attrs) do
     cond do
       # Registration / seeds send a single `role` key.
       role = attrs["role"] || attrs[:role] ->
         case role do
-          "mechanic" ->
-            Map.put(Map.drop(attrs, ["role", :role]), "roles", ["customer", "mechanic"])
-
-          "customer" ->
-            Map.put(Map.drop(attrs, ["role", :role]), "roles", ["customer"])
-
-          _ ->
-            attrs
+          "mechanic" -> Map.put(Map.drop(attrs, ["role", :role]), "roles", ["mechanic"])
+          "customer" -> Map.put(Map.drop(attrs, ["role", :role]), "roles", ["customer"])
+          _ -> attrs
         end
 
       # Some callers (including tests) may pass `roles: ["mechanic"]`.
@@ -162,13 +157,6 @@ defmodule Mechanics.Accounts do
           r when is_atom(r) -> Atom.to_string(r)
           r -> r
         end)
-      else
-        roles_list
-      end
-
-    roles_list =
-      if is_list(roles_list) and "mechanic" in roles_list and not ("customer" in roles_list) do
-        ["customer" | roles_list]
       else
         roles_list
       end
