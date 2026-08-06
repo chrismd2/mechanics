@@ -15,11 +15,7 @@ defmodule MechanicsWeb.InviteController do
       %User{} = user ->
         case Invites.create_conversation_invite(user, chat_id) do
           {:ok, invite} ->
-            invite_url = RequestURL.invite_url(conn, invite.token)
-
-            conn
-            |> put_flash(:info, "Invite link ready: #{invite_url}")
-            |> redirect(to: ~p"/chats/#{chat_id}")
+            redirect(conn, to: "/chats/#{chat_id}?#{URI.encode_query(%{"invite_token" => invite.token})}")
 
           {:error, :not_found} ->
             conn
