@@ -157,6 +157,25 @@
           </td>
           <td class="w-1/2 pl-2 pt-4 align-top">
             <%= if is_edit do %>
+              <form action={~p"/listings/#{@listing.id}"} method="post">
+                <input type="hidden" name="_csrf_token" value={get_csrf_token()} />
+                <input type="hidden" name="_method" value="delete" />
+                <button
+                  id="listing_delete"
+                  type="submit"
+                  aria-label={"Delete listing #{title}"}
+                  data-confirm="Delete this listing?"
+                  class="w-full rounded-lg border border-rose-200 bg-rose-50 px-4 py-2 text-sm font-semibold text-rose-700 hover:bg-rose-100"
+                >
+                  &#128465; Delete listing
+                </button>
+              </form>
+            <% end %>
+          </td>
+        </tr>
+        <%= if is_edit do %>
+          <tr>
+            <td colspan="2" class="pt-4">
               <div class="space-y-2">
                 <form action={~p"/listings/#{@listing.id}/invites"} method="post">
                   <input type="hidden" name="_csrf_token" value={get_csrf_token()} />
@@ -188,23 +207,10 @@
                     />
                   </div>
                 <% end %>
-                <form action={~p"/listings/#{@listing.id}"} method="post">
-                  <input type="hidden" name="_csrf_token" value={get_csrf_token()} />
-                  <input type="hidden" name="_method" value="delete" />
-                  <button
-                    id="listing_delete"
-                    type="submit"
-                    aria-label={"Delete listing #{title}"}
-                    data-confirm="Delete this listing?"
-                    class="w-full rounded-lg border border-rose-200 bg-rose-50 px-4 py-2 text-sm font-semibold text-rose-700 hover:bg-rose-100"
-                  >
-                    &#128465; Delete listing
-                  </button>
-                </form>
               </div>
-            <% end %>
-          </td>
-        </tr>
+            </td>
+          </tr>
+        <% end %>
       </tbody>
     </table>
 
