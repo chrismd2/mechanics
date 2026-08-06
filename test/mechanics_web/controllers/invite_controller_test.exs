@@ -72,6 +72,8 @@ defmodule MechanicsWeb.InviteControllerTest do
       parsed = Floki.parse_document!(html)
       assert Floki.find(parsed, ~s(#account-listing-invite-url-#{listing.id})) != []
       assert Floki.find(parsed, ~s(#account-listing-invite-qr-#{listing.id} svg)) != []
+      assert Floki.find(parsed, ~s(#account-listing-invite-qr-#{listing.id}-modal[hidden])) != []
+      assert Floki.find(parsed, ~s(#account-listing-invite-qr-#{listing.id}-large svg)) != []
 
       [input] = Floki.find(parsed, ~s(#account-listing-invite-url-#{listing.id}))
       [value] = Floki.attribute(input, "value")
@@ -112,6 +114,8 @@ defmodule MechanicsWeb.InviteControllerTest do
       parsed = Floki.parse_document!(html)
       assert Floki.find(parsed, ~s(#listing-invite-url-#{listing.id})) != []
       assert Floki.find(parsed, ~s(#listing-invite-qr-#{listing.id} svg)) != []
+      assert Floki.find(parsed, ~s(#listing-invite-qr-#{listing.id}-modal[hidden])) != []
+      assert Floki.find(parsed, ~s(#listing-invite-qr-#{listing.id}-large svg)) != []
 
       [input] = Floki.find(parsed, ~s(#listing-invite-url-#{listing.id}))
       [value] = Floki.attribute(input, "value")
@@ -264,6 +268,8 @@ defmodule MechanicsWeb.InviteControllerTest do
       parsed = Floki.parse_document!(html)
       assert Floki.find(parsed, "#chat-invite-url") != []
       assert Floki.find(parsed, "#chat-invite-qr svg") != []
+      assert Floki.find(parsed, "#chat-invite-qr-modal[hidden]") != []
+      assert Floki.find(parsed, "#chat-invite-qr-large svg") != []
 
       [input] = Floki.find(parsed, "#chat-invite-url")
       [value] = Floki.attribute(input, "value")

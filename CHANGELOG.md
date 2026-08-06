@@ -4,6 +4,7 @@
 
 - Let listing owners create shareable listing invites from Account and listing edit (no chat required)
 - Show the share link and QR code on the current page after create (chat and listing) instead of putting the URL in a flash
+- Click the QR to open a larger modal version for easier scanning
 - Build invite share URLs from the request host (not Endpoint localhost) so links use the public domain
 - Add `POST /listings/:listing_id/invites` wired to `Invites.create_listing_invite/2`
 
