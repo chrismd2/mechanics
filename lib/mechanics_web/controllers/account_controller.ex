@@ -19,7 +19,10 @@ defmodule MechanicsWeb.AccountController do
 
       %User{} = user ->
         conn
-        |> assign_account_page(user, account_tab: Map.get(params, "tab"))
+        |> assign_account_page(user,
+          account_tab: Map.get(params, "tab"),
+          listing_invite: listing_invite_from_params(conn, params)
+        )
         |> render(:show)
     end
   end
@@ -182,6 +185,18 @@ defmodule MechanicsWeb.AccountController do
     |> assign(:user_listings, user_listings)
     |> assign(:password_form, password_form)
     |> assign(:account_tab, account_tab)
+    |> assign(:listing_invite, Map.get(extra_map, :listing_invite) || Map.get(extra_map, "listing_invite"))
+  end
+
+  defp listing_invite_from_params(conn, params) do
+    listing_id = Map.get(params, "invite_listing_id")
+    token = Map.get(params, "invite_token")
+
+    if is_binary(listing_id) and listing_id != "" and is_binary(token) and token != "" do
+      %{listing_id: listing_id, url: MechanicsWeb.RequestURL.invite_url(conn, token)}
+    else
+      nil
+    end
   end
 
   defp account_path(opts) when is_list(opts) do
@@ -193,15 +208,7 @@ defmodule MechanicsWeb.AccountController do
     end
   end
 
-  defp request_base_url(conn) do
-    host =
-      case Plug.Conn.get_req_header(conn, "x-forwarded-host") do
-        [h | _] when is_binary(h) and h != "" -> h
-        _ -> conn.host
-      end
-
-    "https://#{host}"
-  end
+  defp request_base_url(conn), do: MechanicsWeb.RequestURL.base_url(conn)
 
   defp normalize_account_tab(requested, user_listings) do
     allowed = ["notifications", "settings"]

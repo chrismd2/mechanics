@@ -173,6 +173,34 @@
             <% end %>
           </td>
         </tr>
+        <%= if is_edit do %>
+          <tr>
+            <td colspan="2" class="pt-4">
+              <div class="space-y-2">
+                <form action={~p"/listings/#{@listing.id}/invites"} method="post">
+                  <input type="hidden" name="_csrf_token" value={get_csrf_token()} />
+                  <input type="hidden" name="return_to" value={~p"/listings/#{@listing.id}/edit"} />
+                  <button
+                    id={"listing-invite-#{@listing.id}"}
+                    type="submit"
+                    aria-label={"Invite someone to listing #{title}"}
+                    class="w-full rounded-lg border border-zinc-300 bg-white px-4 py-2 text-sm font-semibold text-zinc-800 hover:bg-zinc-100"
+                  >
+                    Create invite link
+                  </button>
+                </form>
+                <%= if assigns[:listing_invite] && @listing_invite.listing_id == @listing.id do %>
+                  <.invite_share_panel
+                    url={@listing_invite.url}
+                    wrapper_id={"listing-invite-link-#{@listing.id}"}
+                    url_input_id={"listing-invite-url-#{@listing.id}"}
+                    qr_id={"listing-invite-qr-#{@listing.id}"}
+                  />
+                <% end %>
+              </div>
+            </td>
+          </tr>
+        <% end %>
       </tbody>
     </table>
 

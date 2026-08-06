@@ -50,6 +50,7 @@ defmodule MechanicsWeb.Router do
     get "/listings/new", ListingController, :new
     post "/listings", ListingController, :create
     get "/listings/:id/edit", ListingController, :edit
+    post "/listings/:listing_id/invites", InviteController, :create_for_listing
     post "/listings/:id", ListingController, :update
     delete "/listings/:id", ListingController, :delete
 
@@ -57,6 +58,8 @@ defmodule MechanicsWeb.Router do
     get "/chats/open/listing/:listing_id", ChatController, :open_by_listing
     get "/chats/open/listing_owner/:listing_id", ChatController, :open_listing_owner_next
     get "/chats/open/mechanic_pm_next", ChatController, :open_mechanic_pm_next
+    post "/chats/:chat_id/invites", InviteController, :create_for_chat
+    get "/invites/:token", InviteController, :show
     post "/chats/:id/messages", ChatController, :create_message
     get "/chats/:id", ChatController, :show
   end

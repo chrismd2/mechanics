@@ -295,5 +295,41 @@ defmodule MechanicsWeb.AccountControllerTest do
       assert Floki.find(parsed, ~s(form[action="/listings/#{listing.id}"] input[name="_method"][value="delete"])) != []
       assert Floki.find(parsed, ~s(button[id="account-listing-delete-#{listing.id}"])) != []
     end
+
+    test "shows an invite listing button on each listing card", %{conn: conn} do
+      {:ok, customer} =
+        Accounts.create_user(%{
+          "email" => "lst-acct-invite-#{System.unique_integer([:positive])}@example.com",
+          "name" => "Listing Invite Account",
+          "roles" => ["customer"],
+          "password" => "securepw123",
+          "password_confirmation" => "securepw123"
+        })
+
+      {:ok, listing} =
+        Mechanics.Listings.create_listing(%{
+          "title" => "Invite from account card",
+          "description" => "Synthetic",
+          "price_cents" => 9_000,
+          "currency" => "USD",
+          "customer_id" => customer.id,
+          "is_public" => true
+        })
+
+      html =
+        build_conn()
+        |> login(customer)
+        |> get(~p"/account")
+        |> html_response(200)
+
+      parsed = Floki.parse_document!(html)
+
+      assert Floki.find(
+               parsed,
+               ~s(form[action="/listings/#{listing.id}/invites"][method="post"])
+             ) != []
+
+      assert Floki.find(parsed, ~s(button[id="account-listing-invite-#{listing.id}"])) != []
+    end
   end
 end

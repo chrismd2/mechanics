@@ -8,7 +8,7 @@ defmodule MechanicsWeb.ChatController do
   alias Mechanics.Listings.Listing
   alias Mechanics.Repo
 
-  def show(conn, %{"id" => chat_id}) do
+  def show(conn, %{"id" => chat_id} = params) do
     case conn.assigns[:current_user] do
       nil ->
         conn
@@ -23,11 +23,21 @@ defmodule MechanicsWeb.ChatController do
 
             header = Chats.chat_header_for_viewer(chat, user)
 
+            chat_invite =
+              case Map.get(params, "invite_token") do
+                token when is_binary(token) and token != "" ->
+                  %{url: MechanicsWeb.RequestURL.invite_url(conn, token)}
+
+                _ ->
+                  nil
+              end
+
             conn
             |> assign(:chat, chat)
             |> assign(:messages, messages)
             |> assign(:chat_header, header)
             |> assign(:title, header.title)
+            |> assign(:chat_invite, chat_invite)
             |> render(:show)
 
           {:error, :not_found} ->
