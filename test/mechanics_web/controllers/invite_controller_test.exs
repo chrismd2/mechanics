@@ -74,7 +74,7 @@ defmodule MechanicsWeb.InviteControllerTest do
 
       [input] = Floki.find(parsed, ~s(#account-listing-invite-url-#{listing.id}))
       [value] = Floki.attribute(input, "value")
-      assert String.ends_with?(value, "/invites/#{token}")
+      assert value == "https://www.example.com/invites/#{token}"
     end
 
     test "owner create from edit stays on edit and shows the share link", %{conn: conn} do
@@ -113,7 +113,43 @@ defmodule MechanicsWeb.InviteControllerTest do
 
       [input] = Floki.find(parsed, ~s(#listing-invite-url-#{listing.id}))
       [value] = Floki.attribute(input, "value")
-      assert String.ends_with?(value, "/invites/#{token}")
+      assert value == "https://www.example.com/invites/#{token}"
+    end
+
+    test "share link uses the public request host, not endpoint localhost", %{conn: conn} do
+      customer = create_customer()
+
+      {:ok, listing} =
+        Listings.create_listing(%{
+          "title" => "Public host invite",
+          "description" => "Host header",
+          "price_cents" => 2_000,
+          "currency" => "USD",
+          "customer_id" => customer.id,
+          "is_public" => true
+        })
+
+      conn =
+        conn
+        |> Map.put(:host, "mechanics.electricquestlog.xyz")
+        |> login(customer)
+        |> post(~p"/listings/#{listing.id}/invites", %{
+          "return_to" => "/account?tab=listings"
+        })
+
+      redirect = redirected_to(conn)
+      assert [%Invite{token: token}] = invites_for_listing(listing.id)
+
+      html =
+        conn
+        |> Map.put(:host, "mechanics.electricquestlog.xyz")
+        |> get(redirect)
+        |> html_response(200)
+
+      parsed = Floki.parse_document!(html)
+      [input] = Floki.find(parsed, ~s(#account-listing-invite-url-#{listing.id}))
+      [value] = Floki.attribute(input, "value")
+      assert value == "https://mechanics.electricquestlog.xyz/invites/#{token}"
     end
 
     test "redirects guests to login", %{conn: conn} do

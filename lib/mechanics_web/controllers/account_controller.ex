@@ -188,12 +188,12 @@ defmodule MechanicsWeb.AccountController do
     |> assign(:listing_invite, Map.get(extra_map, :listing_invite) || Map.get(extra_map, "listing_invite"))
   end
 
-  defp listing_invite_from_params(_conn, params) do
+  defp listing_invite_from_params(conn, params) do
     listing_id = Map.get(params, "invite_listing_id")
     token = Map.get(params, "invite_token")
 
     if is_binary(listing_id) and listing_id != "" and is_binary(token) and token != "" do
-      %{listing_id: listing_id, url: url(~p"/invites/#{token}")}
+      %{listing_id: listing_id, url: MechanicsWeb.RequestURL.invite_url(conn, token)}
     else
       nil
     end
@@ -208,15 +208,7 @@ defmodule MechanicsWeb.AccountController do
     end
   end
 
-  defp request_base_url(conn) do
-    host =
-      case Plug.Conn.get_req_header(conn, "x-forwarded-host") do
-        [h | _] when is_binary(h) and h != "" -> h
-        _ -> conn.host
-      end
-
-    "https://#{host}"
-  end
+  defp request_base_url(conn), do: MechanicsWeb.RequestURL.base_url(conn)
 
   defp normalize_account_tab(requested, user_listings) do
     allowed = ["notifications", "settings"]

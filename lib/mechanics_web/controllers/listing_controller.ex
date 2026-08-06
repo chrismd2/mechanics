@@ -96,7 +96,7 @@ defmodule MechanicsWeb.ListingController do
       listing_invite =
         case Map.get(params, "invite_token") do
           token when is_binary(token) and token != "" ->
-            %{listing_id: listing.id, url: url(~p"/invites/#{token}")}
+            %{listing_id: listing.id, url: MechanicsWeb.RequestURL.invite_url(conn, token)}
 
           _ ->
             nil

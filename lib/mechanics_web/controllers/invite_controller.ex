@@ -3,6 +3,7 @@ defmodule MechanicsWeb.InviteController do
 
   alias Mechanics.Accounts.User
   alias Mechanics.Invites
+  alias MechanicsWeb.RequestURL
 
   def create_for_chat(conn, %{"chat_id" => chat_id}) do
     case conn.assigns[:current_user] do
@@ -14,10 +15,10 @@ defmodule MechanicsWeb.InviteController do
       %User{} = user ->
         case Invites.create_conversation_invite(user, chat_id) do
           {:ok, invite} ->
-            url = url(~p"/invites/#{invite.token}")
+            invite_url = RequestURL.invite_url(conn, invite.token)
 
             conn
-            |> put_flash(:info, "Invite link ready: #{url}")
+            |> put_flash(:info, "Invite link ready: #{invite_url}")
             |> redirect(to: ~p"/chats/#{chat_id}")
 
           {:error, :not_found} ->
