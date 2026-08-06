@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-08-06 — Skip draft PR deploys
+
+- Skip deploy workflow when a PR is opened as a draft
+- Run deploy when a draft PR is marked ready for review
+
 ## 2026-08-06 — invites-owner-listing-invite-without-chat
 
 - Let listing owners create shareable listing invites from Account and listing edit (no chat required)
