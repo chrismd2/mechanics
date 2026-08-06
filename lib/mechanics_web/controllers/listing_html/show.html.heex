@@ -157,19 +157,51 @@
           </td>
           <td class="w-1/2 pl-2 pt-4 align-top">
             <%= if is_edit do %>
-              <form action={~p"/listings/#{@listing.id}"} method="post">
-                <input type="hidden" name="_csrf_token" value={get_csrf_token()} />
-                <input type="hidden" name="_method" value="delete" />
-                <button
-                  id="listing_delete"
-                  type="submit"
-                  aria-label={"Delete listing #{title}"}
-                  data-confirm="Delete this listing?"
-                  class="w-full rounded-lg border border-rose-200 bg-rose-50 px-4 py-2 text-sm font-semibold text-rose-700 hover:bg-rose-100"
-                >
-                  &#128465; Delete listing
-                </button>
-              </form>
+              <div class="space-y-2">
+                <form action={~p"/listings/#{@listing.id}/invites"} method="post">
+                  <input type="hidden" name="_csrf_token" value={get_csrf_token()} />
+                  <input type="hidden" name="return_to" value={~p"/listings/#{@listing.id}/edit"} />
+                  <button
+                    id={"listing-invite-#{@listing.id}"}
+                    type="submit"
+                    aria-label={"Invite someone to listing #{title}"}
+                    class="w-full rounded-lg border border-zinc-300 bg-white px-4 py-2 text-sm font-semibold text-zinc-800 hover:bg-zinc-100"
+                  >
+                    Create invite link
+                  </button>
+                </form>
+                <%= if assigns[:listing_invite] && @listing_invite.listing_id == @listing.id do %>
+                  <div id={"listing-invite-link-#{@listing.id}"} class="rounded-lg border border-zinc-200 bg-zinc-50 p-3">
+                    <label
+                      for={"listing-invite-url-#{@listing.id}"}
+                      class="block text-xs font-semibold text-zinc-700"
+                    >
+                      Share link
+                    </label>
+                    <input
+                      type="text"
+                      readonly
+                      id={"listing-invite-url-#{@listing.id}"}
+                      value={@listing_invite.url}
+                      onclick="this.select()"
+                      class="mt-1 w-full rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-xs text-zinc-800"
+                    />
+                  </div>
+                <% end %>
+                <form action={~p"/listings/#{@listing.id}"} method="post">
+                  <input type="hidden" name="_csrf_token" value={get_csrf_token()} />
+                  <input type="hidden" name="_method" value="delete" />
+                  <button
+                    id="listing_delete"
+                    type="submit"
+                    aria-label={"Delete listing #{title}"}
+                    data-confirm="Delete this listing?"
+                    class="w-full rounded-lg border border-rose-200 bg-rose-50 px-4 py-2 text-sm font-semibold text-rose-700 hover:bg-rose-100"
+                  >
+                    &#128465; Delete listing
+                  </button>
+                </form>
+              </div>
             <% end %>
           </td>
         </tr>

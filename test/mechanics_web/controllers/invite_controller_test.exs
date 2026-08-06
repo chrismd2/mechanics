@@ -32,7 +32,7 @@ defmodule MechanicsWeb.InviteControllerTest do
   end
 
   describe "POST /listings/:listing_id/invites" do
-    test "owner can create a listing invite without an existing chat", %{conn: conn} do
+    test "owner can create a listing invite and see the share link on account", %{conn: conn} do
       customer = create_customer()
 
       {:ok, listing} =
@@ -48,16 +48,72 @@ defmodule MechanicsWeb.InviteControllerTest do
       conn =
         conn
         |> login(customer)
-        |> post(~p"/listings/#{listing.id}/invites")
+        |> post(~p"/listings/#{listing.id}/invites", %{
+          "return_to" => "/account?tab=listings"
+        })
 
-      assert redirected_to(conn) == ~p"/account"
-      assert Phoenix.Flash.get(conn.assigns.flash, :info) =~ "Invite link ready:"
-      assert Phoenix.Flash.get(conn.assigns.flash, :info) =~ "/invites/"
+      redirect = redirected_to(conn)
+      assert redirect =~ ~r{^/account\?}
+      assert redirect =~ "tab=listings"
+      assert redirect =~ "invite_listing_id=#{listing.id}"
+      assert redirect =~ "invite_token="
+      refute Phoenix.Flash.get(conn.assigns.flash, :info)
 
-      assert [%Invite{subject_type: "listing", listing_id: listing_id, chat_id: nil}] =
+      assert [%Invite{subject_type: "listing", listing_id: listing_id, chat_id: nil, token: token}] =
                invites_for_listing(listing.id)
 
       assert listing_id == listing.id
+
+      html =
+        conn
+        |> get(redirect)
+        |> html_response(200)
+
+      parsed = Floki.parse_document!(html)
+      assert Floki.find(parsed, ~s(#account-listing-invite-url-#{listing.id})) != []
+
+      [input] = Floki.find(parsed, ~s(#account-listing-invite-url-#{listing.id}))
+      [value] = Floki.attribute(input, "value")
+      assert String.ends_with?(value, "/invites/#{token}")
+    end
+
+    test "owner create from edit stays on edit and shows the share link", %{conn: conn} do
+      customer = create_customer()
+
+      {:ok, listing} =
+        Listings.create_listing(%{
+          "title" => "Edit invite stay",
+          "description" => "Stay on edit",
+          "price_cents" => 3_000,
+          "currency" => "USD",
+          "customer_id" => customer.id,
+          "is_public" => true
+        })
+
+      return_to = "/listings/#{listing.id}/edit"
+
+      conn =
+        conn
+        |> login(customer)
+        |> post(~p"/listings/#{listing.id}/invites", %{"return_to" => return_to})
+
+      redirect = redirected_to(conn)
+      assert redirect =~ ~r{^/listings/#{listing.id}/edit\?}
+      assert redirect =~ "invite_token="
+
+      assert [%Invite{token: token}] = invites_for_listing(listing.id)
+
+      html =
+        conn
+        |> get(redirect)
+        |> html_response(200)
+
+      parsed = Floki.parse_document!(html)
+      assert Floki.find(parsed, ~s(#listing-invite-url-#{listing.id})) != []
+
+      [input] = Floki.find(parsed, ~s(#listing-invite-url-#{listing.id}))
+      [value] = Floki.attribute(input, "value")
+      assert String.ends_with?(value, "/invites/#{token}")
     end
 
     test "redirects guests to login", %{conn: conn} do
@@ -96,7 +152,7 @@ defmodule MechanicsWeb.InviteControllerTest do
         |> login(other)
         |> post(~p"/listings/#{listing.id}/invites")
 
-      assert redirected_to(conn) == ~p"/account"
+      assert redirected_to(conn) == ~p"/account?tab=listings"
       assert Phoenix.Flash.get(conn.assigns.flash, :error) =~ "cannot invite"
       assert invites_for_listing(listing.id) == []
     end
@@ -130,6 +186,7 @@ defmodule MechanicsWeb.InviteControllerTest do
              ) != []
 
       assert Floki.find(parsed, ~s(button[id="listing-invite-#{listing.id}"])) != []
+      assert Floki.find(parsed, ~s(#listing-invite-url-#{listing.id})) == []
     end
   end
 end

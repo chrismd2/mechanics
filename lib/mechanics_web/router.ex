@@ -50,6 +50,7 @@ defmodule MechanicsWeb.Router do
     get "/listings/new", ListingController, :new
     post "/listings", ListingController, :create
     get "/listings/:id/edit", ListingController, :edit
+    post "/listings/:listing_id/invites", InviteController, :create_for_listing
     post "/listings/:id", ListingController, :update
     delete "/listings/:id", ListingController, :delete
 

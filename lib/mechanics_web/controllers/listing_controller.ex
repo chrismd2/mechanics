@@ -85,14 +85,29 @@ defmodule MechanicsWeb.ListingController do
     end
   end
 
-  def edit(conn, %{"id" => id}) do
+  def edit(conn, %{"id" => id} = params) do
     current_user = conn.assigns[:current_user]
 
     with true <- current_user && "customer" in current_user.roles,
          %Mechanics.Listings.Listing{} = listing <- Listings.get_listing!(id),
          true <- listing.customer_id == current_user.id do
       changeset = Listings.change_listing(listing)
-      render(conn, :show, listing: listing, changeset: changeset, warranty_acknowledged: false)
+
+      listing_invite =
+        case Map.get(params, "invite_token") do
+          token when is_binary(token) and token != "" ->
+            %{listing_id: listing.id, url: url(~p"/invites/#{token}")}
+
+          _ ->
+            nil
+        end
+
+      render(conn, :show,
+        listing: listing,
+        changeset: changeset,
+        warranty_acknowledged: false,
+        listing_invite: listing_invite
+      )
     else
       _ ->
         redirect(conn, to: ~p"/")

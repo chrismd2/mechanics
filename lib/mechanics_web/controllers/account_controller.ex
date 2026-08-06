@@ -19,7 +19,10 @@ defmodule MechanicsWeb.AccountController do
 
       %User{} = user ->
         conn
-        |> assign_account_page(user, account_tab: Map.get(params, "tab"))
+        |> assign_account_page(user,
+          account_tab: Map.get(params, "tab"),
+          listing_invite: listing_invite_from_params(conn, params)
+        )
         |> render(:show)
     end
   end
@@ -182,6 +185,18 @@ defmodule MechanicsWeb.AccountController do
     |> assign(:user_listings, user_listings)
     |> assign(:password_form, password_form)
     |> assign(:account_tab, account_tab)
+    |> assign(:listing_invite, Map.get(extra_map, :listing_invite) || Map.get(extra_map, "listing_invite"))
+  end
+
+  defp listing_invite_from_params(_conn, params) do
+    listing_id = Map.get(params, "invite_listing_id")
+    token = Map.get(params, "invite_token")
+
+    if is_binary(listing_id) and listing_id != "" and is_binary(token) and token != "" do
+      %{listing_id: listing_id, url: url(~p"/invites/#{token}")}
+    else
+      nil
+    end
   end
 
   defp account_path(opts) when is_list(opts) do
