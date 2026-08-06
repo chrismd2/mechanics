@@ -71,12 +71,31 @@
         placeholder="Type a message… (Enter to send, Shift+Enter for new line)"
       ></textarea>
     </div>
-    <button
-      type="submit"
-      id="message_submit"
-      class="rounded-lg bg-zinc-900 px-4 py-2 text-sm font-semibold text-white hover:bg-zinc-800"
-    >
-      Send
-    </button>
+    <div class="flex flex-wrap items-center gap-3">
+      <button
+        type="submit"
+        id="message_submit"
+        class="rounded-lg bg-zinc-900 px-4 py-2 text-sm font-semibold text-white hover:bg-zinc-800"
+      >
+        Send
+      </button>
+    </div>
+  </form>
+
+  <form action={~p"/chats/#{@chat.id}/invites"} method="post" class="rounded-xl border border-dashed border-zinc-300 bg-zinc-50 px-4 py-3">
+    <input type="hidden" name="_csrf_token" value={get_csrf_token()} />
+    <div class="flex flex-wrap items-center justify-between gap-3">
+      <div>
+        <p class="text-sm font-medium text-zinc-800">Invite someone to this conversation</p>
+        <p class="text-xs text-zinc-500">Creates a shareable link that opens this thread after sign-in.</p>
+      </div>
+      <button
+        type="submit"
+        id="create_chat_invite"
+        class="rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm font-semibold text-zinc-800 hover:bg-zinc-100"
+      >
+        Create invite link
+      </button>
+    </div>
   </form>
 </div>
