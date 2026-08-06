@@ -190,22 +190,12 @@
                   </button>
                 </form>
                 <%= if assigns[:listing_invite] && @listing_invite.listing_id == @listing.id do %>
-                  <div id={"listing-invite-link-#{@listing.id}"} class="rounded-lg border border-zinc-200 bg-zinc-50 p-3">
-                    <label
-                      for={"listing-invite-url-#{@listing.id}"}
-                      class="block text-xs font-semibold text-zinc-700"
-                    >
-                      Share link
-                    </label>
-                    <input
-                      type="text"
-                      readonly
-                      id={"listing-invite-url-#{@listing.id}"}
-                      value={@listing_invite.url}
-                      onclick="this.select()"
-                      class="mt-1 w-full rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-xs text-zinc-800"
-                    />
-                  </div>
+                  <.invite_share_panel
+                    url={@listing_invite.url}
+                    wrapper_id={"listing-invite-link-#{@listing.id}"}
+                    url_input_id={"listing-invite-url-#{@listing.id}"}
+                    qr_id={"listing-invite-qr-#{@listing.id}"}
+                  />
                 <% end %>
               </div>
             </td>

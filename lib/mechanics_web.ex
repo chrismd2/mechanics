@@ -86,6 +86,7 @@ defmodule MechanicsWeb do
       # Core UI components and translation
       import MechanicsWeb.CoreComponents
       import MechanicsWeb.NotificationBellComponents
+      import MechanicsWeb.InviteShareComponents
       import MechanicsWeb.ChatTime
       import MechanicsWeb.Gettext
 

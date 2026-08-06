@@ -179,23 +179,12 @@
                   </div>
                 </div>
                 <%= if @listing_invite && @listing_invite.listing_id == listing.id do %>
-                  <div
-                    id={"account-listing-invite-link-#{listing.id}"}
-                    class="border-t border-zinc-100 bg-zinc-50 px-4 py-3"
-                  >
-                    <label
-                      for={"account-listing-invite-url-#{listing.id}"}
-                      class="block text-xs font-semibold text-zinc-700"
-                    >
-                      Share link
-                    </label>
-                    <input
-                      type="text"
-                      readonly
-                      id={"account-listing-invite-url-#{listing.id}"}
-                      value={@listing_invite.url}
-                      onclick="this.select()"
-                      class="mt-1 w-full rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-xs text-zinc-800"
+                  <div class="border-t border-zinc-100 bg-zinc-50 px-4 py-3">
+                    <.invite_share_panel
+                      url={@listing_invite.url}
+                      wrapper_id={"account-listing-invite-link-#{listing.id}"}
+                      url_input_id={"account-listing-invite-url-#{listing.id}"}
+                      qr_id={"account-listing-invite-qr-#{listing.id}"}
                     />
                   </div>
                 <% end %>

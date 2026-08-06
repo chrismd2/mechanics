@@ -71,6 +71,7 @@ defmodule MechanicsWeb.InviteControllerTest do
 
       parsed = Floki.parse_document!(html)
       assert Floki.find(parsed, ~s(#account-listing-invite-url-#{listing.id})) != []
+      assert Floki.find(parsed, ~s(#account-listing-invite-qr-#{listing.id} svg)) != []
 
       [input] = Floki.find(parsed, ~s(#account-listing-invite-url-#{listing.id}))
       [value] = Floki.attribute(input, "value")
@@ -110,6 +111,7 @@ defmodule MechanicsWeb.InviteControllerTest do
 
       parsed = Floki.parse_document!(html)
       assert Floki.find(parsed, ~s(#listing-invite-url-#{listing.id})) != []
+      assert Floki.find(parsed, ~s(#listing-invite-qr-#{listing.id} svg)) != []
 
       [input] = Floki.find(parsed, ~s(#listing-invite-url-#{listing.id}))
       [value] = Floki.attribute(input, "value")
@@ -223,6 +225,49 @@ defmodule MechanicsWeb.InviteControllerTest do
 
       assert Floki.find(parsed, ~s(button[id="listing-invite-#{listing.id}"])) != []
       assert Floki.find(parsed, ~s(#listing-invite-url-#{listing.id})) == []
+    end
+  end
+
+  describe "POST /chats/:chat_id/invites" do
+    test "participant sees share link and QR on the chat page", %{conn: conn} do
+      customer = create_customer()
+
+      {:ok, mechanic} =
+        Accounts.create_user(%{
+          "email" => "invite-mech-#{System.unique_integer([:positive])}@example.com",
+          "name" => "Invite Mechanic",
+          "roles" => ["mechanic"],
+          "password" => "securepw123",
+          "password_confirmation" => "securepw123"
+        })
+
+      assert {:ok, chat} = Mechanics.Chats.get_or_create_private_pm(customer, mechanic)
+
+      conn =
+        conn
+        |> login(customer)
+        |> post(~p"/chats/#{chat.id}/invites")
+
+      redirect = redirected_to(conn)
+      assert redirect =~ ~r{^/chats/#{chat.id}\?}
+      assert redirect =~ "invite_token="
+      refute Phoenix.Flash.get(conn.assigns.flash, :info)
+
+      assert [%Invite{subject_type: "conversation", token: token}] =
+               Repo.all(from i in Invite, where: i.chat_id == ^chat.id)
+
+      html =
+        conn
+        |> get(redirect)
+        |> html_response(200)
+
+      parsed = Floki.parse_document!(html)
+      assert Floki.find(parsed, "#chat-invite-url") != []
+      assert Floki.find(parsed, "#chat-invite-qr svg") != []
+
+      [input] = Floki.find(parsed, "#chat-invite-url")
+      [value] = Floki.attribute(input, "value")
+      assert value == "https://www.example.com/invites/#{token}"
     end
   end
 end

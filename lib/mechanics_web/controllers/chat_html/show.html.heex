@@ -100,19 +100,12 @@
       </div>
     </form>
     <%= if assigns[:chat_invite] do %>
-      <div id="chat-invite-link" class="rounded-lg border border-zinc-200 bg-white p-3">
-        <label for="chat-invite-url" class="block text-xs font-semibold text-zinc-700">
-          Share link
-        </label>
-        <input
-          type="text"
-          readonly
-          id="chat-invite-url"
-          value={@chat_invite.url}
-          onclick="this.select()"
-          class="mt-1 w-full rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-xs text-zinc-800"
-        />
-      </div>
+      <.invite_share_panel
+        url={@chat_invite.url}
+        wrapper_id="chat-invite-link"
+        url_input_id="chat-invite-url"
+        qr_id="chat-invite-qr"
+      />
     <% end %>
   </div>
 </div>

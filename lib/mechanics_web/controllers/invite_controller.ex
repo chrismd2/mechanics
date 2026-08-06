@@ -3,7 +3,6 @@ defmodule MechanicsWeb.InviteController do
 
   alias Mechanics.Accounts.User
   alias Mechanics.Invites
-  alias MechanicsWeb.RequestURL
 
   def create_for_chat(conn, %{"chat_id" => chat_id}) do
     case conn.assigns[:current_user] do
