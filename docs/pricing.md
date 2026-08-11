@@ -21,6 +21,8 @@ Valid roles also remain `mechanic` and `customer`. A user may hold `pricing_user
 | GET | `/pricing` | Suggest form (vin / make / model / year / miles) |
 | POST | `/pricing/suggest` | Run suggestion; show result and persist query |
 
+Signed-in users open these from the header **Tools** drawer (pricing links only when the user has `pricing_user`).
+
 ## Vehicle market price submission
 
 `pricing_user`s grow the dataset the agent queries. Each row is one observed asking price or sold price for a vehicle.

@@ -18,6 +18,61 @@ defmodule MechanicsWeb.PageControllerTest do
       assert html_response(conn, 200) =~ "Connecting mechanics with customers to complete jobs"
     end
 
+    test "clears a stale session user id instead of crashing", %{conn: conn} do
+      conn =
+        conn
+        |> init_test_session(%{current_user_id: Ecto.UUID.generate()})
+        |> get(~p"/")
+
+      assert html_response(conn, 200)
+      refute get_session(conn, :current_user_id)
+    end
+
+    test "shows tools drawer with vehicle pricing links for pricing_user", %{conn: conn} do
+      {:ok, user} =
+        Accounts.create_user(%{
+          "email" => "tools-pricing-#{System.unique_integer([:positive])}@example.com",
+          "name" => "Tools Pricing",
+          "roles" => ["customer", "pricing_user"],
+          "password" => "securepw123",
+          "password_confirmation" => "securepw123"
+        })
+
+      html =
+        conn
+        |> init_test_session(%{current_user_id: user.id})
+        |> get(~p"/")
+        |> html_response(200)
+
+      parsed = Floki.parse_document!(html)
+      assert Floki.find(parsed, "#tools-drawer-open") != []
+      assert Floki.find(parsed, "#tools-drawer") != []
+      assert Floki.find(parsed, "a#tools-link-vehicle-pricing[href='/pricing']") != []
+      assert Floki.find(parsed, "a#tools-link-add-market-price[href='/pricing/market-prices/new']") != []
+    end
+
+    test "hides vehicle pricing tools without pricing_user role", %{conn: conn} do
+      {:ok, user} =
+        Accounts.create_user(%{
+          "email" => "tools-customer-#{System.unique_integer([:positive])}@example.com",
+          "name" => "Tools Customer",
+          "roles" => ["customer"],
+          "password" => "securepw123",
+          "password_confirmation" => "securepw123"
+        })
+
+      html =
+        conn
+        |> init_test_session(%{current_user_id: user.id})
+        |> get(~p"/")
+        |> html_response(200)
+
+      parsed = Floki.parse_document!(html)
+      assert Floki.find(parsed, "#tools-drawer") != []
+      assert Floki.find(parsed, "#tools-link-vehicle-pricing") == []
+      assert Floki.find(parsed, "#tools-link-add-market-price") == []
+    end
+
     test "Checking for mechanics for hire section", %{conn: conn} do
       conn = get(conn, ~p"/")
       html = html_response(conn, 200)

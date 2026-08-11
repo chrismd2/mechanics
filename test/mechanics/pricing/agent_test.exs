@@ -10,8 +10,8 @@ defmodule Mechanics.Pricing.AgentTest do
 
     {:ok, user} =
       Accounts.create_user(%{
-        "email" => "pricing-agent-#{suffix}@example.com",
-        "name" => "Agent User",
+        "email" => "pricing-user-#{suffix}@example.com",
+        "name" => "Pricing User",
         "roles" => ["customer", "pricing_user"],
         "password" => "securepw123",
         "password_confirmation" => "securepw123"

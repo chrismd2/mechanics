@@ -1,0 +1,139 @@
+<%
+  vehicle = @vehicle || %{}
+  vin = Map.get(vehicle, "vin") || ""
+  make = Map.get(vehicle, "make") || ""
+  model = Map.get(vehicle, "model") || ""
+  year = Map.get(vehicle, "year") || ""
+  miles = Map.get(vehicle, "miles") || ""
+%>
+
+<div class="mx-auto max-w-2xl space-y-6">
+  <div class="flex items-start justify-between gap-4">
+    <div class="space-y-2">
+      <h1 class="text-2xl font-semibold text-zinc-900">Vehicle price suggestion</h1>
+      <p class="text-sm text-zinc-600">
+        Enter a vehicle to get competitive and expected-minimum price suggestions from stored market prices.
+      </p>
+    </div>
+    <a
+      href={~p"/pricing/market-prices/new"}
+      class="shrink-0 text-sm font-semibold text-zinc-900 underline"
+    >
+      Add market price
+    </a>
+  </div>
+
+  <div class="rounded-xl border border-zinc-200 bg-white p-6 shadow-sm">
+    <form action={~p"/pricing/suggest"} method="post" class="space-y-6">
+      <input type="hidden" name="_csrf_token" value={get_csrf_token()} />
+
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div class="space-y-2">
+          <label for="vehicle_make" class="block text-sm font-semibold text-zinc-800">Make</label>
+          <input
+            type="text"
+            id="vehicle_make"
+            name="vehicle[make]"
+            value={make}
+            class="mt-1 block w-full rounded-lg border-zinc-300 shadow-sm sm:text-sm"
+          />
+        </div>
+        <div class="space-y-2">
+          <label for="vehicle_model" class="block text-sm font-semibold text-zinc-800">Model</label>
+          <input
+            type="text"
+            id="vehicle_model"
+            name="vehicle[model]"
+            value={model}
+            class="mt-1 block w-full rounded-lg border-zinc-300 shadow-sm sm:text-sm"
+          />
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div class="space-y-2">
+          <label for="vehicle_year" class="block text-sm font-semibold text-zinc-800">Year</label>
+          <input
+            type="number"
+            id="vehicle_year"
+            name="vehicle[year]"
+            value={year}
+            class="mt-1 block w-full rounded-lg border-zinc-300 shadow-sm sm:text-sm"
+          />
+        </div>
+        <div class="space-y-2">
+          <label for="vehicle_miles" class="block text-sm font-semibold text-zinc-800">Miles</label>
+          <input
+            type="number"
+            id="vehicle_miles"
+            name="vehicle[miles]"
+            value={miles}
+            min="0"
+            class="mt-1 block w-full rounded-lg border-zinc-300 shadow-sm sm:text-sm"
+          />
+        </div>
+      </div>
+
+      <div class="space-y-2">
+        <label for="vehicle_vin" class="block text-sm font-semibold text-zinc-800">VIN (optional)</label>
+        <input
+          type="text"
+          id="vehicle_vin"
+          name="vehicle[vin]"
+          value={vin}
+          class="mt-1 block w-full rounded-lg border-zinc-300 shadow-sm sm:text-sm"
+        />
+      </div>
+
+      <button
+        type="submit"
+        class="inline-flex items-center rounded-lg bg-zinc-900 px-4 py-2 text-sm font-semibold text-white hover:bg-zinc-700"
+      >
+        Suggest prices
+      </button>
+    </form>
+  </div>
+
+  <%= if @query do %>
+    <div class="rounded-xl border border-zinc-200 bg-white p-6 shadow-sm space-y-3">
+      <h2 class="text-lg font-semibold text-zinc-900">Suggestion</h2>
+
+      <dl class="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
+        <div>
+          <dt class="font-semibold text-zinc-700">Competitive</dt>
+          <dd class="text-zinc-900">
+            <%= if @query.suggested_competitive_cents do %>
+              <%= MechanicsWeb.Helpers.CurrencyFormatter.format(
+                @query.suggested_competitive_cents,
+                @query.currency || "USD"
+              ) %>
+            <% else %>
+              Insufficient data
+            <% end %>
+          </dd>
+        </div>
+        <div>
+          <dt class="font-semibold text-zinc-700">Expected minimum</dt>
+          <dd class="text-zinc-900">
+            <%= if @query.suggested_minimum_cents do %>
+              <%= MechanicsWeb.Helpers.CurrencyFormatter.format(
+                @query.suggested_minimum_cents,
+                @query.currency || "USD"
+              ) %>
+            <% else %>
+              Insufficient data
+            <% end %>
+          </dd>
+        </div>
+      </dl>
+
+      <p class="text-sm text-zinc-600">
+        Matched market prices: <%= @query.match_count %>
+      </p>
+
+      <%= if @query.agent_summary do %>
+        <p class="text-sm text-zinc-700"><%= @query.agent_summary %></p>
+      <% end %>
+    </div>
+  <% end %>
+</div>

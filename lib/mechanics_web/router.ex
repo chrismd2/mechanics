@@ -53,6 +53,11 @@ defmodule MechanicsWeb.Router do
     post "/listings/:id", ListingController, :update
     delete "/listings/:id", ListingController, :delete
 
+    get "/pricing", PricingController, :index
+    get "/pricing/market-prices/new", PricingController, :new_market_price
+    post "/pricing/market-prices", PricingController, :create_market_price
+    post "/pricing/suggest", PricingController, :suggest
+
     get "/chats/open/mechanic/:mechanic_user_id", ChatController, :open_by_mechanic
     get "/chats/open/listing/:listing_id", ChatController, :open_by_listing
     get "/chats/open/listing_owner/:listing_id", ChatController, :open_listing_owner_next

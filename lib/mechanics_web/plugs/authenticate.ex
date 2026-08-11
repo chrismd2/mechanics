@@ -8,11 +8,18 @@ defmodule MechanicsWeb.Plugs.Authenticate do
   def call(conn, _opts) do
     user_id = get_session(conn, :current_user_id)
 
-    if user_id do
-      current_user = Accounts.get_user!(user_id)
-      assign(conn, :current_user, current_user)
-    else
-      assign(conn, :current_user, nil)
+    case user_id && Accounts.get_user(user_id) do
+      %{id: _} = current_user ->
+        assign(conn, :current_user, current_user)
+
+      _ when not is_nil(user_id) ->
+        # Stale session after DB reset / deleted user — treat as logged out.
+        conn
+        |> delete_session(:current_user_id)
+        |> assign(:current_user, nil)
+
+      _ ->
+        assign(conn, :current_user, nil)
     end
   end
 end

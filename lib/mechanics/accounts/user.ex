@@ -26,7 +26,7 @@ defmodule Mechanics.Accounts.User do
     timestamps(type: :utc_datetime)
   end
 
-  @valid_roles ~w(mechanic customer)
+  @valid_roles ~w(mechanic customer pricing_user)
   @doc false
   def changeset(user, attrs) do
     user
