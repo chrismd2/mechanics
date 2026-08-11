@@ -1,0 +1,189 @@
+defmodule Mechanics.PricingTest do
+  use Mechanics.DataCase, async: false
+
+  alias Mechanics.Accounts
+  alias Mechanics.Pricing
+
+  defp pricing_user!(suffix \\ System.unique_integer([:positive])) do
+    {:ok, user} =
+      Accounts.create_user(%{
+        "email" => "pricing-#{suffix}@example.com",
+        "name" => "Pricing User",
+        "roles" => ["customer", "pricing_user"],
+        "password" => "securepw123",
+        "password_confirmation" => "securepw123"
+      })
+
+    user
+  end
+
+  describe "create_market_price/2" do
+    test "stores a listing market price for a pricing_user" do
+      user = pricing_user!()
+
+      assert {:ok, market_price} =
+               Pricing.create_market_price(user, %{
+                 "make" => "Toyota",
+                 "model" => "Camry",
+                 "year" => 2019,
+                 "miles" => 45_000,
+                 "price_cents" => 1_850_000,
+                 "currency" => "USD",
+                 "price_type" => "listing",
+                 "vin" => "4T1B11HK5KU123456"
+               })
+
+      assert market_price.price_type == "listing"
+      assert market_price.make == "Toyota"
+      assert market_price.model == "Camry"
+      assert market_price.year == 2019
+      assert market_price.miles == 45_000
+      assert market_price.price_cents == 1_850_000
+      assert market_price.user_id == user.id
+    end
+
+    test "stores a sale market price" do
+      user = pricing_user!()
+
+      assert {:ok, market_price} =
+               Pricing.create_market_price(user, %{
+                 "make" => "Honda",
+                 "model" => "Civic",
+                 "year" => 2018,
+                 "miles" => 60_000,
+                 "price_cents" => 1_400_000,
+                 "price_type" => "sale"
+               })
+
+      assert market_price.price_type == "sale"
+    end
+
+    test "rejects invalid price_type" do
+      user = pricing_user!()
+
+      assert {:error, changeset} =
+               Pricing.create_market_price(user, %{
+                 "make" => "Ford",
+                 "model" => "Focus",
+                 "year" => 2017,
+                 "miles" => 80_000,
+                 "price_cents" => 900_000,
+                 "price_type" => "auction"
+               })
+
+      assert %{price_type: _} = errors_on(changeset)
+    end
+  end
+
+  describe "list_market_prices/1 and get_market_price_details/1" do
+    test "filters by make model and price_type" do
+      user = pricing_user!()
+
+      {:ok, listing} =
+        Pricing.create_market_price(user, %{
+          "make" => "Toyota",
+          "model" => "Camry",
+          "year" => 2019,
+          "miles" => 40_000,
+          "price_cents" => 1_900_000,
+          "price_type" => "listing"
+        })
+
+      {:ok, _sale} =
+        Pricing.create_market_price(user, %{
+          "make" => "Toyota",
+          "model" => "Camry",
+          "year" => 2019,
+          "miles" => 42_000,
+          "price_cents" => 1_750_000,
+          "price_type" => "sale"
+        })
+
+      {:ok, _other} =
+        Pricing.create_market_price(user, %{
+          "make" => "Toyota",
+          "model" => "Corolla",
+          "year" => 2019,
+          "miles" => 40_000,
+          "price_cents" => 1_500_000,
+          "price_type" => "listing"
+        })
+
+      market_prices =
+        Pricing.list_market_prices(%{
+          make: "Toyota",
+          model: "Camry",
+          price_type: "listing"
+        })
+
+      assert length(market_prices) == 1
+      assert hd(market_prices).id == listing.id
+
+      details = Pricing.get_market_price_details([listing.id])
+      assert length(details) == 1
+      assert hd(details).price_cents == 1_900_000
+      assert hd(details).price_type == "listing"
+    end
+  end
+
+  describe "suggest_prices/2" do
+    test "persists a query and returns competitive and expected minimum when market prices exist" do
+      user = pricing_user!()
+
+      Enum.each(
+        [
+          {"listing", 2_000_000},
+          {"listing", 1_900_000},
+          {"sale", 1_700_000},
+          {"sale", 1_650_000}
+        ],
+        fn {type, cents} ->
+          {:ok, _} =
+            Pricing.create_market_price(user, %{
+              "make" => "Toyota",
+              "model" => "Camry",
+              "year" => 2019,
+              "miles" => 45_000,
+              "price_cents" => cents,
+              "price_type" => type
+            })
+        end
+      )
+
+      assert {:ok, query} =
+               Pricing.suggest_prices(user, %{
+                 "make" => "Toyota",
+                 "model" => "Camry",
+                 "year" => 2019,
+                 "miles" => 45_000,
+                 "vin" => "4T1B11HK5KU123456"
+               })
+
+      assert query.user_id == user.id
+      assert query.make == "Toyota"
+      assert query.model == "Camry"
+      assert query.year == 2019
+      assert query.miles == 45_000
+      assert is_integer(query.suggested_competitive_cents)
+      assert is_integer(query.suggested_minimum_cents)
+      assert query.suggested_minimum_cents <= query.suggested_competitive_cents
+      assert query.match_count >= 1
+    end
+
+    test "persists a query with nil suggestions when no market prices match" do
+      user = pricing_user!()
+
+      assert {:ok, query} =
+               Pricing.suggest_prices(user, %{
+                 "make" => "RareMake",
+                 "model" => "RareModel",
+                 "year" => 1999,
+                 "miles" => 10_000
+               })
+
+      assert is_nil(query.suggested_competitive_cents)
+      assert is_nil(query.suggested_minimum_cents)
+      assert query.match_count == 0
+    end
+  end
+end
