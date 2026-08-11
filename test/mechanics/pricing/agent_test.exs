@@ -39,7 +39,8 @@ defmodule Mechanics.Pricing.AgentTest do
         "year" => 2021,
         "miles" => 25_000,
         "price_cents" => 2_800_000,
-        "price_type" => "listing"
+        "price_type" => "listing",
+        "source_url" => "https://example.com/outback-#{System.unique_integer([:positive])}"
       })
 
     result =
@@ -66,7 +67,8 @@ defmodule Mechanics.Pricing.AgentTest do
         "year" => 2020,
         "miles" => 35_000,
         "price_cents" => 2_400_000,
-        "price_type" => "sale"
+        "price_type" => "sale",
+        "source_url" => "https://example.com/forester-#{System.unique_integer([:positive])}"
       })
 
     result = Agent.execute_tool("get_vehicle_market_price_details", %{"ids" => [market_price.id]})

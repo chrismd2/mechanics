@@ -278,18 +278,134 @@ defmodule Mechanics.Pricing.Agent do
   defp maybe_put(map, key, value), do: Map.put(map, key, value)
 
   defp parse_optional_int(nil), do: nil
-  defp parse_optional_int(value) when is_integer(value), do: value
-
-  defp parse_optional_int(value) when is_binary(value) do
-    case Integer.parse(String.trim(value)) do
-      {int, ""} -> int
-      _ -> nil
+  defp parse_optional_int(value) do
+    case Mechanics.NumberParse.to_integer(value) do
+      {:ok, int} -> int
+      :error -> nil
     end
   end
-
-  defp parse_optional_int(_), do: nil
 
   defp blank_to_nil(nil), do: nil
   defp blank_to_nil(""), do: nil
   defp blank_to_nil(value), do: value
+
+  @doc """
+  Fetches a listing/sale page and asks the LLM to extract vehicle market price fields.
+
+  Returns `{:ok, attrs_map}` with string keys (may be partial), or `{:error, reason}`.
+  """
+  def extract_listing_from_url(url, opts \\ []) when is_binary(url) do
+    fetch = Keyword.get(opts, :fetch, &fetch_page_text/1)
+
+    with {:ok, page_text} <- fetch.(url),
+         {:ok, response} <-
+           LLM.chat_completion(extract_messages(url, page_text), [], opts) do
+      content = get_in(response, ["choices", Access.at(0), "message", "content"]) || ""
+      parse_extracted_listing(content)
+    end
+  end
+
+  defp fetch_page_text(url) do
+    headers = [
+      {"Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"},
+      {"User-Agent", "MechanicsPricingBot/1.0"}
+    ]
+
+    case Finch.build(:get, url, headers) |> Finch.request(Mechanics.Finch, receive_timeout: 15_000) do
+      {:ok, %{status: status, body: body}} when status in 200..299 ->
+        {:ok, html_to_text(body)}
+
+      {:ok, %{status: status}} ->
+        {:error, {:http_error, status}}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  defp html_to_text(body) when is_binary(body) do
+    body
+    |> String.replace(~r/<script[\s\S]*?<\/script>/i, " ")
+    |> String.replace(~r/<style[\s\S]*?<\/style>/i, " ")
+    |> String.replace(~r/<[^>]+>/, " ")
+    |> String.replace(~r/\s+/, " ")
+    |> String.trim()
+    |> String.slice(0, 12_000)
+  end
+
+  defp extract_messages(url, page_text) do
+    system = """
+    Extract used-vehicle listing or sale details from page text.
+    Reply with ONLY a JSON object:
+    {
+      "make": string|null,
+      "model": string|null,
+      "year": integer|null,
+      "miles": integer|null,
+      "price_cents": integer|null,
+      "currency": string|null,
+      "price_type": "listing"|"sale"|null,
+      "vin": string|null,
+      "notes": string|null
+    }
+    price_cents must be an integer in minor units (USD cents). Prefer "listing" for asking prices and "sale" for sold/completed transactions.
+    Use null for unknown fields. Do not invent values that are not supported by the text.
+    """
+
+    user = """
+    Source URL: #{url}
+
+    Page text:
+    #{page_text}
+    """
+
+    [
+      %{"role" => "system", "content" => system},
+      %{"role" => "user", "content" => user}
+    ]
+  end
+
+  defp parse_extracted_listing(content) when is_binary(content) do
+    trimmed = String.trim(content)
+
+    json_blob =
+      cond do
+        String.starts_with?(trimmed, "{") ->
+          trimmed
+
+        Regex.match?(~r/\{[\s\S]*\}/, trimmed) ->
+          case Regex.run(~r/\{[\s\S]*\}/, trimmed) do
+            [match | _] -> match
+            _ -> nil
+          end
+
+        true ->
+          nil
+      end
+
+    with true <- is_binary(json_blob),
+         {:ok, map} when is_map(map) <- Jason.decode(json_blob) do
+      attrs =
+        %{
+          "make" => blank_to_nil(Map.get(map, "make")),
+          "model" => blank_to_nil(Map.get(map, "model")),
+          "year" => parse_optional_int(Map.get(map, "year")),
+          "miles" => parse_optional_int(Map.get(map, "miles")),
+          "price_cents" => parse_optional_int(Map.get(map, "price_cents")),
+          "currency" => blank_to_nil(Map.get(map, "currency")) || "USD",
+          "price_type" => normalize_price_type(Map.get(map, "price_type")),
+          "vin" => blank_to_nil(Map.get(map, "vin")),
+          "notes" => blank_to_nil(Map.get(map, "notes"))
+        }
+        |> Enum.reject(fn {_k, v} -> is_nil(v) end)
+        |> Map.new()
+
+      {:ok, attrs}
+    else
+      _ -> {:error, :unparseable_extraction}
+    end
+  end
+
+  defp normalize_price_type(type) when type in ["listing", "sale"], do: type
+  defp normalize_price_type(_), do: nil
 end

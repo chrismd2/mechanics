@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-08-11 — market-price-from-url
+
+- Start market-price entry with a URL; skip duplicates; agent-extract when possible; fall back to the manual form; always store `source_url`
+
 ## 2026-08-11 — tools-drawer
 
 - Add a signed-in header Tools side drawer with role-gated links, including vehicle pricing for `pricing_user`

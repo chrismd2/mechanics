@@ -114,13 +114,15 @@ defmodule MechanicsWeb.Helpers.CurrencyFormatter do
   def parse_major_to_minor(amount, currency_code) when is_binary(amount) do
     exponent = get_exponent(currency_code)
     multiplier = Decimal.new(10 ** exponent)
+    cleaned = Mechanics.NumberParse.sanitize(amount)
 
-    case Decimal.parse(String.trim(amount)) do
+    case Decimal.parse(cleaned) do
       {decimal_amount, ""} ->
-        if Decimal.compare(decimal_amount, 0) in [:eq, :gt] and Decimal.scale(decimal_amount) <= exponent do
+        if Decimal.compare(decimal_amount, 0) in [:eq, :gt] do
           minor_units =
             decimal_amount
             |> Decimal.mult(multiplier)
+            |> Decimal.round(0)
             |> Decimal.to_integer()
 
           {:ok, minor_units}

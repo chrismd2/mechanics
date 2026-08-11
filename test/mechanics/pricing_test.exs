@@ -17,9 +17,14 @@ defmodule Mechanics.PricingTest do
     user
   end
 
+  defp url!(label) do
+    "https://example.com/vehicles/#{label}-#{System.unique_integer([:positive])}"
+  end
+
   describe "create_market_price/2" do
     test "stores a listing market price for a pricing_user" do
       user = pricing_user!()
+      source_url = url!("camry-listing")
 
       assert {:ok, market_price} =
                Pricing.create_market_price(user, %{
@@ -30,7 +35,8 @@ defmodule Mechanics.PricingTest do
                  "price_cents" => 1_850_000,
                  "currency" => "USD",
                  "price_type" => "listing",
-                 "vin" => "4T1B11HK5KU123456"
+                 "vin" => "4T1B11HK5KU123456",
+                 "source_url" => source_url
                })
 
       assert market_price.price_type == "listing"
@@ -39,6 +45,7 @@ defmodule Mechanics.PricingTest do
       assert market_price.year == 2019
       assert market_price.miles == 45_000
       assert market_price.price_cents == 1_850_000
+      assert market_price.source_url == source_url
       assert market_price.user_id == user.id
     end
 
@@ -52,7 +59,8 @@ defmodule Mechanics.PricingTest do
                  "year" => 2018,
                  "miles" => 60_000,
                  "price_cents" => 1_400_000,
-                 "price_type" => "sale"
+                 "price_type" => "sale",
+                 "source_url" => url!("civic-sale")
                })
 
       assert market_price.price_type == "sale"
@@ -68,10 +76,89 @@ defmodule Mechanics.PricingTest do
                  "year" => 2017,
                  "miles" => 80_000,
                  "price_cents" => 900_000,
-                 "price_type" => "auction"
+                 "price_type" => "auction",
+                 "source_url" => url!("focus-bad")
                })
 
       assert %{price_type: _} = errors_on(changeset)
+    end
+  end
+
+  describe "import_market_price_from_url/3" do
+    test "returns already_exists when source_url is stored" do
+      user = pricing_user!()
+      source_url = url!("existing")
+
+      {:ok, existing} =
+        Pricing.create_market_price(user, %{
+          "make" => "Toyota",
+          "model" => "Camry",
+          "year" => 2019,
+          "miles" => 40_000,
+          "price_cents" => 1_900_000,
+          "price_type" => "listing",
+          "source_url" => source_url
+        })
+
+      assert {:ok, :already_exists, ^existing} =
+               Pricing.import_market_price_from_url(user, source_url,
+                 extract: fn _ -> flunk("should not extract") end
+               )
+    end
+
+    test "creates when agent extraction is complete" do
+      user = pricing_user!()
+      source_url = url!("extract-complete")
+
+      assert {:ok, :created, record} =
+               Pricing.import_market_price_from_url(user, source_url,
+                 extract: fn _url ->
+                   {:ok,
+                    %{
+                      "make" => "Subaru",
+                      "model" => "Outback",
+                      "year" => 2021,
+                      "miles" => 25_000,
+                      "price_cents" => 2_800_000,
+                      "price_type" => "listing",
+                      "currency" => "USD"
+                    }}
+                 end
+               )
+
+      assert record.source_url == source_url
+      assert record.make == "Subaru"
+      assert record.price_cents == 2_800_000
+    end
+
+    test "needs_form when extraction is incomplete" do
+      user = pricing_user!()
+      source_url = url!("extract-partial")
+
+      assert {:needs_form, attrs} =
+               Pricing.import_market_price_from_url(user, source_url,
+                 extract: fn _url ->
+                   {:ok, %{"make" => "Ford", "model" => "Escape", "price_type" => "listing"}}
+                 end
+               )
+
+      assert attrs["source_url"] == source_url
+      assert attrs["make"] == "Ford"
+      refute Map.has_key?(attrs, "year")
+      refute Map.has_key?(attrs, "miles")
+      refute Map.has_key?(attrs, "price_cents")
+    end
+
+    test "needs_form with source_url when extraction fails" do
+      user = pricing_user!()
+      source_url = url!("extract-fail")
+
+      assert {:needs_form, attrs} =
+               Pricing.import_market_price_from_url(user, source_url,
+                 extract: fn _url -> {:error, :boom} end
+               )
+
+      assert attrs["source_url"] == source_url
     end
   end
 
@@ -86,7 +173,8 @@ defmodule Mechanics.PricingTest do
           "year" => 2019,
           "miles" => 40_000,
           "price_cents" => 1_900_000,
-          "price_type" => "listing"
+          "price_type" => "listing",
+          "source_url" => url!("list-1")
         })
 
       {:ok, _sale} =
@@ -96,7 +184,8 @@ defmodule Mechanics.PricingTest do
           "year" => 2019,
           "miles" => 42_000,
           "price_cents" => 1_750_000,
-          "price_type" => "sale"
+          "price_type" => "sale",
+          "source_url" => url!("sale-1")
         })
 
       {:ok, _other} =
@@ -106,7 +195,8 @@ defmodule Mechanics.PricingTest do
           "year" => 2019,
           "miles" => 40_000,
           "price_cents" => 1_500_000,
-          "price_type" => "listing"
+          "price_type" => "listing",
+          "source_url" => url!("list-2")
         })
 
       market_prices =
@@ -145,7 +235,8 @@ defmodule Mechanics.PricingTest do
               "year" => 2019,
               "miles" => 45_000,
               "price_cents" => cents,
-              "price_type" => type
+              "price_type" => type,
+              "source_url" => url!("suggest-#{type}-#{cents}")
             })
         end
       )

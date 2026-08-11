@@ -65,7 +65,8 @@ if System.get_env("ENV") != "prod" do
             "miles" => miles,
             "price_cents" => price_cents,
             "currency" => "USD",
-            "price_type" => price_type
+            "price_type" => price_type,
+            "source_url" => "https://example.com/seed/camry-#{price_type}-#{miles}"
           })
       end
     )

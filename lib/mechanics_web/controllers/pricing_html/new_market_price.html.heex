@@ -1,4 +1,6 @@
 <%
+  step = assigns[:step] || :url
+  source_url = assigns[:source_url] || Ecto.Changeset.get_field(@changeset, :source_url) || ""
   make = Ecto.Changeset.get_field(@changeset, :make) || ""
   model = Ecto.Changeset.get_field(@changeset, :model) || ""
   year = Ecto.Changeset.get_field(@changeset, :year)
@@ -24,143 +26,201 @@
   currency_codes = MechanicsWeb.Helpers.CurrencyFormatter.valid_currency_codes()
   current_exponent = MechanicsWeb.Helpers.CurrencyFormatter.get_exponent(currency)
   price_step = if current_exponent == 0, do: "1", else: "0." <> String.duplicate("0", current_exponent - 1) <> "1"
+  source_url_label =
+    if String.length(source_url) > 90 do
+      String.slice(source_url, 0, 90) <> "..."
+    else
+      source_url
+    end
 %>
 
 <div class="mx-auto max-w-2xl space-y-6">
   <div class="space-y-2">
     <h1 class="text-2xl font-semibold text-zinc-900">Add vehicle market price</h1>
     <p class="text-sm text-zinc-600">
-      Record an observed asking listing or completed sale for the pricing agent to use later.
+      <%= if step == :url do %>
+        Paste a listing or sale URL. We’ll check whether it’s already saved, then try to extract details automatically.
+      <% else %>
+        Complete any missing fields, then save. The source URL is stored with this market price.
+      <% end %>
     </p>
   </div>
 
-  <div class="rounded-xl border border-zinc-200 bg-white p-6 shadow-sm">
-    <form action={~p"/pricing/market-prices"} method="post" class="space-y-6">
-      <input type="hidden" name="_csrf_token" value={get_csrf_token()} />
+  <%= if step == :url do %>
+    <div class="rounded-xl border border-zinc-200 bg-white p-6 shadow-sm">
+      <form action={~p"/pricing/market-prices/from-url"} method="post" class="space-y-6" id="market_price_url_form">
+        <input type="hidden" name="_csrf_token" value={get_csrf_token()} />
 
-      <div class="space-y-2">
-        <label for="market_price_price_type" class="block text-sm font-semibold text-zinc-800">
-          Price type
-        </label>
-        <select
-          id="market_price_price_type"
-          name="market_price[price_type]"
-          class="mt-1 block w-full rounded-lg border-zinc-300 shadow-sm sm:text-sm"
-        >
-          <option value="listing" selected={price_type == "listing"}>Listing (asking)</option>
-          <option value="sale" selected={price_type == "sale"}>Sale (sold)</option>
-        </select>
-      </div>
-
-      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div class="space-y-2">
-          <label for="market_price_make" class="block text-sm font-semibold text-zinc-800">Make</label>
+          <label for="market_price_source_url" class="block text-sm font-semibold text-zinc-800">
+            Listing or sale URL
+          </label>
           <input
-            type="text"
-            id="market_price_make"
-            name="market_price[make]"
-            value={make}
+            type="url"
+            id="market_price_source_url"
+            name="market_price[source_url]"
+            value={source_url}
+            required
+            placeholder="https://..."
             class="mt-1 block w-full rounded-lg border-zinc-300 shadow-sm sm:text-sm"
           />
         </div>
-        <div class="space-y-2">
-          <label for="market_price_model" class="block text-sm font-semibold text-zinc-800">Model</label>
-          <input
-            type="text"
-            id="market_price_model"
-            name="market_price[model]"
-            value={model}
-            class="mt-1 block w-full rounded-lg border-zinc-300 shadow-sm sm:text-sm"
-          />
-        </div>
-      </div>
 
-      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <div class="space-y-2">
-          <label for="market_price_year" class="block text-sm font-semibold text-zinc-800">Year</label>
-          <input
-            type="number"
-            id="market_price_year"
-            name="market_price[year]"
-            value={year}
-            class="mt-1 block w-full rounded-lg border-zinc-300 shadow-sm sm:text-sm"
-          />
+        <div class="flex items-center gap-3">
+          <button
+            type="submit"
+            class="inline-flex items-center rounded-lg bg-zinc-900 px-4 py-2 text-sm font-semibold text-white hover:bg-zinc-700"
+          >
+            Check URL
+          </button>
+          <a href={~p"/pricing"} class="text-sm text-zinc-600 hover:text-zinc-900">Cancel</a>
         </div>
-        <div class="space-y-2">
-          <label for="market_price_miles" class="block text-sm font-semibold text-zinc-800">Miles</label>
-          <input
-            type="number"
-            id="market_price_miles"
-            name="market_price[miles]"
-            value={miles}
-            min="0"
-            class="mt-1 block w-full rounded-lg border-zinc-300 shadow-sm sm:text-sm"
-          />
-        </div>
-      </div>
+      </form>
+    </div>
+  <% else %>
+    <div class="rounded-xl border border-zinc-200 bg-white p-6 shadow-sm">
+      <form action={~p"/pricing/market-prices"} method="post" class="space-y-6" id="market_price_manual_form">
+        <input type="hidden" name="_csrf_token" value={get_csrf_token()} />
+        <input type="hidden" name="market_price[source_url]" value={source_url} />
 
-      <div class="space-y-2">
-        <label for="market_price_vin" class="block text-sm font-semibold text-zinc-800">VIN (optional)</label>
-        <input
-          type="text"
-          id="market_price_vin"
-          name="market_price[vin]"
-          value={vin}
-          class="mt-1 block w-full rounded-lg border-zinc-300 shadow-sm sm:text-sm"
-        />
-      </div>
-
-      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div class="space-y-2">
-          <label for="market_price_price" class="block text-sm font-semibold text-zinc-800">Price</label>
-          <input
-            type="number"
-            id="market_price_price"
-            name="market_price[price]"
-            value={price_value}
-            min="0"
-            step={price_step}
-            class="mt-1 block w-full rounded-lg border-zinc-300 shadow-sm sm:text-sm"
-          />
+          <label class="block text-sm font-semibold text-zinc-800">Source URL</label>
+          <a
+            id="market_price_source_url_display"
+            href={source_url}
+            target="_blank"
+            rel="noopener noreferrer"
+            class="break-all text-sm font-medium text-blue-600 underline hover:text-blue-800"
+            title={source_url}
+          >
+            <%= source_url_label %>
+          </a>
         </div>
+
         <div class="space-y-2">
-          <label for="market_price_currency" class="block text-sm font-semibold text-zinc-800">Currency</label>
+          <label for="market_price_price_type" class="block text-sm font-semibold text-zinc-800">
+            Price type
+          </label>
           <select
-            id="market_price_currency"
-            name="market_price[currency]"
+            id="market_price_price_type"
+            name="market_price[price_type]"
             class="mt-1 block w-full rounded-lg border-zinc-300 shadow-sm sm:text-sm"
           >
-            <%= for code <- currency_codes do %>
-              <option value={code} selected={code == currency}><%= code %></option>
-            <% end %>
+            <option value="listing" selected={price_type == "listing"}>Listing (asking)</option>
+            <option value="sale" selected={price_type == "sale"}>Sale (sold)</option>
           </select>
         </div>
-      </div>
 
-      <div class="space-y-2">
-        <label for="market_price_notes" class="block text-sm font-semibold text-zinc-800">Notes (optional)</label>
-        <textarea
-          id="market_price_notes"
-          name="market_price[notes]"
-          class="mt-1 block w-full rounded-lg border-zinc-300 shadow-sm sm:text-sm min-h-[4rem]"
-        ><%= notes %></textarea>
-      </div>
-
-      <%= if @changeset.action do %>
-        <div class="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-800">
-          Could not save. Check the fields and try again.
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div class="space-y-2">
+            <label for="market_price_make" class="block text-sm font-semibold text-zinc-800">Make</label>
+            <input
+              type="text"
+              id="market_price_make"
+              name="market_price[make]"
+              value={make}
+              class="mt-1 block w-full rounded-lg border-zinc-300 shadow-sm sm:text-sm"
+            />
+          </div>
+          <div class="space-y-2">
+            <label for="market_price_model" class="block text-sm font-semibold text-zinc-800">Model</label>
+            <input
+              type="text"
+              id="market_price_model"
+              name="market_price[model]"
+              value={model}
+              class="mt-1 block w-full rounded-lg border-zinc-300 shadow-sm sm:text-sm"
+            />
+          </div>
         </div>
-      <% end %>
 
-      <div class="flex items-center gap-3">
-        <button
-          type="submit"
-          class="inline-flex items-center rounded-lg bg-zinc-900 px-4 py-2 text-sm font-semibold text-white hover:bg-zinc-700"
-        >
-          Save market price
-        </button>
-        <a href={~p"/pricing"} class="text-sm text-zinc-600 hover:text-zinc-900">Cancel</a>
-      </div>
-    </form>
-  </div>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div class="space-y-2">
+            <label for="market_price_year" class="block text-sm font-semibold text-zinc-800">Year</label>
+            <input
+              type="number"
+              id="market_price_year"
+              name="market_price[year]"
+              value={year}
+              class="mt-1 block w-full rounded-lg border-zinc-300 shadow-sm sm:text-sm"
+            />
+          </div>
+          <div class="space-y-2">
+            <label for="market_price_miles" class="block text-sm font-semibold text-zinc-800">Miles</label>
+            <input
+              type="number"
+              id="market_price_miles"
+              name="market_price[miles]"
+              value={miles}
+              min="0"
+              class="mt-1 block w-full rounded-lg border-zinc-300 shadow-sm sm:text-sm"
+            />
+          </div>
+        </div>
+
+        <div class="space-y-2">
+          <label for="market_price_vin" class="block text-sm font-semibold text-zinc-800">VIN (optional)</label>
+          <input
+            type="text"
+            id="market_price_vin"
+            name="market_price[vin]"
+            value={vin}
+            class="mt-1 block w-full rounded-lg border-zinc-300 shadow-sm sm:text-sm"
+          />
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div class="space-y-2">
+            <label for="market_price_price" class="block text-sm font-semibold text-zinc-800">Price</label>
+            <input
+              type="number"
+              id="market_price_price"
+              name="market_price[price]"
+              value={price_value}
+              min="0"
+              step={price_step}
+              class="mt-1 block w-full rounded-lg border-zinc-300 shadow-sm sm:text-sm"
+            />
+          </div>
+          <div class="space-y-2">
+            <label for="market_price_currency" class="block text-sm font-semibold text-zinc-800">Currency</label>
+            <select
+              id="market_price_currency"
+              name="market_price[currency]"
+              class="mt-1 block w-full rounded-lg border-zinc-300 shadow-sm sm:text-sm"
+            >
+              <%= for code <- currency_codes do %>
+                <option value={code} selected={code == currency}><%= code %></option>
+              <% end %>
+            </select>
+          </div>
+        </div>
+
+        <div class="space-y-2">
+          <label for="market_price_notes" class="block text-sm font-semibold text-zinc-800">Notes (optional)</label>
+          <textarea
+            id="market_price_notes"
+            name="market_price[notes]"
+            class="mt-1 block w-full rounded-lg border-zinc-300 shadow-sm sm:text-sm min-h-[4rem]"
+          ><%= notes %></textarea>
+        </div>
+
+        <%= if @changeset.action do %>
+          <div class="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-800">
+            Could not save. Check the fields and try again.
+          </div>
+        <% end %>
+
+        <div class="flex items-center gap-3">
+          <button
+            type="submit"
+            class="inline-flex items-center rounded-lg bg-zinc-900 px-4 py-2 text-sm font-semibold text-white hover:bg-zinc-700"
+          >
+            Save market price
+          </button>
+          <a href={~p"/pricing/market-prices/new"} class="text-sm text-zinc-600 hover:text-zinc-900">Start over</a>
+        </div>
+      </form>
+    </div>
+  <% end %>
 </div>

@@ -17,6 +17,7 @@ defmodule Mechanics.Pricing do
       |> stringify_keys()
       |> Map.put("user_id", user.id)
       |> maybe_default_currency()
+      |> coerce_market_price_numbers()
 
     %VehicleMarketPrice{}
     |> VehicleMarketPrice.changeset(attrs)
@@ -63,6 +64,82 @@ defmodule Mechanics.Pricing do
     VehicleMarketPrice.changeset(market_price, attrs)
   end
 
+  def normalize_source_url(url) when is_binary(url) do
+    url
+    |> String.trim()
+    |> String.replace_trailing("/", "")
+  end
+
+  def normalize_source_url(_), do: ""
+
+  def get_market_price_by_source_url(url) when is_binary(url) do
+    normalized = normalize_source_url(url)
+
+    if normalized == "" do
+      nil
+    else
+      Repo.get_by(VehicleMarketPrice, source_url: normalized)
+    end
+  end
+
+  @doc """
+  Import a market price from a listing/sale URL.
+
+  1. If `source_url` already exists, returns `{:ok, :already_exists, record}`.
+  2. Otherwise asks the agent to extract fields from the page.
+  3. If extraction is complete, saves and returns `{:ok, :created, record}`.
+  4. If extraction is incomplete, returns `{:needs_form, attrs}` with `source_url` set.
+  """
+  def import_market_price_from_url(%User{} = user, url, opts \\ []) when is_binary(url) do
+    source_url = normalize_source_url(url)
+
+    cond do
+      source_url == "" or not String.match?(source_url, ~r/\Ahttps?:\/\//i) ->
+        {:error, :invalid_url}
+
+      true ->
+        case get_market_price_by_source_url(source_url) do
+          %VehicleMarketPrice{} = existing ->
+            {:ok, :already_exists, existing}
+
+          nil ->
+            extract = Keyword.get(opts, :extract, &Agent.extract_listing_from_url/1)
+
+            case extract.(source_url) do
+              {:ok, attrs} ->
+                attrs =
+                  attrs
+                  |> stringify_keys()
+                  |> Map.put("source_url", source_url)
+                  |> maybe_default_currency()
+
+                if complete_market_price_attrs?(attrs) do
+                  case create_market_price(user, attrs) do
+                    {:ok, record} -> {:ok, :created, record}
+                    {:error, changeset} -> {:needs_form, attrs_from_changeset_error(attrs, changeset)}
+                  end
+                else
+                  {:needs_form, attrs}
+                end
+
+              {:error, _reason} ->
+                {:needs_form, %{"source_url" => source_url, "currency" => "USD", "price_type" => "listing"}}
+            end
+        end
+    end
+  end
+
+  defp complete_market_price_attrs?(attrs) do
+    required = ["make", "model", "year", "miles", "price_cents", "price_type", "source_url"]
+
+    Enum.all?(required, fn key ->
+      value = Map.get(attrs, key)
+      not is_nil(value) and value != ""
+    end)
+  end
+
+  defp attrs_from_changeset_error(attrs, _changeset), do: attrs
+
   @doc """
   Runs the pricing agent and persists a `vehicle_price_query` snapshot.
   """
@@ -104,8 +181,8 @@ defmodule Mechanics.Pricing do
          "vin" => blank_to_nil(Map.get(attrs, "vin")),
          "make" => attrs |> Map.get("make") |> to_string() |> String.trim(),
          "model" => attrs |> Map.get("model") |> to_string() |> String.trim(),
-         "year" => parse_int!(Map.get(attrs, "year")),
-         "miles" => parse_int!(Map.get(attrs, "miles"))
+         "year" => Mechanics.NumberParse.to_integer!(Map.get(attrs, "year")),
+         "miles" => Mechanics.NumberParse.to_integer!(Map.get(attrs, "miles"))
        }}
     end
   rescue
@@ -184,17 +261,34 @@ defmodule Mechanics.Pricing do
     end
   end
 
+  defp coerce_market_price_numbers(attrs) do
+    attrs
+    |> coerce_int_field("year")
+    |> coerce_int_field("miles")
+    |> coerce_int_field("price_cents")
+  end
+
+  defp coerce_int_field(attrs, key) do
+    case Map.fetch(attrs, key) do
+      :error ->
+        attrs
+
+      {:ok, nil} ->
+        attrs
+
+      {:ok, ""} ->
+        attrs
+
+      {:ok, value} ->
+        case Mechanics.NumberParse.to_integer(value) do
+          {:ok, int} -> Map.put(attrs, key, int)
+          :error -> attrs
+        end
+    end
+  end
+
   defp blank_to_nil(nil), do: nil
   defp blank_to_nil(""), do: nil
   defp blank_to_nil(value) when is_binary(value), do: String.trim(value)
   defp blank_to_nil(value), do: value
-
-  defp parse_int!(value) when is_integer(value), do: value
-
-  defp parse_int!(value) when is_binary(value) do
-    case Integer.parse(String.trim(value)) do
-      {int, ""} -> int
-      _ -> raise ArgumentError, "invalid integer"
-    end
-  end
 end

@@ -55,6 +55,7 @@ defmodule MechanicsWeb.Router do
 
     get "/pricing", PricingController, :index
     get "/pricing/market-prices/new", PricingController, :new_market_price
+    post "/pricing/market-prices/from-url", PricingController, :import_market_price_from_url
     post "/pricing/market-prices", PricingController, :create_market_price
     post "/pricing/suggest", PricingController, :suggest
 

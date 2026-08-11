@@ -16,8 +16,9 @@ Valid roles also remain `mechanic` and `customer`. A user may hold `pricing_user
 
 | Method | Path | Description |
 |--------|------|-------------|
-| GET | `/pricing/market-prices/new` | Form to submit an observed listing or sale price |
-| POST | `/pricing/market-prices` | Create a vehicle market price (`listing` or `sale`) |
+| GET | `/pricing/market-prices/new` | Start with a listing/sale URL |
+| POST | `/pricing/market-prices/from-url` | Look up URL, try agent extraction, save or fall back to form |
+| POST | `/pricing/market-prices` | Manual save of vehicle market price (`listing` or `sale`) |
 | GET | `/pricing` | Suggest form (vin / make / model / year / miles) |
 | POST | `/pricing/suggest` | Run suggestion; show result and persist query |
 
@@ -25,10 +26,19 @@ Signed-in users open these from the header **Tools** drawer (pricing links only 
 
 ## Vehicle market price submission
 
-`pricing_user`s grow the dataset the agent queries. Each row is one observed asking price or sold price for a vehicle.
+`pricing_user`s grow the dataset the agent queries. Flow:
+
+1. Submit a listing/sale **URL**.
+2. If that `source_url` already exists, stop (no duplicate).
+3. Otherwise fetch the page and ask the pricing agent to extract vehicle fields.
+4. If extraction is complete, save immediately.
+5. If not, show the manual form (prefilled when possible) and save after review.
+
+Each row is one observed asking price or sold price for a vehicle. **`source_url` is always stored.**
 
 | Field | Required | Notes |
 |-------|----------|-------|
+| `source_url` | yes | http(s) listing/sale page; unique |
 | `vin` | no | |
 | `make` | yes | |
 | `model` | yes | |
@@ -69,6 +79,8 @@ The agent should use sales for floor / expected-minimum context and listings for
 ## Context API (for tests / seeds)
 
 - `Pricing.create_market_price/2` — create a listing or sale market price for a user
+- `Pricing.import_market_price_from_url/2` — URL lookup → agent extract → save or `{:needs_form, attrs}`
+- `Pricing.get_market_price_by_source_url/1` — find an existing row by URL
 - `Pricing.list_market_prices/1` — filter/search (backing `search_vehicle_market_prices`)
 - `Pricing.get_market_price_details/1` — details for ids (backing `get_vehicle_market_price_details`)
 - `Pricing.suggest_prices/2` — run agent for a user + vehicle attrs; persist `vehicle_price_query`
@@ -76,7 +88,7 @@ The agent should use sales for floor / expected-minimum context and listings for
 
 ## Out of scope (v1)
 
-- External market or VIN-decode APIs
+- External VIN-decode APIs
 - JSON API
 - Wiring into service listing create/edit
 - Self-service “become pricing_user” UI

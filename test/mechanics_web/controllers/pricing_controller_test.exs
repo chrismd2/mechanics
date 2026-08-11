@@ -28,21 +28,16 @@ defmodule MechanicsWeb.PricingControllerTest do
   end
 
   describe "GET /pricing/market-prices/new" do
-    test "shows the market price form for pricing_user", %{conn: conn} do
+    test "shows the URL-first form for pricing_user", %{conn: conn} do
       {:ok, conn: conn, user: _user} = create_pricing_user(conn)
 
       conn = get(conn, "/pricing/market-prices/new")
       html = html_response(conn, 200)
 
-      assert html =~ ~r/listing/i
-      assert html =~ ~r/sale/i
-
       parsed = Floki.parse_document!(html)
-      assert Floki.find(parsed, "form[action='/pricing/market-prices'][method='post']") != []
-      assert Floki.find(parsed, "input[name='market_price[make]']") != []
-      assert Floki.find(parsed, "input[name='market_price[model]']") != []
-      assert Floki.find(parsed, "input[name='market_price[year]']") != []
-      assert Floki.find(parsed, "input[name='market_price[miles]']") != []
+      assert Floki.find(parsed, "form#market_price_url_form[action='/pricing/market-prices/from-url']") != []
+      assert Floki.find(parsed, "input#market_price_source_url[name='market_price[source_url]']") != []
+      assert Floki.find(parsed, "form#market_price_manual_form") == []
     end
 
     test "redirects home when user lacks pricing_user role", %{conn: conn} do
@@ -66,9 +61,54 @@ defmodule MechanicsWeb.PricingControllerTest do
     end
   end
 
+  describe "POST /pricing/market-prices/from-url" do
+    test "falls back to manual form when extraction cannot complete", %{conn: conn} do
+      {:ok, conn: conn, user: _user} = create_pricing_user(conn)
+      source_url = "https://example.com/needs-form-#{System.unique_integer([:positive])}"
+
+      # Without GROQ_API_KEY / fetchable page, import falls back to needs_form.
+      conn =
+        post(conn, "/pricing/market-prices/from-url", %{
+          "market_price" => %{"source_url" => source_url}
+        })
+
+      html = html_response(conn, 200)
+      parsed = Floki.parse_document!(html)
+
+      assert Floki.find(parsed, "form#market_price_manual_form") != []
+      assert html =~ source_url
+      assert Floki.find(parsed, "input[name='market_price[make]']") != []
+    end
+
+    test "redirects when URL already exists", %{conn: conn} do
+      {:ok, conn: conn, user: user} = create_pricing_user(conn)
+      source_url = "https://example.com/already-#{System.unique_integer([:positive])}"
+
+      {:ok, _} =
+        Pricing.create_market_price(user, %{
+          "make" => "Honda",
+          "model" => "Civic",
+          "year" => 2018,
+          "miles" => 50_000,
+          "price_cents" => 1_200_000,
+          "price_type" => "listing",
+          "source_url" => source_url
+        })
+
+      conn =
+        post(conn, "/pricing/market-prices/from-url", %{
+          "market_price" => %{"source_url" => source_url}
+        })
+
+      assert redirected_to(conn) =~ "/pricing"
+      assert Phoenix.Flash.get(conn.assigns.flash, :info) =~ "already"
+    end
+  end
+
   describe "POST /pricing/market-prices" do
     test "creates a listing market price and redirects", %{conn: conn} do
       {:ok, conn: conn, user: user} = create_pricing_user(conn)
+      source_url = "https://example.com/manual-#{System.unique_integer([:positive])}"
 
       conn =
         post(conn, "/pricing/market-prices", %{
@@ -79,7 +119,8 @@ defmodule MechanicsWeb.PricingControllerTest do
             "miles" => "45000",
             "price" => "18500.00",
             "currency" => "USD",
-            "price_type" => "listing"
+            "price_type" => "listing",
+            "source_url" => source_url
           }
         })
 
@@ -91,6 +132,7 @@ defmodule MechanicsWeb.PricingControllerTest do
       assert length(market_prices) >= 1
       assert hd(market_prices).price_type == "listing"
       assert hd(market_prices).price_cents == 1_850_000
+      assert hd(market_prices).source_url == source_url
     end
   end
 
@@ -141,7 +183,8 @@ defmodule MechanicsWeb.PricingControllerTest do
           "year" => 2020,
           "miles" => 30_000,
           "price_cents" => 2_200_000,
-          "price_type" => "sale"
+          "price_type" => "sale",
+          "source_url" => "https://example.com/accord-#{System.unique_integer([:positive])}"
         })
 
       conn =
