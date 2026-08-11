@@ -224,7 +224,7 @@ defmodule MechanicsWeb.PricingControllerTest do
   end
 
   describe "GET /pricing/queries" do
-    test "lists recent searches and filters by make", %{conn: conn} do
+    test "filters by make", %{conn: conn} do
       {:ok, conn: conn, user: user} = create_pricing_user(conn)
 
       {:ok, _} =
@@ -251,6 +251,25 @@ defmodule MechanicsWeb.PricingControllerTest do
       assert html =~ "Honda"
       assert html =~ "Accord"
       refute html =~ "Camry"
+    end
+
+    test "dismisses a search and redirects back", %{conn: conn} do
+      {:ok, conn: conn, user: user} = create_pricing_user(conn)
+
+      {:ok, query} =
+        Pricing.suggest_prices(user, %{
+          "make" => "Honda",
+          "model" => "Accord",
+          "year" => 2020,
+          "miles" => 30_000
+        })
+
+      conn =
+        delete(conn, "/pricing/queries/#{query.id}", %{"return_to" => "/pricing/queries"})
+
+      assert redirected_to(conn) == "/pricing/queries"
+      assert Phoenix.Flash.get(conn.assigns.flash, :info) =~ "dismissed"
+      assert Pricing.list_queries(user) == []
     end
 
     test "redirects home without pricing_user", %{conn: conn} do

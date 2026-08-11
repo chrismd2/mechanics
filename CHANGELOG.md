@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-08-11 — pricing-dismiss-searches
+
+- Allow dismissing recent price searches from the suggestion sidebar and history page
+
 ## 2026-08-11 — pricing-unique-searches
 
 - Upsert price suggestion queries per user + vehicle so re-runs refresh the existing search instead of duplicating it

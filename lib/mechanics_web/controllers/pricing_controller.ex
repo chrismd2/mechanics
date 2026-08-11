@@ -36,6 +36,26 @@ defmodule MechanicsWeb.PricingController do
     end
   end
 
+  def delete_query(conn, %{"id" => id} = params) do
+    case pricing_user(conn) do
+      {:ok, user} ->
+        case Pricing.delete_query(user, id) do
+          {:ok, _query} ->
+            conn
+            |> put_flash(:info, "Search dismissed.")
+            |> redirect(to: pricing_return_to(params["return_to"]))
+
+          {:error, :not_found} ->
+            conn
+            |> put_flash(:error, "That search was not found.")
+            |> redirect(to: pricing_return_to(params["return_to"]))
+        end
+
+      :error ->
+        redirect(conn, to: ~p"/")
+    end
+  end
+
   def new_market_price(conn, _params) do
     case pricing_user(conn) do
       {:ok, _user} ->
@@ -247,6 +267,9 @@ defmodule MechanicsWeb.PricingController do
       "vin" => Map.get(params, "vin", "")
     }
   end
+
+  defp pricing_return_to(path) when path in ["/pricing", "/pricing/queries"], do: path
+  defp pricing_return_to(_), do: ~p"/pricing/queries"
 
   defp pricing_user(conn) do
     current_user = conn.assigns[:current_user]

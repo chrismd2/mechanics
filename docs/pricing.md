@@ -21,6 +21,7 @@ Valid roles also remain `mechanic` and `customer`. A user may hold `pricing_user
 | POST | `/pricing/market-prices` | Manual save of vehicle market price (`listing` or `sale`) |
 | GET | `/pricing` | Suggest flow starts with VIN (`?manual=1` for the full form); shows top 3 recent searches |
 | GET | `/pricing/queries` | Searchable / filterable list of the user’s recent suggestion queries |
+| DELETE | `/pricing/queries/:id` | Dismiss (delete) a recent suggestion query owned by the user |
 | POST | `/pricing/from-vin` | Check VIN; suggest when complete, otherwise open the manual form |
 | POST | `/pricing/suggest` | Run suggestion from the manual form or a recent-search re-run; show result and persist query |
 
@@ -79,6 +80,7 @@ Every successful suggest attempt is stored in `vehicle_price_queries` for the cu
 - Each of the top 3 is a button that POSTs the same vehicle fields to `/pricing/suggest` (refreshes the existing query snapshot).
 - `/pricing/queries` lists all of the user’s queries and supports filters: free-text `q` (make/model/VIN), plus `make`, `model`, `year`, and `vin`.
 - Duplicate searches for the same vehicle are not stored twice; re-runs update the existing row and bump it to the top of recent.
+- Users can **Dismiss** a search from the sidebar or history page to delete it.
 
 ## Pricing agent
 
@@ -103,6 +105,7 @@ The agent should use sales for floor / expected-minimum context and listings for
 - `Pricing.get_market_price_details/1` — details for ids (backing `get_vehicle_market_price_details`)
 - `Pricing.suggest_prices/2` — run agent for a user + vehicle attrs; upsert `vehicle_price_query` (no duplicates per user/vehicle)
 - `Pricing.list_queries/2` — list a user’s queries (`limit:`, `filters:` with `q` / make / model / year / vin)
+- `Pricing.delete_query/2` — dismiss a query owned by the user
 - `Accounts.add_pricing_user_role/1` — grant role
 
 ## Out of scope (v1)

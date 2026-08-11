@@ -430,4 +430,37 @@ defmodule Mechanics.PricingTest do
                Pricing.list_queries(user, filters: %{"q" => "Accord"})
     end
   end
+
+  describe "delete_query/2" do
+    test "deletes a query owned by the user" do
+      user = pricing_user!()
+
+      {:ok, query} =
+        Pricing.suggest_prices(user, %{
+          "make" => "Honda",
+          "model" => "Accord",
+          "year" => 2020,
+          "miles" => 30_000
+        })
+
+      assert {:ok, _} = Pricing.delete_query(user, query.id)
+      assert Pricing.list_queries(user) == []
+    end
+
+    test "returns not_found for another user's query" do
+      owner = pricing_user!()
+      other = pricing_user!()
+
+      {:ok, query} =
+        Pricing.suggest_prices(owner, %{
+          "make" => "Honda",
+          "model" => "Accord",
+          "year" => 2020,
+          "miles" => 30_000
+        })
+
+      assert {:error, :not_found} = Pricing.delete_query(other, query.id)
+      assert length(Pricing.list_queries(owner)) == 1
+    end
+  end
 end

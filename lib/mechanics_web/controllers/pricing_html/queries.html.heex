@@ -130,20 +130,33 @@
               </p>
             </div>
 
-            <form action={~p"/pricing/suggest"} method="post" class="shrink-0">
-              <input type="hidden" name="_csrf_token" value={get_csrf_token()} />
-              <input type="hidden" name="vehicle[vin]" value={query.vin || ""} />
-              <input type="hidden" name="vehicle[make]" value={query.make} />
-              <input type="hidden" name="vehicle[model]" value={query.model} />
-              <input type="hidden" name="vehicle[year]" value={query.year} />
-              <input type="hidden" name="vehicle[miles]" value={query.miles} />
-              <button
-                type="submit"
-                class="inline-flex items-center rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm font-semibold text-zinc-800 hover:bg-zinc-50"
-              >
-                Re-run
-              </button>
-            </form>
+            <div class="flex shrink-0 items-center gap-2">
+              <form action={~p"/pricing/suggest"} method="post">
+                <input type="hidden" name="_csrf_token" value={get_csrf_token()} />
+                <input type="hidden" name="vehicle[vin]" value={query.vin || ""} />
+                <input type="hidden" name="vehicle[make]" value={query.make} />
+                <input type="hidden" name="vehicle[model]" value={query.model} />
+                <input type="hidden" name="vehicle[year]" value={query.year} />
+                <input type="hidden" name="vehicle[miles]" value={query.miles} />
+                <button
+                  type="submit"
+                  class="inline-flex items-center rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm font-semibold text-zinc-800 hover:bg-zinc-50"
+                >
+                  Re-run
+                </button>
+              </form>
+              <form action={~p"/pricing/queries/#{query.id}"} method="post">
+                <input type="hidden" name="_csrf_token" value={get_csrf_token()} />
+                <input type="hidden" name="_method" value="delete" />
+                <input type="hidden" name="return_to" value="/pricing/queries" />
+                <button
+                  type="submit"
+                  class="inline-flex items-center rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm font-semibold text-zinc-600 hover:bg-zinc-50 hover:text-zinc-900"
+                >
+                  Dismiss
+                </button>
+              </form>
+            </div>
           </li>
         <% end %>
       </ul>

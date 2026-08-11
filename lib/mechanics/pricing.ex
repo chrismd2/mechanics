@@ -85,6 +85,16 @@ defmodule Mechanics.Pricing do
     Repo.all(query)
   end
 
+  @doc """
+  Deletes a price suggestion query owned by the user.
+  """
+  def delete_query(%User{} = user, id) when is_binary(id) do
+    case Repo.get_by(VehiclePriceQuery, id: id, user_id: user.id) do
+      %VehiclePriceQuery{} = query -> Repo.delete(query)
+      nil -> {:error, :not_found}
+    end
+  end
+
   def change_market_price(%VehicleMarketPrice{} = market_price, attrs \\ %{}) do
     VehicleMarketPrice.changeset(market_price, attrs)
   end
