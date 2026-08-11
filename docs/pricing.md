@@ -19,8 +19,9 @@ Valid roles also remain `mechanic` and `customer`. A user may hold `pricing_user
 | GET | `/pricing/market-prices/new` | Start with a listing/sale URL |
 | POST | `/pricing/market-prices/from-url` | Look up URL, try agent extraction, save or fall back to form |
 | POST | `/pricing/market-prices` | Manual save of vehicle market price (`listing` or `sale`) |
-| GET | `/pricing` | Suggest form (vin / make / model / year / miles) |
-| POST | `/pricing/suggest` | Run suggestion; show result and persist query |
+| GET | `/pricing` | Suggest flow starts with VIN (`?manual=1` for the full form) |
+| POST | `/pricing/from-vin` | Check VIN; suggest when complete, otherwise open the manual form |
+| POST | `/pricing/suggest` | Run suggestion from the manual form; show result and persist query |
 
 Signed-in users open these from the header **Tools** drawer (pricing links only when the user has `pricing_user`).
 
@@ -53,13 +54,20 @@ Stored in `vehicle_market_prices` with `user_id` of the submitter.
 
 ## Price suggestion request
 
+VIN-first flow (mirrors market-price URL entry):
+
+1. Submit a **VIN** (optional miles).
+2. `VinChecker` looks up a matching stored market price, then falls back to NHTSA vPIC decode.
+3. If make/model/year/miles are complete, run the suggestion immediately.
+4. If the check fails or fields are missing, show the manual form (prefilled when possible).
+
 | Field | Required | Notes |
 |-------|----------|-------|
-| `vin` | no | |
-| `make` | yes | |
+| `vin` | for VIN step | 17-character VIN |
+| `make` | yes (manual / ready) | |
 | `model` | yes | |
 | `year` | yes | |
-| `miles` | yes | |
+| `miles` | yes | optional on VIN step; required before suggest |
 
 Every attempt is stored in `vehicle_price_queries` (even when suggestions are nil / insufficient data), including suggested competitive and expected-minimum cents when available, match count, and a short agent summary when present.
 
@@ -80,6 +88,7 @@ The agent should use sales for floor / expected-minimum context and listings for
 
 - `Pricing.create_market_price/2` — create a listing or sale market price for a user
 - `Pricing.import_market_price_from_url/2` — URL lookup → agent extract → save or `{:needs_form, attrs}`
+- `Pricing.lookup_vehicle_from_vin/2` — VIN check → `{:ok, :ready, attrs}` or `{:needs_form, attrs}`
 - `Pricing.get_market_price_by_source_url/1` — find an existing row by URL
 - `Pricing.list_market_prices/1` — filter/search (backing `search_vehicle_market_prices`)
 - `Pricing.get_market_price_details/1` — details for ids (backing `get_vehicle_market_price_details`)
@@ -88,7 +97,6 @@ The agent should use sales for floor / expected-minimum context and listings for
 
 ## Out of scope (v1)
 
-- External VIN-decode APIs
 - JSON API
 - Wiring into service listing create/edit
 - Self-service “become pricing_user” UI

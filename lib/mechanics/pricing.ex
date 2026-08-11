@@ -129,6 +129,71 @@ defmodule Mechanics.Pricing do
     end
   end
 
+  @doc """
+  Resolve a vehicle from a VIN via `VinChecker`.
+
+  - `{:ok, :ready, attrs}` when make/model/year/miles are all present (e.g. prior market price)
+  - `{:needs_form, attrs}` when the VIN check fails or miles/other fields are still needed
+  - `{:error, :invalid_vin}` for malformed VINs
+  """
+  def lookup_vehicle_from_vin(vin, opts \\ []) do
+    alias Mechanics.Pricing.VinChecker
+
+    normalized = VinChecker.normalize(vin)
+    miles = Keyword.get(opts, :miles)
+
+    cond do
+      normalized == "" ->
+        {:error, :invalid_vin}
+
+      not VinChecker.valid_vin?(normalized) ->
+        {:error, :invalid_vin}
+
+      true ->
+        case VinChecker.check(normalized, opts) do
+          {:ok, attrs} ->
+            attrs =
+              attrs
+              |> stringify_keys()
+              |> Map.put("vin", normalized)
+              |> maybe_merge_miles(miles)
+              |> coerce_market_price_numbers()
+
+            if complete_suggest_attrs?(attrs) do
+              {:ok, :ready, attrs}
+            else
+              {:needs_form, attrs}
+            end
+
+          {:error, _reason} ->
+            attrs =
+              %{"vin" => normalized}
+              |> maybe_merge_miles(miles)
+              |> coerce_market_price_numbers()
+
+            {:needs_form, attrs}
+        end
+    end
+  end
+
+  defp maybe_merge_miles(attrs, miles) when miles in [nil, ""], do: attrs
+
+  defp maybe_merge_miles(attrs, miles) do
+    case Mechanics.NumberParse.to_integer(miles) do
+      {:ok, int} -> Map.put(attrs, "miles", int)
+      :error -> attrs
+    end
+  end
+
+  defp complete_suggest_attrs?(attrs) do
+    required = ["make", "model", "year", "miles"]
+
+    Enum.all?(required, fn key ->
+      value = Map.get(attrs, key)
+      not is_nil(value) and value != ""
+    end)
+  end
+
   defp complete_market_price_attrs?(attrs) do
     required = ["make", "model", "year", "miles", "price_cents", "price_type", "source_url"]
 

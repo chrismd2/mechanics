@@ -5,10 +5,11 @@ defmodule MechanicsWeb.PricingController do
   alias Mechanics.Pricing.VehicleMarketPrice
   alias MechanicsWeb.Helpers.CurrencyFormatter
 
-  def index(conn, _params) do
+  def index(conn, params) do
     case pricing_user(conn) do
       {:ok, _user} ->
-        render(conn, :index, query: nil, vehicle: empty_vehicle())
+        step = if params["manual"] in ["1", "true"], do: :manual, else: :vin
+        render(conn, :index, step: step, query: nil, vehicle: empty_vehicle())
 
       :error ->
         redirect(conn, to: ~p"/")
@@ -123,17 +124,57 @@ defmodule MechanicsWeb.PricingController do
     end
   end
 
+  def lookup_from_vin(conn, %{"vehicle" => %{"vin" => vin}} = params) do
+    case pricing_user(conn) do
+      {:ok, user} ->
+        miles = get_in(params, ["vehicle", "miles"])
+
+        case Pricing.lookup_vehicle_from_vin(vin, miles: miles) do
+          {:ok, :ready, attrs} ->
+            case Pricing.suggest_prices(user, attrs) do
+              {:ok, query} ->
+                render(conn, :index, step: :manual, query: query, vehicle: stringify_vehicle(attrs))
+
+              {:error, :invalid_vehicle} ->
+                conn
+                |> put_flash(:error, "Enter make, model, year, and miles.")
+                |> render(:index, step: :manual, query: nil, vehicle: stringify_vehicle(attrs))
+            end
+
+          {:needs_form, attrs} ->
+            conn
+            |> put_flash(
+              :info,
+              "Could not fully resolve that VIN. Confirm the vehicle details, then suggest prices."
+            )
+            |> render(:index, step: :manual, query: nil, vehicle: stringify_vehicle(attrs))
+
+          {:error, :invalid_vin} ->
+            conn
+            |> put_flash(:error, "Enter a valid 17-character VIN.")
+            |> render(:index,
+              step: :vin,
+              query: nil,
+              vehicle: %{"vin" => vin || "", "miles" => miles || ""}
+            )
+        end
+
+      :error ->
+        redirect(conn, to: ~p"/")
+    end
+  end
+
   def suggest(conn, %{"vehicle" => vehicle_params}) do
     case pricing_user(conn) do
       {:ok, user} ->
         case Pricing.suggest_prices(user, vehicle_params) do
           {:ok, query} ->
-            render(conn, :index, query: query, vehicle: vehicle_params)
+            render(conn, :index, step: :manual, query: query, vehicle: vehicle_params)
 
           {:error, :invalid_vehicle} ->
             conn
             |> put_flash(:error, "Enter make, model, year, and miles.")
-            |> render(:index, query: nil, vehicle: vehicle_params)
+            |> render(:index, step: :manual, query: nil, vehicle: vehicle_params)
         end
 
       :error ->
@@ -154,6 +195,20 @@ defmodule MechanicsWeb.PricingController do
   defp empty_vehicle do
     %{"vin" => "", "make" => "", "model" => "", "year" => "", "miles" => ""}
   end
+
+  defp stringify_vehicle(attrs) when is_map(attrs) do
+    empty_vehicle()
+    |> Map.merge(%{
+      "vin" => to_string(Map.get(attrs, "vin") || ""),
+      "make" => to_string(Map.get(attrs, "make") || ""),
+      "model" => to_string(Map.get(attrs, "model") || ""),
+      "year" => stringify_num(Map.get(attrs, "year")),
+      "miles" => stringify_num(Map.get(attrs, "miles"))
+    })
+  end
+
+  defp stringify_num(nil), do: ""
+  defp stringify_num(value), do: to_string(value)
 
   defp normalize_money(attrs) do
     currency =

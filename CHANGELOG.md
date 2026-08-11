@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-08-11 — pricing-suggest-from-vin
+
+- Start price suggestions with a VIN check; auto-suggest when complete; fall back to the manual vehicle form when the check fails or fields are missing
+
 ## 2026-08-11 — market-price-from-url
 
 - Start market-price entry with a URL; skip duplicates; agent-extract when possible; fall back to the manual form; always store `source_url`

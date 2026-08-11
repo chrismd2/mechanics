@@ -216,6 +216,80 @@ defmodule Mechanics.PricingTest do
     end
   end
 
+  describe "lookup_vehicle_from_vin/2" do
+    test "returns ready when market price has full vehicle attrs" do
+      user = pricing_user!()
+
+      vin =
+        "4T1B11HK5KU" <>
+          (System.unique_integer([:positive])
+           |> Integer.to_string()
+           |> String.pad_leading(6, "0")
+           |> String.slice(-6, 6))
+
+      {:ok, _} =
+        Pricing.create_market_price(user, %{
+          "make" => "Toyota",
+          "model" => "Camry",
+          "year" => 2019,
+          "miles" => 45_000,
+          "price_cents" => 1_800_000,
+          "price_type" => "listing",
+          "vin" => vin,
+          "source_url" => url!("vin-lookup-ready")
+        })
+
+      assert {:ok, :ready, attrs} = Pricing.lookup_vehicle_from_vin(vin)
+      assert attrs["make"] == "Toyota"
+      assert attrs["model"] == "Camry"
+      assert attrs["year"] == 2019
+      assert attrs["miles"] == 45_000
+      assert attrs["vin"] == vin
+    end
+
+    test "returns needs_form when checker fails" do
+      previous = Application.get_env(:mechanics, Mechanics.Pricing.VinChecker)
+
+      Application.put_env(:mechanics, Mechanics.Pricing.VinChecker,
+        checker: fn _vin, _opts -> {:error, :nope} end
+      )
+
+      on_exit(fn ->
+        if previous do
+          Application.put_env(:mechanics, Mechanics.Pricing.VinChecker, previous)
+        else
+          Application.delete_env(:mechanics, Mechanics.Pricing.VinChecker)
+        end
+      end)
+
+      assert {:needs_form, %{"vin" => "1HGCM82633A004352"}} =
+               Pricing.lookup_vehicle_from_vin("1HGCM82633A004352")
+    end
+
+    test "merges miles into NHTSA-style partial decode for ready" do
+      assert {:ok, :ready, attrs} =
+               Pricing.lookup_vehicle_from_vin("1HGCM82633A004352",
+                 miles: "42000",
+                 checker: fn vin, _opts ->
+                   {:ok,
+                    %{
+                      "vin" => vin,
+                      "make" => "Honda",
+                      "model" => "Accord",
+                      "year" => 2003
+                    }}
+                 end
+               )
+
+      assert attrs["miles"] == 42_000
+      assert attrs["make"] == "Honda"
+    end
+
+    test "rejects invalid vin" do
+      assert {:error, :invalid_vin} = Pricing.lookup_vehicle_from_vin("nope")
+    end
+  end
+
   describe "suggest_prices/2" do
     test "persists a query and returns competitive and expected minimum when market prices exist" do
       user = pricing_user!()

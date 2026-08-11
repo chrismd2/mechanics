@@ -137,18 +137,27 @@ defmodule MechanicsWeb.PricingControllerTest do
   end
 
   describe "GET /pricing" do
-    test "shows the suggest form for pricing_user", %{conn: conn} do
+    test "shows the VIN-first form for pricing_user", %{conn: conn} do
       {:ok, conn: conn, user: _user} = create_pricing_user(conn)
 
       conn = get(conn, "/pricing")
       html = html_response(conn, 200)
 
       parsed = Floki.parse_document!(html)
-      assert Floki.find(parsed, "form[action='/pricing/suggest'][method='post']") != []
+      assert Floki.find(parsed, "form#vehicle_vin_form[action='/pricing/from-vin']") != []
+      assert Floki.find(parsed, "input#vehicle_vin[name='vehicle[vin]']") != []
+      assert Floki.find(parsed, "form#vehicle_manual_form") == []
+    end
+
+    test "shows the manual form when manual=1", %{conn: conn} do
+      {:ok, conn: conn, user: _user} = create_pricing_user(conn)
+
+      conn = get(conn, "/pricing?manual=1")
+      html = html_response(conn, 200)
+
+      parsed = Floki.parse_document!(html)
+      assert Floki.find(parsed, "form#vehicle_manual_form[action='/pricing/suggest']") != []
       assert Floki.find(parsed, "input[name='vehicle[make]']") != []
-      assert Floki.find(parsed, "input[name='vehicle[model]']") != []
-      assert Floki.find(parsed, "input[name='vehicle[year]']") != []
-      assert Floki.find(parsed, "input[name='vehicle[miles]']") != []
     end
 
     test "redirects home without pricing_user", %{conn: conn} do
@@ -169,6 +178,90 @@ defmodule MechanicsWeb.PricingControllerTest do
       conn = init_test_session(conn, %{current_user_id: user.id})
       conn = get(conn, "/pricing")
       assert redirected_to(conn) == ~p"/"
+    end
+  end
+
+  describe "POST /pricing/from-vin" do
+    setup do
+      previous = Application.get_env(:mechanics, Mechanics.Pricing.VinChecker)
+
+      on_exit(fn ->
+        if previous do
+          Application.put_env(:mechanics, Mechanics.Pricing.VinChecker, previous)
+        else
+          Application.delete_env(:mechanics, Mechanics.Pricing.VinChecker)
+        end
+      end)
+
+      :ok
+    end
+
+    test "falls back to manual form when VIN check cannot complete", %{conn: conn} do
+      {:ok, conn: conn, user: _user} = create_pricing_user(conn)
+
+      Application.put_env(:mechanics, Mechanics.Pricing.VinChecker,
+        checker: fn _vin, _opts -> {:error, :decode_failed} end
+      )
+
+      vin = "1HGCM82633A123456"
+
+      conn =
+        post(conn, "/pricing/from-vin", %{
+          "vehicle" => %{"vin" => vin, "miles" => "40000"}
+        })
+
+      html = html_response(conn, 200)
+      parsed = Floki.parse_document!(html)
+
+      assert Floki.find(parsed, "form#vehicle_manual_form") != []
+      assert html =~ vin
+      assert Phoenix.Flash.get(conn.assigns.flash, :info) =~ "VIN"
+    end
+
+    test "rejects invalid VIN and stays on VIN step", %{conn: conn} do
+      {:ok, conn: conn, user: _user} = create_pricing_user(conn)
+
+      conn =
+        post(conn, "/pricing/from-vin", %{
+          "vehicle" => %{"vin" => "SHORT", "miles" => ""}
+        })
+
+      html = html_response(conn, 200)
+      parsed = Floki.parse_document!(html)
+
+      assert Floki.find(parsed, "form#vehicle_vin_form") != []
+      assert Phoenix.Flash.get(conn.assigns.flash, :error) =~ "VIN"
+    end
+
+    test "auto-suggests when VIN resolves fully from market prices", %{conn: conn} do
+      {:ok, conn: conn, user: user} = create_pricing_user(conn)
+      vin =
+        "4T1B11HK5KU" <>
+          (System.unique_integer([:positive])
+           |> Integer.to_string()
+           |> String.pad_leading(6, "0")
+           |> String.slice(-6, 6))
+
+      {:ok, _} =
+        Pricing.create_market_price(user, %{
+          "make" => "Toyota",
+          "model" => "Camry",
+          "year" => 2019,
+          "miles" => 45_000,
+          "price_cents" => 1_850_000,
+          "price_type" => "listing",
+          "vin" => vin,
+          "source_url" => "https://example.com/vin-ready-#{System.unique_integer([:positive])}"
+        })
+
+      conn =
+        post(conn, "/pricing/from-vin", %{
+          "vehicle" => %{"vin" => vin, "miles" => ""}
+        })
+
+      html = html_response(conn, 200)
+      assert html =~ ~r/competitive|minimum/i
+      assert html =~ "Toyota"
     end
   end
 
