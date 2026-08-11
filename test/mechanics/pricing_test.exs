@@ -46,7 +46,10 @@ defmodule Mechanics.PricingTest do
       assert market_price.miles == 45_000
       assert market_price.price_cents == 1_850_000
       assert market_price.source_url == source_url
-      assert market_price.user_id == user.id
+    end
+
+    test "does not store a submitting user on market prices" do
+      assert :user_id not in Mechanics.Pricing.VehicleMarketPrice.__schema__(:fields)
     end
 
     test "stores a sale market price" do
@@ -163,6 +166,26 @@ defmodule Mechanics.PricingTest do
   end
 
   describe "list_market_prices/1 and get_market_price_details/1" do
+    test "filters by vin case-insensitively" do
+      user = pricing_user!()
+      vin = "1NKZL70X5GJ124207"
+
+      {:ok, _} =
+        Pricing.create_market_price(user, %{
+          "make" => "Kenworth",
+          "model" => "T880",
+          "year" => 2016,
+          "miles" => 41_921,
+          "price_cents" => 2_600_000,
+          "price_type" => "listing",
+          "vin" => vin,
+          "source_url" => url!("list-by-vin")
+        })
+
+      assert [%{vin: ^vin}] = Pricing.list_market_prices(%{vin: String.downcase(vin)})
+      assert [] = Pricing.list_market_prices(%{vin: "ZZZZZZZZZZZZZZZZZ"})
+    end
+
     test "filters by make model and price_type" do
       user = pricing_user!()
 
@@ -285,6 +308,24 @@ defmodule Mechanics.PricingTest do
       assert attrs["make"] == "Honda"
     end
 
+    test "defaults blank miles to 0 so make/model/year decode is ready" do
+      assert {:ok, :ready, attrs} =
+               Pricing.lookup_vehicle_from_vin("1HGCM82633A004352",
+                 miles: "",
+                 checker: fn vin, _opts ->
+                   {:ok,
+                    %{
+                      "vin" => vin,
+                      "make" => "Honda",
+                      "model" => "Accord",
+                      "year" => 2003
+                    }}
+                 end
+               )
+
+      assert attrs["miles"] == 0
+    end
+
     test "rejects invalid vin" do
       assert {:error, :invalid_vin} = Pricing.lookup_vehicle_from_vin("nope")
     end
@@ -349,6 +390,77 @@ defmodule Mechanics.PricingTest do
       assert is_nil(query.suggested_competitive_cents)
       assert is_nil(query.suggested_minimum_cents)
       assert query.match_count == 0
+    end
+
+    test "treats blank miles as 0" do
+      user = pricing_user!()
+
+      assert {:ok, query} =
+               Pricing.suggest_prices(user, %{
+                 "make" => "Ford",
+                 "model" => "F-150",
+                 "year" => 2015,
+                 "miles" => ""
+               })
+
+      assert query.miles == 0
+    end
+
+    test "widens miles band so same make/model/year comps are used" do
+      user = pricing_user!()
+
+      {:ok, _} =
+        Pricing.create_market_price(user, %{
+          "make" => "Kenworth",
+          "model" => "T880",
+          "year" => 2016,
+          "miles" => 41_921,
+          "price_cents" => 2_600_000,
+          "price_type" => "listing",
+          "source_url" => url!("suggest-widen-miles")
+        })
+
+      assert {:ok, query} =
+               Pricing.suggest_prices(user, %{
+                 "make" => "Kenworth",
+                 "model" => "T880",
+                 "year" => 2016,
+                 "miles" => 9_999,
+                 "vin" => "1NKZL70X5GJ124207"
+               })
+
+      assert query.match_count >= 1
+      assert is_integer(query.suggested_competitive_cents)
+      assert is_integer(query.suggested_minimum_cents)
+    end
+
+    test "includes market prices that match VIN outside the miles band" do
+      user = pricing_user!()
+      vin = "1HGCM82633A004999"
+
+      {:ok, _} =
+        Pricing.create_market_price(user, %{
+          "make" => "Honda",
+          "model" => "Civic",
+          "year" => 2018,
+          "miles" => 120_000,
+          "price_cents" => 900_000,
+          "price_type" => "sale",
+          "vin" => vin,
+          "source_url" => url!("suggest-vin-comp")
+        })
+
+      assert {:ok, query} =
+               Pricing.suggest_prices(user, %{
+                 "make" => "Honda",
+                 "model" => "Civic",
+                 "year" => 2018,
+                 "miles" => 10_000,
+                 "vin" => vin
+               })
+
+      assert query.match_count >= 1
+      assert is_integer(query.suggested_competitive_cents)
     end
 
     test "updates an existing query instead of creating a duplicate" do

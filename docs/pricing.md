@@ -52,16 +52,16 @@ Each row is one observed asking price or sold price for a vehicle. **`source_url
 | `price_type` | yes | `listing` (asking) or `sale` (sold) |
 | `notes` | no | optional free text / source |
 
-Stored in `vehicle_market_prices` with `user_id` of the submitter.
+Stored in `vehicle_market_prices` as a **shared** dataset (no `user_id`). Any `pricing_user` can add rows; all pricing users query the same pool.
 
 ## Price suggestion request
 
 VIN-first flow (mirrors market-price URL entry):
 
-1. Submit a **VIN** (optional miles).
+1. Submit a **VIN** (miles optional; **defaults to `0`** when blank).
 2. `VinChecker` looks up a matching stored market price, then falls back to NHTSA vPIC decode.
-3. If make/model/year/miles are complete, run the suggestion immediately.
-4. If the check fails or fields are missing, show a warning flash and the manual form (prefilled when possible).
+3. If make/model/year are present (miles defaulted to `0` when missing), run the suggestion immediately.
+4. If the check fails or make/model/year are still missing, show a warning flash and the manual form (prefilled when possible).
 
 | Field | Required | Notes |
 |-------|----------|-------|
@@ -69,7 +69,7 @@ VIN-first flow (mirrors market-price URL entry):
 | `make` | yes (manual / ready) | |
 | `model` | yes | |
 | `year` | yes | |
-| `miles` | yes | optional on VIN step; required before suggest |
+| `miles` | yes | defaults to `0` when blank on VIN or suggest |
 
 Every successful suggest attempt is stored in `vehicle_price_queries` for the current user (even when suggestions are nil / insufficient data), including suggested competitive and expected-minimum cents when available, match count, and a short agent summary when present. The same user + vehicle (make, model, year, miles, VIN) updates the existing row instead of creating a duplicate.
 
@@ -81,6 +81,7 @@ Every successful suggest attempt is stored in `vehicle_price_queries` for the cu
 - `/pricing/queries` lists all of the user’s queries and supports filters: free-text `q` (make/model/VIN), plus `make`, `model`, `year`, and `vin`.
 - Duplicate searches for the same vehicle are not stored twice; re-runs update the existing row and bump it to the top of recent.
 - Users can **Dismiss** a search from the sidebar or history page to delete it.
+- Miles and money on `/pricing/queries` (and suggestion results) use grouped digits (e.g. `41,921` miles, `$2,600.00`).
 
 ## Pricing agent
 
@@ -95,13 +96,23 @@ The agent uses local tool calling against `vehicle_market_prices`. Provider cred
 
 The agent should use sales for floor / expected-minimum context and listings for asking / competitive context, then return **competitive** and **expected minimum** prices in cents. On missing credentials, HTTP failure, or empty results: persist the query with nil suggestions and show a clear UI message.
 
+### Seed matches (heuristic / match_count)
+
+Before (and alongside) tool calling, the agent seeds comps from `vehicle_market_prices`:
+
+1. Same make/model, year ±1, miles ±20%
+2. If that band is empty, widen by dropping the miles filter (still make/model, year ±1)
+3. If a VIN is present, also include any rows with that VIN (any miles)
+
+This matters when VIN decode fills make/model/year but the user’s miles differ from stored comps, and when the LLM is unavailable so the heuristic fallback must use those seeds.
+
 ## Context API (for tests / seeds)
 
-- `Pricing.create_market_price/2` — create a listing or sale market price for a user
+- `Pricing.create_market_price/2` — create a shared listing/sale market price (`pricing_user` gates the controller; row has no owner)
 - `Pricing.import_market_price_from_url/2` — URL lookup → agent extract → save or `{:needs_form, attrs}`
-- `Pricing.lookup_vehicle_from_vin/2` — VIN check → `{:ok, :ready, attrs}` or `{:needs_form, attrs}`
+- `Pricing.lookup_vehicle_from_vin/2` — VIN check → `{:ok, :ready, attrs}` or `{:needs_form, attrs}` (blank miles → `0`)
 - `Pricing.get_market_price_by_source_url/1` — find an existing row by URL
-- `Pricing.list_market_prices/1` — filter/search (backing `search_vehicle_market_prices`)
+- `Pricing.list_market_prices/1` — filter/search (backing `search_vehicle_market_prices`; supports `vin` as well as make/model/year/miles; no per-user ownership filter)
 - `Pricing.get_market_price_details/1` — details for ids (backing `get_vehicle_market_price_details`)
 - `Pricing.suggest_prices/2` — run agent for a user + vehicle attrs; upsert `vehicle_price_query` (no duplicates per user/vehicle)
 - `Pricing.list_queries/2` — list a user’s queries (`limit:`, `filters:` with `q` / make / model / year / vin)

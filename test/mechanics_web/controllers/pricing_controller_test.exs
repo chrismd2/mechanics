@@ -113,7 +113,7 @@ defmodule MechanicsWeb.PricingControllerTest do
 
   describe "POST /pricing/market-prices" do
     test "creates a listing market price and redirects", %{conn: conn} do
-      {:ok, conn: conn, user: user} = create_pricing_user(conn)
+      {:ok, conn: conn, user: _user} = create_pricing_user(conn)
       source_url = "https://example.com/manual-#{System.unique_integer([:positive])}"
 
       conn =
@@ -133,7 +133,7 @@ defmodule MechanicsWeb.PricingControllerTest do
       assert redirected_to(conn) =~ "/pricing"
 
       market_prices =
-        Pricing.list_market_prices(%{make: "Toyota", model: "Camry", user_id: user.id})
+        Pricing.list_market_prices(%{make: "Toyota", model: "Camry"})
 
       assert length(market_prices) >= 1
       assert hd(market_prices).price_type == "listing"
@@ -251,6 +251,45 @@ defmodule MechanicsWeb.PricingControllerTest do
       assert html =~ "Honda"
       assert html =~ "Accord"
       refute html =~ "Camry"
+    end
+
+    test "formats miles and money with grouped digits", %{conn: conn} do
+      {:ok, conn: conn, user: user} = create_pricing_user(conn)
+
+      Enum.each(
+        [
+          {"listing", 2_600_000},
+          {"sale", 2_400_000}
+        ],
+        fn {type, cents} ->
+          {:ok, _} =
+            Pricing.create_market_price(user, %{
+              "make" => "Kenworth",
+              "model" => "T880",
+              "year" => 2016,
+              "miles" => 41_921,
+              "price_cents" => cents,
+              "price_type" => type,
+              "source_url" =>
+                "https://example.com/format-#{type}-#{System.unique_integer([:positive])}"
+            })
+        end
+      )
+
+      {:ok, _} =
+        Pricing.suggest_prices(user, %{
+          "make" => "Kenworth",
+          "model" => "T880",
+          "year" => 2016,
+          "miles" => 41_921
+        })
+
+      conn = get(conn, "/pricing/queries")
+      html = html_response(conn, 200)
+
+      assert html =~ "41,921"
+      assert html =~ "$"
+      assert html =~ "24,000.00" or html =~ "26,000.00"
     end
 
     test "dismisses a search and redirects back", %{conn: conn} do
