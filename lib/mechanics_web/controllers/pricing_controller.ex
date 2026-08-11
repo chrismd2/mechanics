@@ -282,7 +282,7 @@ defmodule MechanicsWeb.PricingController do
   end
 
   defp empty_vehicle do
-    %{"vin" => "", "make" => "", "model" => "", "year" => "", "miles" => ""}
+    %{"vin" => "", "make" => "", "model" => "", "year" => "", "miles" => "0"}
   end
 
   defp stringify_vehicle(attrs) when is_map(attrs) do

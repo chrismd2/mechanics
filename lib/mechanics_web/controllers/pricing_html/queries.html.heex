@@ -101,7 +101,7 @@
                 <%= query.year %> <%= query.make %> <%= query.model %>
               </p>
               <p class="text-xs text-zinc-500">
-                <%= query.miles %> miles
+                <%= MechanicsWeb.Helpers.CurrencyFormatter.format_integer(query.miles) %> miles
                 <%= if query.vin do %>
                   · <%= query.vin %>
                 <% end %>

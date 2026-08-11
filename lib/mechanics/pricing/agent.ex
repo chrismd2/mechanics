@@ -92,20 +92,7 @@ defmodule Mechanics.Pricing.Agent do
   `:summary`, and `:currency`.
   """
   def suggest(vehicle, opts \\ []) when is_map(vehicle) do
-    year = Map.get(vehicle, "year") || Map.get(vehicle, :year)
-    miles = Map.get(vehicle, "miles") || Map.get(vehicle, :miles)
-    make = Map.get(vehicle, "make") || Map.get(vehicle, :make)
-    model = Map.get(vehicle, "model") || Map.get(vehicle, :model)
-
-    seed_matches =
-      Pricing.list_market_prices(%{
-        make: make,
-        model: model,
-        year_min: year - 1,
-        year_max: year + 1,
-        miles_min: trunc(miles * 0.8),
-        miles_max: trunc(miles * 1.2)
-      })
+    seed_matches = seed_market_matches(vehicle)
 
     case LLM.chat_completion(initial_messages(vehicle), tool_definitions(), opts) do
       {:ok, response} ->
@@ -116,6 +103,46 @@ defmodule Mechanics.Pricing.Agent do
         Logger.info("Pricing agent falling back without LLM: #{inspect(reason)}")
         heuristic_suggestion(seed_matches)
     end
+  end
+
+  defp seed_market_matches(vehicle) do
+    year = Map.get(vehicle, "year") || Map.get(vehicle, :year)
+    miles = Map.get(vehicle, "miles") || Map.get(vehicle, :miles) || 0
+    make = Map.get(vehicle, "make") || Map.get(vehicle, :make)
+    model = Map.get(vehicle, "model") || Map.get(vehicle, :model)
+    vin = blank_to_nil(Map.get(vehicle, "vin") || Map.get(vehicle, :vin))
+
+    tight =
+      Pricing.list_market_prices(%{
+        make: make,
+        model: model,
+        year_min: year - 1,
+        year_max: year + 1,
+        miles_min: trunc(miles * 0.8),
+        miles_max: trunc(miles * 1.2)
+      })
+
+    by_year =
+      if tight == [] do
+        Pricing.list_market_prices(%{
+          make: make,
+          model: model,
+          year_min: year - 1,
+          year_max: year + 1
+        })
+      else
+        tight
+      end
+
+    by_vin =
+      if is_binary(vin) and vin != "" do
+        Pricing.list_market_prices(%{vin: vin})
+      else
+        []
+      end
+
+    (by_year ++ by_vin)
+    |> Enum.uniq_by(& &1.id)
   end
 
   defp run_tool_loop(response, messages, round, opts) when round <= @max_rounds do

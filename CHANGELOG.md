@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-08-11 — pricing-suggest-seed-widen
+
+- Widen suggestion comps to same make/model/year when miles ±20% is empty; always include VIN matches
+- Default blank miles to 0 so VIN decode can auto-suggest
+- Store vehicle market prices as a shared pool (drop `user_id`)
+- Format money and miles with thousand separators on pricing pages
+
 ## 2026-08-11 — pricing-dismiss-searches
 
 - Allow dismissing recent price searches from the suggestion sidebar and history page

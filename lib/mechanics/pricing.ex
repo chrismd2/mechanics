@@ -11,11 +11,11 @@ defmodule Mechanics.Pricing do
   alias Mechanics.Pricing.VehiclePriceQuery
   alias Mechanics.Repo
 
-  def create_market_price(%User{} = user, attrs) when is_map(attrs) do
+  def create_market_price(%User{} = _user, attrs) when is_map(attrs) do
     attrs =
       attrs
       |> stringify_keys()
-      |> Map.put("user_id", user.id)
+      |> Map.delete("user_id")
       |> maybe_default_currency()
       |> coerce_market_price_numbers()
 
@@ -211,12 +211,14 @@ defmodule Mechanics.Pricing do
     end
   end
 
-  defp maybe_merge_miles(attrs, miles) when miles in [nil, ""], do: attrs
+  defp maybe_merge_miles(attrs, miles) when miles in [nil, ""] do
+    Map.put_new(attrs, "miles", 0)
+  end
 
   defp maybe_merge_miles(attrs, miles) do
     case Mechanics.NumberParse.to_integer(miles) do
       {:ok, int} -> Map.put(attrs, "miles", int)
-      :error -> attrs
+      :error -> Map.put_new(attrs, "miles", 0)
     end
   end
 
@@ -294,6 +296,7 @@ defmodule Mechanics.Pricing do
   end
 
   defp normalize_vehicle_attrs(attrs) do
+    attrs = default_blank_miles(attrs)
     required = ["make", "model", "year", "miles"]
 
     missing =
@@ -318,6 +321,13 @@ defmodule Mechanics.Pricing do
     ArgumentError -> {:error, :invalid_vehicle}
   end
 
+  defp default_blank_miles(attrs) do
+    case Map.get(attrs, "miles") do
+      miles when miles in [nil, ""] -> Map.put(attrs, "miles", 0)
+      _ -> attrs
+    end
+  end
+
   defp apply_market_price_filters(query, filters) do
     Enum.reduce(filters, query, fn
       {:make, make}, q when is_binary(make) and make != "" ->
@@ -329,8 +339,9 @@ defmodule Mechanics.Pricing do
       {:price_type, type}, q when type in ["listing", "sale"] ->
         where(q, [m], m.price_type == ^type)
 
-      {:user_id, user_id}, q when not is_nil(user_id) ->
-        where(q, [m], m.user_id == ^user_id)
+      {:vin, vin}, q when is_binary(vin) and vin != "" ->
+        normalized = vin |> String.trim() |> String.upcase()
+        where(q, [m], fragment("upper(?)", m.vin) == ^normalized)
 
       {:year, year}, q when is_integer(year) ->
         where(q, [m], m.year == ^year)
@@ -412,7 +423,6 @@ defmodule Mechanics.Pricing do
         {"make", v} -> {:make, v}
         {"model", v} -> {:model, v}
         {"price_type", v} -> {:price_type, v}
-        {"user_id", v} -> {:user_id, v}
         {"year", v} -> {:year, v}
         {"year_min", v} -> {:year_min, v}
         {"year_max", v} -> {:year_max, v}

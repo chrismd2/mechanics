@@ -2,8 +2,6 @@ defmodule Mechanics.Pricing.VehicleMarketPrice do
   use Ecto.Schema
   import Ecto.Changeset
 
-  alias Mechanics.Accounts.User
-
   @primary_key {:id, :binary_id, autogenerate: true}
   @foreign_key_type :binary_id
 
@@ -21,8 +19,6 @@ defmodule Mechanics.Pricing.VehicleMarketPrice do
     field :notes, :string
     field :source_url, :string
 
-    belongs_to :user, User
-
     timestamps(type: :utc_datetime)
   end
 
@@ -38,8 +34,7 @@ defmodule Mechanics.Pricing.VehicleMarketPrice do
       :currency,
       :price_type,
       :notes,
-      :source_url,
-      :user_id
+      :source_url
     ])
     |> validate_required([
       :make,
@@ -62,7 +57,6 @@ defmodule Mechanics.Pricing.VehicleMarketPrice do
     |> validate_length(:currency, is: 3)
     |> validate_source_url()
     |> unique_constraint(:source_url, name: :vehicle_market_prices_source_url_index)
-    |> foreign_key_constraint(:user_id)
   end
 
   defp validate_source_url(changeset) do

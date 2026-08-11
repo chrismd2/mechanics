@@ -12,4 +12,9 @@ defmodule MechanicsWeb.Helpers.CurrencyFormatterTest do
   test "format_number groups thousands without the symbol" do
     assert CurrencyFormatter.format_number(2_600_000, "USD") == "26,000.00"
   end
+
+  test "format_integer groups miles-style integers" do
+    assert CurrencyFormatter.format_integer(41_921) == "41,921"
+    assert CurrencyFormatter.format_integer(0) == "0"
+  end
 end

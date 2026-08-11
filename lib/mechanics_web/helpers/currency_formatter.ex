@@ -47,7 +47,6 @@ defmodule MechanicsWeb.Helpers.CurrencyFormatter do
   }
 
   @default_exponent 2
-  @default_symbol ""
 
   # ======================
   # Helper functions
@@ -80,7 +79,8 @@ defmodule MechanicsWeb.Helpers.CurrencyFormatter do
   Examples:
     format(12345, "USD")  => "$123.45"
     format(10000, "USD")  => "$100.00"
-    format(12345, "JPY")  => "¥12345"
+    format(2_600_000, "USD")  => "$26,000.00"
+    format(12345, "JPY")  => "¥12,345"
     format(12345, "BHD")  => "د.ب12.345"
   """
   def format(amount, currency_code) when is_integer(amount) do
@@ -91,7 +91,7 @@ defmodule MechanicsWeb.Helpers.CurrencyFormatter do
   end
 
   @doc """
-  Formats without the currency symbol (still fixed decimals).
+  Formats without the currency symbol (still fixed decimals and thousand grouping).
   Useful when you want to show the number only.
   """
   def format_number(amount, currency_code) when is_integer(amount) do
@@ -101,6 +101,17 @@ defmodule MechanicsWeb.Helpers.CurrencyFormatter do
   end
 
   @doc """
+  Formats an integer with thousand separators (e.g. miles).
+  """
+  def format_integer(value) when is_integer(value) do
+    value
+    |> Integer.to_string()
+    |> group_thousands()
+  end
+
+  def format_integer(nil), do: ""
+
+  @doc """
   Returns only the symbol for a currency.
   """
   def symbol(currency_code) do
@@ -108,7 +119,7 @@ defmodule MechanicsWeb.Helpers.CurrencyFormatter do
   end
 
   @doc """
-  Parses a major-unit amount string and converts it to minor units.
+  Parses a major-unit amount string and converts to minor units.
   Returns `{:ok, integer_minor_units}` or `{:error, :invalid_amount}`.
   """
   def parse_major_to_minor(amount, currency_code) when is_binary(amount) do
@@ -140,6 +151,7 @@ defmodule MechanicsWeb.Helpers.CurrencyFormatter do
     |> Decimal.round(exponent)
     |> Decimal.to_string(:normal)
     |> pad_fractional_zeros(exponent)
+    |> group_thousands()
   end
 
   defp pad_fractional_zeros(number, 0), do: number
@@ -152,5 +164,28 @@ defmodule MechanicsWeb.Helpers.CurrencyFormatter do
       [whole] ->
         whole <> "." <> String.duplicate("0", exponent)
     end
+  end
+
+  defp group_thousands(number) when is_binary(number) do
+    {sign, rest} =
+      if String.starts_with?(number, "-") do
+        {"-", String.slice(number, 1..-1//1)}
+      else
+        {"", number}
+      end
+
+    {whole, fraction} =
+      case String.split(rest, ".", parts: 2) do
+        [w, f] -> {w, "." <> f}
+        [w] -> {w, ""}
+      end
+
+    grouped =
+      whole
+      |> String.reverse()
+      |> String.replace(~r/(\d{3})(?=\d)/, "\\1,")
+      |> String.reverse()
+
+    sign <> grouped <> fraction
   end
 end
