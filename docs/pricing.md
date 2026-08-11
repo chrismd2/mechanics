@@ -19,9 +19,10 @@ Valid roles also remain `mechanic` and `customer`. A user may hold `pricing_user
 | GET | `/pricing/market-prices/new` | Start with a listing/sale URL |
 | POST | `/pricing/market-prices/from-url` | Look up URL, try agent extraction, save or fall back to form |
 | POST | `/pricing/market-prices` | Manual save of vehicle market price (`listing` or `sale`) |
-| GET | `/pricing` | Suggest flow starts with VIN (`?manual=1` for the full form) |
+| GET | `/pricing` | Suggest flow starts with VIN (`?manual=1` for the full form); shows top 3 recent searches |
+| GET | `/pricing/queries` | Searchable / filterable list of the user’s recent suggestion queries |
 | POST | `/pricing/from-vin` | Check VIN; suggest when complete, otherwise open the manual form |
-| POST | `/pricing/suggest` | Run suggestion from the manual form; show result and persist query |
+| POST | `/pricing/suggest` | Run suggestion from the manual form or a recent-search re-run; show result and persist query |
 
 Signed-in users open these from the header **Tools** drawer (pricing links only when the user has `pricing_user`).
 
@@ -30,10 +31,10 @@ Signed-in users open these from the header **Tools** drawer (pricing links only 
 `pricing_user`s grow the dataset the agent queries. Flow:
 
 1. Submit a listing/sale **URL**.
-2. If that `source_url` already exists, stop (no duplicate).
+2. If that `source_url` already exists, fail with an error flash and stay on the URL entry view (no duplicate, no manual form).
 3. Otherwise fetch the page and ask the pricing agent to extract vehicle fields.
 4. If extraction is complete, save immediately.
-5. If not, show the manual form (prefilled when possible) and save after review.
+5. If not, show a warning flash and the manual form (prefilled when possible) and save after review.
 
 Each row is one observed asking price or sold price for a vehicle. **`source_url` is always stored.**
 
@@ -59,7 +60,7 @@ VIN-first flow (mirrors market-price URL entry):
 1. Submit a **VIN** (optional miles).
 2. `VinChecker` looks up a matching stored market price, then falls back to NHTSA vPIC decode.
 3. If make/model/year/miles are complete, run the suggestion immediately.
-4. If the check fails or fields are missing, show the manual form (prefilled when possible).
+4. If the check fails or fields are missing, show a warning flash and the manual form (prefilled when possible).
 
 | Field | Required | Notes |
 |-------|----------|-------|
@@ -69,7 +70,15 @@ VIN-first flow (mirrors market-price URL entry):
 | `year` | yes | |
 | `miles` | yes | optional on VIN step; required before suggest |
 
-Every attempt is stored in `vehicle_price_queries` (even when suggestions are nil / insufficient data), including suggested competitive and expected-minimum cents when available, match count, and a short agent summary when present.
+Every successful suggest attempt is stored in `vehicle_price_queries` for the current user (even when suggestions are nil / insufficient data), including suggested competitive and expected-minimum cents when available, match count, and a short agent summary when present. The same user + vehicle (make, model, year, miles, VIN) updates the existing row instead of creating a duplicate.
+
+## Recent searches
+
+- Successful suggests appear as **recent searches** for that user.
+- The suggestion page shows the **top 3** beside the form; the column header links to `/pricing/queries`.
+- Each of the top 3 is a button that POSTs the same vehicle fields to `/pricing/suggest` (refreshes the existing query snapshot).
+- `/pricing/queries` lists all of the user’s queries and supports filters: free-text `q` (make/model/VIN), plus `make`, `model`, `year`, and `vin`.
+- Duplicate searches for the same vehicle are not stored twice; re-runs update the existing row and bump it to the top of recent.
 
 ## Pricing agent
 
@@ -92,7 +101,8 @@ The agent should use sales for floor / expected-minimum context and listings for
 - `Pricing.get_market_price_by_source_url/1` — find an existing row by URL
 - `Pricing.list_market_prices/1` — filter/search (backing `search_vehicle_market_prices`)
 - `Pricing.get_market_price_details/1` — details for ids (backing `get_vehicle_market_price_details`)
-- `Pricing.suggest_prices/2` — run agent for a user + vehicle attrs; persist `vehicle_price_query`
+- `Pricing.suggest_prices/2` — run agent for a user + vehicle attrs; upsert `vehicle_price_query` (no duplicates per user/vehicle)
+- `Pricing.list_queries/2` — list a user’s queries (`limit:`, `filters:` with `q` / make / model / year / vin)
 - `Accounts.add_pricing_user_role/1` — grant role
 
 ## Out of scope (v1)

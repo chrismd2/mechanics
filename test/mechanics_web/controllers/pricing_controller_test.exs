@@ -78,9 +78,10 @@ defmodule MechanicsWeb.PricingControllerTest do
       assert Floki.find(parsed, "form#market_price_manual_form") != []
       assert html =~ source_url
       assert Floki.find(parsed, "input[name='market_price[make]']") != []
+      assert Phoenix.Flash.get(conn.assigns.flash, :warning) =~ "extract"
     end
 
-    test "redirects when URL already exists", %{conn: conn} do
+    test "stays on URL form when URL already exists", %{conn: conn} do
       {:ok, conn: conn, user: user} = create_pricing_user(conn)
       source_url = "https://example.com/already-#{System.unique_integer([:positive])}"
 
@@ -100,8 +101,13 @@ defmodule MechanicsWeb.PricingControllerTest do
           "market_price" => %{"source_url" => source_url}
         })
 
-      assert redirected_to(conn) =~ "/pricing"
-      assert Phoenix.Flash.get(conn.assigns.flash, :info) =~ "already"
+      html = html_response(conn, 200)
+      parsed = Floki.parse_document!(html)
+
+      assert Floki.find(parsed, "form#market_price_url_form") != []
+      assert Floki.find(parsed, "form#market_price_manual_form") == []
+      assert html =~ source_url
+      assert Phoenix.Flash.get(conn.assigns.flash, :error) =~ "already"
     end
   end
 
@@ -147,6 +153,42 @@ defmodule MechanicsWeb.PricingControllerTest do
       assert Floki.find(parsed, "form#vehicle_vin_form[action='/pricing/from-vin']") != []
       assert Floki.find(parsed, "input#vehicle_vin[name='vehicle[vin]']") != []
       assert Floki.find(parsed, "form#vehicle_manual_form") == []
+      assert Floki.find(parsed, "#recent-searches a[href='/pricing/queries']") != []
+    end
+
+    test "shows top three recent searches as re-run buttons", %{conn: conn} do
+      {:ok, conn: conn, user: user} = create_pricing_user(conn)
+      now = DateTime.utc_now() |> DateTime.truncate(:second)
+
+      for {make, model, year, offset} <- [
+            {"Chevy", "Malibu", 2016, -3},
+            {"Ford", "Focus", 2017, -2},
+            {"Toyota", "Camry", 2019, -1},
+            {"Honda", "Accord", 2020, 0}
+          ] do
+        {:ok, query} =
+          Pricing.suggest_prices(user, %{
+            "make" => make,
+            "model" => model,
+            "year" => year,
+            "miles" => 40_000
+          })
+
+        query
+        |> Ecto.Changeset.change(inserted_at: DateTime.add(now, offset, :second))
+        |> Repo.update!()
+      end
+
+      conn = get(conn, "/pricing")
+      html = html_response(conn, 200)
+      parsed = Floki.parse_document!(html)
+
+      recent = Floki.find(parsed, "#recent-searches form[action='/pricing/suggest']")
+      assert length(recent) == 3
+      assert html =~ "Honda"
+      assert html =~ "Toyota"
+      assert html =~ "Ford"
+      refute html =~ "Malibu"
     end
 
     test "shows the manual form when manual=1", %{conn: conn} do
@@ -177,6 +219,57 @@ defmodule MechanicsWeb.PricingControllerTest do
 
       conn = init_test_session(conn, %{current_user_id: user.id})
       conn = get(conn, "/pricing")
+      assert redirected_to(conn) == ~p"/"
+    end
+  end
+
+  describe "GET /pricing/queries" do
+    test "lists recent searches and filters by make", %{conn: conn} do
+      {:ok, conn: conn, user: user} = create_pricing_user(conn)
+
+      {:ok, _} =
+        Pricing.suggest_prices(user, %{
+          "make" => "Honda",
+          "model" => "Accord",
+          "year" => 2020,
+          "miles" => 30_000
+        })
+
+      {:ok, _} =
+        Pricing.suggest_prices(user, %{
+          "make" => "Toyota",
+          "model" => "Camry",
+          "year" => 2019,
+          "miles" => 45_000
+        })
+
+      conn = get(conn, "/pricing/queries", %{"make" => "Honda"})
+      html = html_response(conn, 200)
+      parsed = Floki.parse_document!(html)
+
+      assert Floki.find(parsed, "form#recent_searches_filter_form") != []
+      assert html =~ "Honda"
+      assert html =~ "Accord"
+      refute html =~ "Camry"
+    end
+
+    test "redirects home without pricing_user", %{conn: conn} do
+      {:ok, user} =
+        Accounts.create_user(%{
+          "email" => "no-pricing-#{System.unique_integer([:positive])}@example.com",
+          "name" => "Customer Only",
+          "roles" => ["customer"],
+          "password" => "securepw123",
+          "password_confirmation" => "securepw123"
+        })
+
+      user =
+        user
+        |> Ecto.Changeset.change(email_verified: true)
+        |> Repo.update!()
+
+      conn = init_test_session(conn, %{current_user_id: user.id})
+      conn = get(conn, "/pricing/queries")
       assert redirected_to(conn) == ~p"/"
     end
   end
@@ -215,7 +308,7 @@ defmodule MechanicsWeb.PricingControllerTest do
 
       assert Floki.find(parsed, "form#vehicle_manual_form") != []
       assert html =~ vin
-      assert Phoenix.Flash.get(conn.assigns.flash, :info) =~ "VIN"
+      assert Phoenix.Flash.get(conn.assigns.flash, :warning) =~ "VIN"
     end
 
     test "rejects invalid VIN and stays on VIN step", %{conn: conn} do
@@ -297,6 +390,36 @@ defmodule MechanicsWeb.PricingControllerTest do
       queries = Pricing.list_queries(user)
       assert length(queries) >= 1
       assert hd(queries).make == "Honda"
+    end
+
+    test "re-running a recent search updates the existing query", %{conn: conn} do
+      {:ok, conn: conn, user: user} = create_pricing_user(conn)
+
+      {:ok, original} =
+        Pricing.suggest_prices(user, %{
+          "make" => "Honda",
+          "model" => "Accord",
+          "year" => 2020,
+          "miles" => 30_000
+        })
+
+      assert length(Pricing.list_queries(user)) == 1
+
+      conn =
+        post(conn, "/pricing/suggest", %{
+          "vehicle" => %{
+            "make" => "Honda",
+            "model" => "Accord",
+            "year" => "2020",
+            "miles" => "30000",
+            "vin" => ""
+          }
+        })
+
+      assert html_response(conn, 200) =~ "Honda"
+      queries = Pricing.list_queries(user)
+      assert length(queries) == 1
+      assert hd(queries).id == original.id
     end
   end
 end

@@ -1,5 +1,20 @@
 # Changelog
 
+## 2026-08-11 — pricing-unique-searches
+
+- Upsert price suggestion queries per user + vehicle so re-runs refresh the existing search instead of duplicating it
+- Deduplicate existing query rows before adding the unique index
+
+## 2026-08-11 — pricing-recent-searches
+
+- Show top 3 recent suggestion queries beside the pricing form with one-click re-run
+- Add searchable/filterable `/pricing/queries` history page and Tools drawer link
+
+## 2026-08-11 — pricing-flash-accuracy
+
+- Use amber Notice flashes for incomplete URL extraction and VIN lookup
+- Reject duplicate market-price URLs with a red error flash and stay on the URL form
+
 ## 2026-08-11 — pricing-suggest-from-vin
 
 - Start price suggestions with a VIN check; auto-suggest when complete; fall back to the manual vehicle form when the check fails or fields are missing

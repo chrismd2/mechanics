@@ -6,9 +6,10 @@
   model = Map.get(vehicle, "model") || ""
   year = Map.get(vehicle, "year") || ""
   miles = Map.get(vehicle, "miles") || ""
+  recent_queries = assigns[:recent_queries] || []
 %>
 
-<div class="mx-auto max-w-2xl space-y-6">
+<div class="space-y-6">
   <div class="flex items-start justify-between gap-4">
     <div class="space-y-2">
       <h1 class="text-2xl font-semibold text-zinc-900">Vehicle price suggestion</h1>
@@ -28,169 +29,205 @@
     </a>
   </div>
 
-  <%= if step == :vin do %>
-    <div class="rounded-xl border border-zinc-200 bg-white p-6 shadow-sm">
-      <form action={~p"/pricing/from-vin"} method="post" class="space-y-6" id="vehicle_vin_form">
-        <input type="hidden" name="_csrf_token" value={get_csrf_token()} />
+  <div class="grid gap-6 lg:grid-cols-[minmax(0,1fr)_16rem]">
+    <div class="space-y-6 min-w-0">
+      <%= if step == :vin do %>
+        <div class="rounded-xl border border-zinc-200 bg-white p-6 shadow-sm">
+          <form action={~p"/pricing/from-vin"} method="post" class="space-y-6" id="vehicle_vin_form">
+            <input type="hidden" name="_csrf_token" value={get_csrf_token()} />
 
-        <div class="space-y-2">
-          <label for="vehicle_vin" class="block text-sm font-semibold text-zinc-800">VIN</label>
-          <input
-            type="text"
-            id="vehicle_vin"
-            name="vehicle[vin]"
-            value={vin}
-            required
-            maxlength="17"
-            autocomplete="off"
-            class="mt-1 block w-full rounded-lg border-zinc-300 shadow-sm sm:text-sm uppercase"
-          />
+            <div class="space-y-2">
+              <label for="vehicle_vin" class="block text-sm font-semibold text-zinc-800">VIN</label>
+              <input
+                type="text"
+                id="vehicle_vin"
+                name="vehicle[vin]"
+                value={vin}
+                required
+                maxlength="17"
+                autocomplete="off"
+                class="mt-1 block w-full rounded-lg border-zinc-300 shadow-sm sm:text-sm uppercase"
+              />
+            </div>
+
+            <div class="space-y-2">
+              <label for="vehicle_miles" class="block text-sm font-semibold text-zinc-800">
+                Miles (optional)
+              </label>
+              <input
+                type="text"
+                id="vehicle_miles"
+                name="vehicle[miles]"
+                value={miles}
+                min="0"
+                class="mt-1 block w-full rounded-lg border-zinc-300 shadow-sm sm:text-sm"
+              />
+              <p class="text-xs text-zinc-500">Include miles now if you have them; otherwise you’ll enter them next.</p>
+            </div>
+
+            <div class="flex items-center gap-3">
+              <button
+                type="submit"
+                class="inline-flex items-center rounded-lg bg-zinc-900 px-4 py-2 text-sm font-semibold text-white hover:bg-zinc-700"
+              >
+                Check VIN
+              </button>
+              <a href={~p"/pricing?manual=1"} class="text-sm text-zinc-600 hover:text-zinc-900">Enter details manually</a>
+            </div>
+          </form>
         </div>
+      <% else %>
+        <div class="rounded-xl border border-zinc-200 bg-white p-6 shadow-sm">
+          <form action={~p"/pricing/suggest"} method="post" class="space-y-6" id="vehicle_manual_form">
+            <input type="hidden" name="_csrf_token" value={get_csrf_token()} />
 
-        <div class="space-y-2">
-          <label for="vehicle_miles" class="block text-sm font-semibold text-zinc-800">
-            Miles (optional)
-          </label>
-          <input
-            type="text"
-            id="vehicle_miles"
-            name="vehicle[miles]"
-            value={miles}
-            min="0"
-            class="mt-1 block w-full rounded-lg border-zinc-300 shadow-sm sm:text-sm"
-          />
-          <p class="text-xs text-zinc-500">Include miles now if you have them; otherwise you’ll enter them next.</p>
+            <div class="space-y-2">
+              <label for="vehicle_vin" class="block text-sm font-semibold text-zinc-800">VIN</label>
+              <input
+                type="text"
+                id="vehicle_vin"
+                name="vehicle[vin]"
+                value={vin}
+                maxlength="17"
+                autocomplete="off"
+                class="mt-1 block w-full rounded-lg border-zinc-300 shadow-sm sm:text-sm uppercase"
+              />
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div class="space-y-2">
+                <label for="vehicle_make" class="block text-sm font-semibold text-zinc-800">Make</label>
+                <input
+                  type="text"
+                  id="vehicle_make"
+                  name="vehicle[make]"
+                  value={make}
+                  class="mt-1 block w-full rounded-lg border-zinc-300 shadow-sm sm:text-sm"
+                />
+              </div>
+              <div class="space-y-2">
+                <label for="vehicle_model" class="block text-sm font-semibold text-zinc-800">Model</label>
+                <input
+                  type="text"
+                  id="vehicle_model"
+                  name="vehicle[model]"
+                  value={model}
+                  class="mt-1 block w-full rounded-lg border-zinc-300 shadow-sm sm:text-sm"
+                />
+              </div>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div class="space-y-2">
+                <label for="vehicle_year" class="block text-sm font-semibold text-zinc-800">Year</label>
+                <input
+                  type="text"
+                  id="vehicle_year"
+                  name="vehicle[year]"
+                  value={year}
+                  class="mt-1 block w-full rounded-lg border-zinc-300 shadow-sm sm:text-sm"
+                />
+              </div>
+              <div class="space-y-2">
+                <label for="vehicle_miles" class="block text-sm font-semibold text-zinc-800">Miles</label>
+                <input
+                  type="text"
+                  id="vehicle_miles"
+                  name="vehicle[miles]"
+                  value={miles}
+                  min="0"
+                  class="mt-1 block w-full rounded-lg border-zinc-300 shadow-sm sm:text-sm"
+                />
+              </div>
+            </div>
+
+            <div class="flex items-center gap-3">
+              <button
+                type="submit"
+                class="inline-flex items-center rounded-lg bg-zinc-900 px-4 py-2 text-sm font-semibold text-white hover:bg-zinc-700"
+              >
+                Suggest prices
+              </button>
+              <a href={~p"/pricing"} class="text-sm text-zinc-600 hover:text-zinc-900">Start over with VIN</a>
+            </div>
+          </form>
         </div>
+      <% end %>
 
-        <div class="flex items-center gap-3">
-          <button
-            type="submit"
-            class="inline-flex items-center rounded-lg bg-zinc-900 px-4 py-2 text-sm font-semibold text-white hover:bg-zinc-700"
-          >
-            Check VIN
-          </button>
-          <a href={~p"/pricing?manual=1"} class="text-sm text-zinc-600 hover:text-zinc-900">Enter details manually</a>
+      <%= if @query do %>
+        <div class="rounded-xl border border-zinc-200 bg-white p-6 shadow-sm space-y-3">
+          <h2 class="text-lg font-semibold text-zinc-900">Suggestion</h2>
+
+          <dl class="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
+            <div>
+              <dt class="font-semibold text-zinc-700">Competitive</dt>
+              <dd class="text-zinc-900">
+                <%= if @query.suggested_competitive_cents do %>
+                  <%= MechanicsWeb.Helpers.CurrencyFormatter.format(
+                    @query.suggested_competitive_cents,
+                    @query.currency || "USD"
+                  ) %>
+                <% else %>
+                  Insufficient data
+                <% end %>
+              </dd>
+            </div>
+            <div>
+              <dt class="font-semibold text-zinc-700">Expected minimum</dt>
+              <dd class="text-zinc-900">
+                <%= if @query.suggested_minimum_cents do %>
+                  <%= MechanicsWeb.Helpers.CurrencyFormatter.format(
+                    @query.suggested_minimum_cents,
+                    @query.currency || "USD"
+                  ) %>
+                <% else %>
+                  Insufficient data
+                <% end %>
+              </dd>
+            </div>
+          </dl>
+
+          <p class="text-sm text-zinc-600">
+            Matched market prices: <%= @query.match_count %>
+          </p>
+
+          <%= if @query.agent_summary do %>
+            <p class="text-sm text-zinc-700"><%= @query.agent_summary %></p>
+          <% end %>
         </div>
-      </form>
-    </div>
-  <% else %>
-    <div class="rounded-xl border border-zinc-200 bg-white p-6 shadow-sm">
-      <form action={~p"/pricing/suggest"} method="post" class="space-y-6" id="vehicle_manual_form">
-        <input type="hidden" name="_csrf_token" value={get_csrf_token()} />
-
-        <div class="space-y-2">
-          <label for="vehicle_vin" class="block text-sm font-semibold text-zinc-800">VIN</label>
-          <input
-            type="text"
-            id="vehicle_vin"
-            name="vehicle[vin]"
-            value={vin}
-            maxlength="17"
-            autocomplete="off"
-            class="mt-1 block w-full rounded-lg border-zinc-300 shadow-sm sm:text-sm uppercase"
-          />
-        </div>
-
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div class="space-y-2">
-            <label for="vehicle_make" class="block text-sm font-semibold text-zinc-800">Make</label>
-            <input
-              type="text"
-              id="vehicle_make"
-              name="vehicle[make]"
-              value={make}
-              class="mt-1 block w-full rounded-lg border-zinc-300 shadow-sm sm:text-sm"
-            />
-          </div>
-          <div class="space-y-2">
-            <label for="vehicle_model" class="block text-sm font-semibold text-zinc-800">Model</label>
-            <input
-              type="text"
-              id="vehicle_model"
-              name="vehicle[model]"
-              value={model}
-              class="mt-1 block w-full rounded-lg border-zinc-300 shadow-sm sm:text-sm"
-            />
-          </div>
-        </div>
-
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div class="space-y-2">
-            <label for="vehicle_year" class="block text-sm font-semibold text-zinc-800">Year</label>
-            <input
-              type="text"
-              id="vehicle_year"
-              name="vehicle[year]"
-              value={year}
-              class="mt-1 block w-full rounded-lg border-zinc-300 shadow-sm sm:text-sm"
-            />
-          </div>
-          <div class="space-y-2">
-            <label for="vehicle_miles" class="block text-sm font-semibold text-zinc-800">Miles</label>
-            <input
-              type="text"
-              id="vehicle_miles"
-              name="vehicle[miles]"
-              value={miles}
-              min="0"
-              class="mt-1 block w-full rounded-lg border-zinc-300 shadow-sm sm:text-sm"
-            />
-          </div>
-        </div>
-
-        <div class="flex items-center gap-3">
-          <button
-            type="submit"
-            class="inline-flex items-center rounded-lg bg-zinc-900 px-4 py-2 text-sm font-semibold text-white hover:bg-zinc-700"
-          >
-            Suggest prices
-          </button>
-          <a href={~p"/pricing"} class="text-sm text-zinc-600 hover:text-zinc-900">Start over with VIN</a>
-        </div>
-      </form>
-    </div>
-  <% end %>
-
-  <%= if @query do %>
-    <div class="rounded-xl border border-zinc-200 bg-white p-6 shadow-sm space-y-3">
-      <h2 class="text-lg font-semibold text-zinc-900">Suggestion</h2>
-
-      <dl class="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
-        <div>
-          <dt class="font-semibold text-zinc-700">Competitive</dt>
-          <dd class="text-zinc-900">
-            <%= if @query.suggested_competitive_cents do %>
-              <%= MechanicsWeb.Helpers.CurrencyFormatter.format(
-                @query.suggested_competitive_cents,
-                @query.currency || "USD"
-              ) %>
-            <% else %>
-              Insufficient data
-            <% end %>
-          </dd>
-        </div>
-        <div>
-          <dt class="font-semibold text-zinc-700">Expected minimum</dt>
-          <dd class="text-zinc-900">
-            <%= if @query.suggested_minimum_cents do %>
-              <%= MechanicsWeb.Helpers.CurrencyFormatter.format(
-                @query.suggested_minimum_cents,
-                @query.currency || "USD"
-              ) %>
-            <% else %>
-              Insufficient data
-            <% end %>
-          </dd>
-        </div>
-      </dl>
-
-      <p class="text-sm text-zinc-600">
-        Matched market prices: <%= @query.match_count %>
-      </p>
-
-      <%= if @query.agent_summary do %>
-        <p class="text-sm text-zinc-700"><%= @query.agent_summary %></p>
       <% end %>
     </div>
-  <% end %>
+
+    <aside id="recent-searches" class="space-y-3">
+      <h2 class="text-sm font-semibold text-zinc-900">
+        <a href={~p"/pricing/queries"} class="underline hover:text-zinc-700">Recent searches</a>
+      </h2>
+
+      <%= if recent_queries == [] do %>
+        <p class="text-sm text-zinc-500">No recent searches yet.</p>
+      <% else %>
+        <ul class="space-y-2">
+          <%= for query <- recent_queries do %>
+            <li>
+              <form action={~p"/pricing/suggest"} method="post">
+                <input type="hidden" name="_csrf_token" value={get_csrf_token()} />
+                <input type="hidden" name="vehicle[vin]" value={query.vin || ""} />
+                <input type="hidden" name="vehicle[make]" value={query.make} />
+                <input type="hidden" name="vehicle[model]" value={query.model} />
+                <input type="hidden" name="vehicle[year]" value={query.year} />
+                <input type="hidden" name="vehicle[miles]" value={query.miles} />
+                <button
+                  type="submit"
+                  class="w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-left text-sm text-zinc-800 shadow-sm hover:bg-zinc-50"
+                >
+                  <span class="font-medium"><%= query.year %> <%= query.make %> <%= query.model %></span>
+                  <span class="mt-0.5 block text-xs text-zinc-500"><%= query.miles %> miles</span>
+                </button>
+              </form>
+            </li>
+          <% end %>
+        </ul>
+      <% end %>
+    </aside>
+  </div>
 </div>

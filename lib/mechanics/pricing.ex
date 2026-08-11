@@ -52,12 +52,37 @@ defmodule Mechanics.Pricing do
     |> Repo.all()
   end
 
-  def list_queries(%User{} = user) do
-    from(q in VehiclePriceQuery,
-      where: q.user_id == ^user.id,
-      order_by: [desc: q.inserted_at, desc: q.id]
-    )
-    |> Repo.all()
+  @doc """
+  Lists price suggestion queries for a user, newest first.
+
+  Options:
+  - `:limit` — max rows to return
+  - `:filters` — map with optional `q`, `make`, `model`, `year`, `vin`
+  """
+  def list_queries(%User{} = user, opts \\ []) when is_list(opts) do
+    filters =
+      opts
+      |> Keyword.get(:filters, %{})
+      |> atomize_filter_keys()
+      |> normalize_query_filters()
+
+    limit = Keyword.get(opts, :limit)
+
+    query =
+      from(q in VehiclePriceQuery,
+        where: q.user_id == ^user.id,
+        order_by: [desc: q.inserted_at, desc: q.id]
+      )
+      |> apply_query_filters(filters)
+
+    query =
+      if is_integer(limit) and limit > 0 do
+        limit(query, ^limit)
+      else
+        query
+      end
+
+    Repo.all(query)
   end
 
   def change_market_price(%VehicleMarketPrice{} = market_price, attrs \\ %{}) do
@@ -206,7 +231,10 @@ defmodule Mechanics.Pricing do
   defp attrs_from_changeset_error(attrs, _changeset), do: attrs
 
   @doc """
-  Runs the pricing agent and persists a `vehicle_price_query` snapshot.
+  Runs the pricing agent and upserts a `vehicle_price_query` for this user + vehicle.
+
+  Duplicate searches (same make, model, year, miles, and VIN) update the existing row
+  instead of inserting another.
   """
   def suggest_prices(%User{} = user, attrs) when is_map(attrs) do
     attrs = stringify_keys(attrs)
@@ -223,10 +251,36 @@ defmodule Mechanics.Pricing do
         |> Map.put("agent_summary", suggestion.summary)
         |> Map.put("currency", Map.get(suggestion, :currency, "USD"))
 
-      %VehiclePriceQuery{}
+      now = DateTime.utc_now() |> DateTime.truncate(:second)
+
+      existing = get_query_by_vehicle(user.id, vehicle) || %VehiclePriceQuery{}
+
+      existing
       |> VehiclePriceQuery.changeset(query_attrs)
-      |> Repo.insert()
+      |> Ecto.Changeset.put_change(:inserted_at, now)
+      |> Ecto.Changeset.put_change(:updated_at, now)
+      |> Repo.insert_or_update()
     end
+  end
+
+  defp get_query_by_vehicle(user_id, %{"make" => make, "model" => model, "year" => year, "miles" => miles, "vin" => vin}) do
+    query =
+      from(q in VehiclePriceQuery,
+        where: q.user_id == ^user_id,
+        where: q.make == ^make,
+        where: q.model == ^model,
+        where: q.year == ^year,
+        where: q.miles == ^miles
+      )
+
+    query =
+      if is_nil(vin) or vin == "" do
+        where(query, [q], is_nil(q.vin) or q.vin == "")
+      else
+        where(query, [q], q.vin == ^vin)
+      end
+
+    Repo.one(query)
   end
 
   defp normalize_vehicle_attrs(attrs) do
@@ -288,6 +342,54 @@ defmodule Mechanics.Pricing do
     end)
   end
 
+  defp apply_query_filters(query, filters) do
+    Enum.reduce(filters, query, fn
+      {:q, term}, q when is_binary(term) and term != "" ->
+        pattern = "%" <> term <> "%"
+
+        where(
+          q,
+          [row],
+          ilike(row.make, ^pattern) or ilike(row.model, ^pattern) or
+            ilike(fragment("coalesce(?, '')", row.vin), ^pattern)
+        )
+
+      {:make, make}, q when is_binary(make) and make != "" ->
+        where(q, [row], ilike(row.make, ^make))
+
+      {:model, model}, q when is_binary(model) and model != "" ->
+        where(q, [row], ilike(row.model, ^model))
+
+      {:vin, vin}, q when is_binary(vin) and vin != "" ->
+        pattern = "%" <> vin <> "%"
+        where(q, [row], ilike(fragment("coalesce(?, '')", row.vin), ^pattern))
+
+      {:year, year}, q when is_integer(year) ->
+        where(q, [row], row.year == ^year)
+
+      {_other, _}, q ->
+        q
+    end)
+  end
+
+  defp normalize_query_filters(filters) when is_map(filters) do
+    filters
+    |> Map.take([:q, :make, :model, :year, :vin])
+    |> Map.new(fn
+      {:year, year} when is_binary(year) ->
+        case Mechanics.NumberParse.to_integer(year) do
+          {:ok, int} -> {:year, int}
+          :error -> {:year, nil}
+        end
+
+      {key, value} when is_binary(value) ->
+        {key, String.trim(value)}
+
+      pair ->
+        pair
+    end)
+  end
+
   defp atomize_filter_keys(filters) do
     Map.new(filters, fn
       {k, v} when is_atom(k) -> {k, v}
@@ -306,6 +408,8 @@ defmodule Mechanics.Pricing do
         {"year_max", v} -> {:year_max, v}
         {"miles_min", v} -> {:miles_min, v}
         {"miles_max", v} -> {:miles_max, v}
+        {"q", v} -> {:q, v}
+        {"vin", v} -> {:vin, v}
         {_, _} -> {:__ignored__, nil}
       end)
       |> Map.delete(:__ignored__)

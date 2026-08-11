@@ -48,6 +48,7 @@ defmodule Mechanics.Pricing.VehiclePriceQuery do
     |> validate_number(:match_count, greater_than_or_equal_to: 0)
     |> validate_length(:currency, is: 3)
     |> foreign_key_constraint(:user_id)
+    |> unique_constraint(:user_id, name: :vehicle_price_queries_user_vehicle_unique)
   end
 
   defp trim_string(nil), do: nil

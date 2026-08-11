@@ -350,5 +350,84 @@ defmodule Mechanics.PricingTest do
       assert is_nil(query.suggested_minimum_cents)
       assert query.match_count == 0
     end
+
+    test "updates an existing query instead of creating a duplicate" do
+      user = pricing_user!()
+
+      vehicle = %{
+        "make" => "Honda",
+        "model" => "Accord",
+        "year" => 2020,
+        "miles" => 30_000,
+        "vin" => "1HGCM82633A004352"
+      }
+
+      assert {:ok, first} = Pricing.suggest_prices(user, vehicle)
+      assert {:ok, second} = Pricing.suggest_prices(user, vehicle)
+
+      assert second.id == first.id
+      assert length(Pricing.list_queries(user)) == 1
+    end
+  end
+
+  describe "list_queries/2" do
+    test "returns newest first and respects limit" do
+      user = pricing_user!()
+      now = DateTime.utc_now() |> DateTime.truncate(:second)
+
+      for {make, year, offset} <- [{"Alpha", 2018, -2}, {"Beta", 2019, -1}, {"Gamma", 2020, 0}] do
+        {:ok, query} =
+          Pricing.suggest_prices(user, %{
+            "make" => make,
+            "model" => "Car",
+            "year" => year,
+            "miles" => 20_000
+          })
+
+        query
+        |> Ecto.Changeset.change(inserted_at: DateTime.add(now, offset, :second))
+        |> Mechanics.Repo.update!()
+      end
+
+      assert [%{make: "Gamma"}, %{make: "Beta"}, %{make: "Alpha"}] = Pricing.list_queries(user)
+      assert [%{make: "Gamma"}, %{make: "Beta"}] = Pricing.list_queries(user, limit: 2)
+    end
+
+    test "filters by q, make, model, year, and vin" do
+      user = pricing_user!()
+
+      {:ok, _} =
+        Pricing.suggest_prices(user, %{
+          "make" => "Honda",
+          "model" => "Accord",
+          "year" => 2020,
+          "miles" => 30_000,
+          "vin" => "1HGCM82633A004352"
+        })
+
+      {:ok, _} =
+        Pricing.suggest_prices(user, %{
+          "make" => "Toyota",
+          "model" => "Camry",
+          "year" => 2019,
+          "miles" => 45_000,
+          "vin" => "4T1B11HK5KU123456"
+        })
+
+      assert [%{make: "Honda"}] =
+               Pricing.list_queries(user, filters: %{"make" => "Honda"})
+
+      assert [%{model: "Camry"}] =
+               Pricing.list_queries(user, filters: %{"model" => "Camry"})
+
+      assert [%{year: 2020}] =
+               Pricing.list_queries(user, filters: %{"year" => "2020"})
+
+      assert [%{make: "Toyota"}] =
+               Pricing.list_queries(user, filters: %{"vin" => "4T1B11HK"})
+
+      assert [%{make: "Honda"}] =
+               Pricing.list_queries(user, filters: %{"q" => "Accord"})
+    end
   end
 end

@@ -7,9 +7,29 @@ defmodule MechanicsWeb.PricingController do
 
   def index(conn, params) do
     case pricing_user(conn) do
-      {:ok, _user} ->
+      {:ok, user} ->
         step = if params["manual"] in ["1", "true"], do: :manual, else: :vin
-        render(conn, :index, step: step, query: nil, vehicle: empty_vehicle())
+
+        render_suggest(conn, user,
+          step: step,
+          query: nil,
+          vehicle: empty_vehicle()
+        )
+
+      :error ->
+        redirect(conn, to: ~p"/")
+    end
+  end
+
+  def queries(conn, params) do
+    case pricing_user(conn) do
+      {:ok, user} ->
+        filters = query_filter_params(params)
+        queries = Pricing.list_queries(user, filters: filters)
+
+        conn
+        |> assign(:wide_layout, true)
+        |> render(:queries, queries: queries, filters: filters)
 
       :error ->
         redirect(conn, to: ~p"/")
@@ -36,8 +56,12 @@ defmodule MechanicsWeb.PricingController do
         case Pricing.import_market_price_from_url(user, url) do
           {:ok, :already_exists, _existing} ->
             conn
-            |> put_flash(:info, "That URL is already saved in vehicle market prices.")
-            |> redirect(to: ~p"/pricing")
+            |> put_flash(:error, "That URL is already saved in vehicle market prices.")
+            |> render(:new_market_price,
+              step: :url,
+              source_url: url,
+              changeset: Pricing.change_market_price(%VehicleMarketPrice{})
+            )
 
           {:ok, :created, _record} ->
             conn
@@ -52,8 +76,8 @@ defmodule MechanicsWeb.PricingController do
 
             conn
             |> put_flash(
-              :info,
-              "Could not fully extract listing details. Review and complete the form, then save."
+              :warning,
+              "Could not extract all listing details from that URL. Review and complete the form, then save."
             )
             |> render(:new_market_price,
               step: :manual,
@@ -133,26 +157,38 @@ defmodule MechanicsWeb.PricingController do
           {:ok, :ready, attrs} ->
             case Pricing.suggest_prices(user, attrs) do
               {:ok, query} ->
-                render(conn, :index, step: :manual, query: query, vehicle: stringify_vehicle(attrs))
+                render_suggest(conn, user,
+                  step: :manual,
+                  query: query,
+                  vehicle: stringify_vehicle(attrs)
+                )
 
               {:error, :invalid_vehicle} ->
                 conn
                 |> put_flash(:error, "Enter make, model, year, and miles.")
-                |> render(:index, step: :manual, query: nil, vehicle: stringify_vehicle(attrs))
+                |> render_suggest(user,
+                  step: :manual,
+                  query: nil,
+                  vehicle: stringify_vehicle(attrs)
+                )
             end
 
           {:needs_form, attrs} ->
             conn
             |> put_flash(
-              :info,
-              "Could not fully resolve that VIN. Confirm the vehicle details, then suggest prices."
+              :warning,
+              "Could not look up that VIN. Confirm the vehicle details, then suggest prices."
             )
-            |> render(:index, step: :manual, query: nil, vehicle: stringify_vehicle(attrs))
+            |> render_suggest(user,
+              step: :manual,
+              query: nil,
+              vehicle: stringify_vehicle(attrs)
+            )
 
           {:error, :invalid_vin} ->
             conn
             |> put_flash(:error, "Enter a valid 17-character VIN.")
-            |> render(:index,
+            |> render_suggest(user,
               step: :vin,
               query: nil,
               vehicle: %{"vin" => vin || "", "miles" => miles || ""}
@@ -169,17 +205,47 @@ defmodule MechanicsWeb.PricingController do
       {:ok, user} ->
         case Pricing.suggest_prices(user, vehicle_params) do
           {:ok, query} ->
-            render(conn, :index, step: :manual, query: query, vehicle: vehicle_params)
+            render_suggest(conn, user,
+              step: :manual,
+              query: query,
+              vehicle: vehicle_params
+            )
 
           {:error, :invalid_vehicle} ->
             conn
             |> put_flash(:error, "Enter make, model, year, and miles.")
-            |> render(:index, step: :manual, query: nil, vehicle: vehicle_params)
+            |> render_suggest(user,
+              step: :manual,
+              query: nil,
+              vehicle: vehicle_params
+            )
         end
 
       :error ->
         redirect(conn, to: ~p"/")
     end
+  end
+
+  defp render_suggest(conn, user, assigns) do
+    conn
+    |> assign(:wide_layout, true)
+    |> render(
+      :index,
+      Keyword.merge(
+        [recent_queries: Pricing.list_queries(user, limit: 3)],
+        assigns
+      )
+    )
+  end
+
+  defp query_filter_params(params) when is_map(params) do
+    %{
+      "q" => Map.get(params, "q", ""),
+      "make" => Map.get(params, "make", ""),
+      "model" => Map.get(params, "model", ""),
+      "year" => Map.get(params, "year", ""),
+      "vin" => Map.get(params, "vin", "")
+    }
   end
 
   defp pricing_user(conn) do
