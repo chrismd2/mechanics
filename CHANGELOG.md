@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-08-11 — ci-deploy-pull-branch
+
+- Redeploy on PR push (`synchronize`); hard-reset server checkout to the triggering remote branch
+- Fail SSH deploy on git/make errors (`set -e`)
+
 ## 2026-08-11 — ci-deploy-workflow
 
 - Run `mix test` in GitHub Actions (Postgres service) before deploy; skip draft PRs; trigger on ready_for_review

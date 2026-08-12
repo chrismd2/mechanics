@@ -11,7 +11,7 @@ Ready to run in production? Please [check our deployment guides](https://hexdocs
 
 ## CI / Deploy
 
-The [deploy workflow](.github/workflows/deploy.yml) runs `mix test` (with Postgres) before deploying on push to `main`/`master`, non-draft PR open / ready for review, or manual dispatch.
+The [deploy workflow](.github/workflows/deploy.yml) runs `mix test` (with Postgres) before deploying on push to `main`/`master`, non-draft PR open / synchronize / ready for review, or manual dispatch. On the server it checks out the triggering remote branch, then `make down/build/up mechanics`.
 
 ## Vehicle pricing
 
