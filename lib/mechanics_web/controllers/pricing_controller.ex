@@ -76,7 +76,10 @@ defmodule MechanicsWeb.PricingController do
         case Pricing.import_market_price_from_url(user, url) do
           {:ok, :already_exists, _existing} ->
             conn
-            |> put_flash(:error, "That URL is already saved in vehicle market prices.")
+            |> put_flash(
+              :error,
+              "That URL is already saved in vehicle market prices. Use a different listing URL, or cancel."
+            )
             |> render(:new_market_price,
               step: :url,
               source_url: url,
@@ -155,6 +158,17 @@ defmodule MechanicsWeb.PricingController do
                 |> redirect(to: ~p"/pricing")
 
               {:error, %Ecto.Changeset{} = changeset} ->
+                conn =
+                  if source_url_taken?(changeset) do
+                    put_flash(
+                      conn,
+                      :error,
+                      "That URL is already saved in vehicle market prices. Use a different listing URL, or cancel."
+                    )
+                  else
+                    conn
+                  end
+
                 render(conn, :new_market_price,
                   step: :manual,
                   source_url: source_url,
@@ -166,6 +180,13 @@ defmodule MechanicsWeb.PricingController do
       :error ->
         redirect(conn, to: ~p"/")
     end
+  end
+
+  defp source_url_taken?(%Ecto.Changeset{} = changeset) do
+    Enum.any?(changeset.errors, fn
+      {:source_url, {_msg, opts}} -> opts[:constraint] == :unique
+      _ -> false
+    end)
   end
 
   def lookup_from_vin(conn, %{"vehicle" => %{"vin" => vin}} = params) do

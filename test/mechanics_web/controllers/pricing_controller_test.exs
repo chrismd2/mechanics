@@ -140,6 +140,39 @@ defmodule MechanicsWeb.PricingControllerTest do
       assert hd(market_prices).price_cents == 1_850_000
       assert hd(market_prices).source_url == source_url
     end
+
+    test "flashes when saving a market price whose URL already exists", %{conn: conn} do
+      {:ok, conn: conn, user: user} = create_pricing_user(conn)
+      source_url = "https://example.com/dup-manual-#{System.unique_integer([:positive])}"
+
+      {:ok, _} =
+        Pricing.create_market_price(user, %{
+          "make" => "Ford",
+          "model" => "F-150",
+          "year" => 2017,
+          "miles" => 80_000,
+          "price_cents" => 2_000_000,
+          "price_type" => "listing",
+          "source_url" => source_url
+        })
+
+      conn =
+        post(conn, "/pricing/market-prices", %{
+          "market_price" => %{
+            "make" => "Ford",
+            "model" => "F-150",
+            "year" => "2017",
+            "miles" => "80000",
+            "price" => "20000.00",
+            "currency" => "USD",
+            "price_type" => "listing",
+            "source_url" => source_url
+          }
+        })
+
+      assert html_response(conn, 200)
+      assert Phoenix.Flash.get(conn.assigns.flash, :error) =~ "already"
+    end
   end
 
   describe "GET /pricing" do
@@ -247,7 +280,9 @@ defmodule MechanicsWeb.PricingControllerTest do
       html = html_response(conn, 200)
       parsed = Floki.parse_document!(html)
 
+      assert Floki.find(parsed, "details#recent-searches-filter") != []
       assert Floki.find(parsed, "form#recent_searches_filter_form") != []
+      assert html =~ "Recent searches"
       assert html =~ "Honda"
       assert html =~ "Accord"
       refute html =~ "Camry"

@@ -20,7 +20,7 @@ Valid roles also remain `mechanic` and `customer`. A user may hold `pricing_user
 | POST | `/pricing/market-prices/from-url` | Look up URL, try agent extraction, save or fall back to form |
 | POST | `/pricing/market-prices` | Manual save of vehicle market price (`listing` or `sale`) |
 | GET | `/pricing` | Suggest flow starts with VIN (`?manual=1` for the full form); shows top 3 recent searches |
-| GET | `/pricing/queries` | Searchable / filterable list of the user’s recent suggestion queries |
+| GET | `/pricing/queries` | Searchable / filterable list of the user’s recent searches (collapsible filter block) |
 | DELETE | `/pricing/queries/:id` | Dismiss (delete) a recent suggestion query owned by the user |
 | POST | `/pricing/from-vin` | Check VIN; suggest when complete, otherwise open the manual form |
 | POST | `/pricing/suggest` | Run suggestion from the manual form or a recent-search re-run; show result and persist query |

@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-08-11 — pricing-ui-polish
+
+- Flash clearly when a market-price URL is already saved (from-url and manual save)
+- Nest Tools drawer links under Vehicle price suggestions; rename to Recent searches
+- Collapsible search/filter on `/pricing/queries`; indent result price lines
+
 ## 2026-08-11 — pricing-suggest-seed-widen
 
 - Widen suggestion comps to same make/model/year when miles ±20% is empty; always include VIN matches
