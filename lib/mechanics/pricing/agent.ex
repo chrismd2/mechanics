@@ -7,6 +7,7 @@ defmodule Mechanics.Pricing.Agent do
   require Logger
 
   alias Mechanics.Pricing
+  alias Mechanics.Pricing.BidWrangler
   alias Mechanics.Pricing.LLM
 
   @max_rounds 5
@@ -94,15 +95,27 @@ defmodule Mechanics.Pricing.Agent do
   """
   def suggest(vehicle, opts \\ []) when is_map(vehicle) do
     seed_matches = seed_market_matches(vehicle)
+    year = Map.get(vehicle, "year") || Map.get(vehicle, :year)
 
-    case LLM.chat_completion(initial_messages(vehicle), tool_definitions(), opts) do
-      {:ok, response} ->
-        run_tool_loop(response, initial_messages(vehicle), 1, opts)
-        |> finalize_suggestion(seed_matches)
+    # No year → percentile best guess from make/model comps (skip LLM).
+    if year in [nil, 0] do
+      heuristic_suggestion(seed_matches, best_guess: true)
+    else
+      try do
+        case LLM.chat_completion(initial_messages(vehicle), tool_definitions(), opts) do
+          {:ok, response} ->
+            run_tool_loop(response, initial_messages(vehicle), 1, opts)
+            |> finalize_suggestion(seed_matches)
 
-      {:error, reason} ->
-        Logger.info("Pricing agent falling back without LLM: #{inspect(reason)}")
-        heuristic_suggestion(seed_matches)
+          {:error, reason} ->
+            Logger.info("Pricing agent falling back without LLM: #{inspect(reason)}")
+            heuristic_suggestion(seed_matches)
+        end
+      rescue
+        e ->
+          Logger.warning("Pricing agent falling back after exception: #{Exception.message(e)}")
+          heuristic_suggestion(seed_matches)
+      end
     end
   end
 
@@ -113,26 +126,38 @@ defmodule Mechanics.Pricing.Agent do
     model = Map.get(vehicle, "model") || Map.get(vehicle, :model)
     vin = blank_to_nil(Map.get(vehicle, "vin") || Map.get(vehicle, :vin))
 
-    tight =
-      Pricing.list_market_prices(%{
-        make: make,
-        model: model,
-        year_min: year - 1,
-        year_max: year + 1,
-        miles_min: trunc(miles * 0.8),
-        miles_max: trunc(miles * 1.2)
-      })
-
-    by_year =
-      if tight == [] do
-        Pricing.list_market_prices(%{
-          make: make,
-          model: model,
-          year_min: year - 1,
-          year_max: year + 1
-        })
+    by_make_model =
+      if year in [nil, 0] do
+        Pricing.list_similar_market_prices(
+          %{"make" => make, "model" => model},
+          limit: 50
+        )
       else
-        tight
+        # Miles 0 means unspecified — skip the miles band so year+make/model comps are found.
+        tight =
+          if miles in [nil, 0] do
+            []
+          else
+            Pricing.list_market_prices(%{
+              make: make,
+              model: model,
+              year_min: year - 1,
+              year_max: year + 1,
+              miles_min: trunc(miles * 0.8),
+              miles_max: trunc(miles * 1.2)
+            })
+          end
+
+        if tight == [] do
+          Pricing.list_market_prices(%{
+            make: make,
+            model: model,
+            year_min: year - 1,
+            year_max: year + 1
+          })
+        else
+          tight
+        end
       end
 
     by_vin =
@@ -142,7 +167,7 @@ defmodule Mechanics.Pricing.Agent do
         []
       end
 
-    (by_year ++ by_vin)
+    (by_make_model ++ by_vin)
     |> Enum.uniq_by(& &1.id)
   end
 
@@ -196,21 +221,41 @@ defmodule Mechanics.Pricing.Agent do
 
     case parse_suggestion_json(content) do
       {:ok, competitive, minimum, summary} ->
-        %{
-          competitive_cents: competitive,
-          minimum_cents: minimum,
-          match_count: length(seed_matches),
-          summary: summary || String.slice(content, 0, 500),
-          currency: "USD"
-        }
+        if is_nil(competitive) and is_nil(minimum) and seed_matches != [] do
+          # LLM said insufficient, but we have comps — use percentile suggestion.
+          heuristic_suggestion(seed_matches)
+        else
+          %{
+            competitive_cents: competitive,
+            minimum_cents: minimum,
+            match_count: length(seed_matches),
+            summary: summary || blank_to_nil(String.slice(content, 0, 500)),
+            currency: "USD"
+          }
+        end
 
       :error ->
-        heuristic_suggestion(seed_matches)
-        |> Map.put(:summary, blank_to_nil(String.slice(content, 0, 500)))
+        base = heuristic_suggestion(seed_matches)
+
+        # Prefer heuristic copy over raw model text (often unparsed JSON).
+        if usable_agent_summary?(content) do
+          Map.put(base, :summary, String.slice(String.trim(content), 0, 500))
+        else
+          base
+        end
     end
   end
 
-  defp heuristic_suggestion([]),
+  defp usable_agent_summary?(content) when is_binary(content) do
+    trimmed = String.trim(content)
+    trimmed != "" and not String.contains?(trimmed, "{")
+  end
+
+  defp usable_agent_summary?(_), do: false
+
+  defp heuristic_suggestion(matches, opts \\ [])
+
+  defp heuristic_suggestion([], _opts),
     do: %{
       competitive_cents: nil,
       minimum_cents: nil,
@@ -219,17 +264,24 @@ defmodule Mechanics.Pricing.Agent do
       currency: "USD"
     }
 
-  defp heuristic_suggestion(matches) do
+  defp heuristic_suggestion(matches, opts) do
     prices =
       matches
       |> Enum.map(& &1.price_cents)
       |> Enum.sort()
 
+    summary =
+      if Keyword.get(opts, :best_guess, false) do
+        "Best guess from #{length(prices)} matching vehicle market prices (year not specified)."
+      else
+        "Suggested from #{length(prices)} matching vehicle market prices."
+      end
+
     %{
       competitive_cents: percentile(prices, 0.5),
       minimum_cents: percentile(prices, 0.1),
       match_count: length(prices),
-      summary: "Suggested from #{length(prices)} matching vehicle market prices.",
+      summary: summary,
       currency: "USD"
     }
   end
@@ -259,13 +311,22 @@ defmodule Mechanics.Pricing.Agent do
       end
 
     with true <- is_binary(json_blob),
-         {:ok, map} <- Jason.decode(json_blob),
-         competitive when is_integer(competitive) <-
-           Map.get(map, "suggested_competitive_cents") || Map.get(map, "competitive_cents"),
-         minimum when is_integer(minimum) <-
-           Map.get(map, "suggested_minimum_cents") || Map.get(map, "minimum_cents") do
+         {:ok, map} <- Jason.decode(json_blob) do
+      competitive =
+        Map.get(map, "suggested_competitive_cents") || Map.get(map, "competitive_cents")
+
+      minimum = Map.get(map, "suggested_minimum_cents") || Map.get(map, "minimum_cents")
       summary = Map.get(map, "summary") || Map.get(map, "agent_summary")
-      {:ok, competitive, minimum, summary}
+
+      competitive = if is_integer(competitive), do: competitive, else: nil
+      minimum = if is_integer(minimum), do: minimum, else: nil
+
+      # Accept partial or both-null (LLM said insufficient). Reject empty/non-object shapes.
+      if is_integer(competitive) or is_integer(minimum) or is_binary(summary) do
+        {:ok, competitive, minimum, summary}
+      else
+        :error
+      end
     else
       _ -> :error
     end
@@ -321,9 +382,63 @@ defmodule Mechanics.Pricing.Agent do
   @doc """
   Fetches a listing/sale page and asks the LLM to extract vehicle market price fields.
 
+  BidWrangler UI item URLs (`/ui/auctions/:auction_id/:item_id`) use `{origin}/api/items/:item_id`
+  with deterministic mapping (LLM only if required fields are still missing).
+
   Returns `{:ok, attrs_map}` with string keys (may be partial), or `{:error, reason}`.
   """
   def extract_listing_from_url(url, opts \\ []) when is_binary(url) do
+    case BidWrangler.parse_item_ui_url(url) do
+      {:ok, parsed} ->
+        extract_bidwrangler_item(url, parsed, opts)
+
+      :error ->
+        extract_from_html_page(url, opts)
+    end
+  end
+
+  defp extract_bidwrangler_item(url, %{origin: origin, item_id: item_id}, opts) do
+    http_get = Keyword.get(opts, :http_get, &default_http_get/1)
+    api_url = "#{origin}/api/items/#{item_id}"
+
+    case http_get.(api_url) do
+      {:ok, body} ->
+        case Jason.decode(body) do
+          {:ok, item} when is_map(item) ->
+            attrs = BidWrangler.attrs_from_item(item)
+
+            if BidWrangler.complete_extract_attrs?(attrs) do
+              {:ok, attrs}
+            else
+              summary = BidWrangler.compact_summary(item)
+              llm_extract_or_attrs(url, summary, attrs, opts)
+            end
+
+          _ ->
+            {:error, :invalid_item_json}
+        end
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  defp llm_extract_or_attrs(url, page_text, attrs, opts) do
+    case LLM.chat_completion(extract_messages(url, page_text), [], opts) do
+      {:ok, response} ->
+        content = get_in(response, ["choices", Access.at(0), "message", "content"]) || ""
+
+        case parse_extracted_listing(content) do
+          {:ok, llm_attrs} -> {:ok, Map.merge(attrs, llm_attrs)}
+          {:error, _} -> {:ok, attrs}
+        end
+
+      {:error, _} ->
+        {:ok, attrs}
+    end
+  end
+
+  defp extract_from_html_page(url, opts) do
     fetch = Keyword.get(opts, :fetch, &fetch_page_text/1)
 
     with {:ok, page_text} <- fetch.(url),
@@ -331,6 +446,24 @@ defmodule Mechanics.Pricing.Agent do
            LLM.chat_completion(extract_messages(url, page_text), [], opts) do
       content = get_in(response, ["choices", Access.at(0), "message", "content"]) || ""
       parse_extracted_listing(content)
+    end
+  end
+
+  defp default_http_get(url) do
+    headers = [
+      {"Accept", "application/json"},
+      {"User-Agent", "MechanicsPricingBot/1.0"}
+    ]
+
+    case Finch.build(:get, url, headers) |> Finch.request(Mechanics.Finch, receive_timeout: 15_000) do
+      {:ok, %{status: status, body: body}} when status in 200..299 ->
+        {:ok, body}
+
+      {:ok, %{status: status}} ->
+        {:error, {:http_error, status}}
+
+      {:error, reason} ->
+        {:error, reason}
     end
   end
 
@@ -342,7 +475,7 @@ defmodule Mechanics.Pricing.Agent do
 
     case Finch.build(:get, url, headers) |> Finch.request(Mechanics.Finch, receive_timeout: 15_000) do
       {:ok, %{status: status, body: body}} when status in 200..299 ->
-        {:ok, html_to_text(body)}
+        {:ok, page_text_from_html(body)}
 
       {:ok, %{status: status}} ->
         {:error, {:http_error, status}}
@@ -352,14 +485,59 @@ defmodule Mechanics.Pricing.Agent do
     end
   end
 
-  defp html_to_text(body) when is_binary(body) do
-    body
-    |> String.replace(~r/<script[\s\S]*?<\/script>/i, " ")
-    |> String.replace(~r/<style[\s\S]*?<\/style>/i, " ")
-    |> String.replace(~r/<[^>]+>/, " ")
+  @doc """
+  Convert fetched HTML into plain text for listing extraction.
+
+  Keeps Open Graph / meta title and description (and the document title) in addition
+  to stripped body text so JS-rendered auction pages still yield vehicle details.
+  """
+  def page_text_from_html(body) when is_binary(body) do
+    meta_bits =
+      []
+      |> maybe_append_meta(body, ~r/<meta[^>]+property=["']og:title["'][^>]*content=["']([^"']*)["'][^>]*>/i)
+      |> maybe_append_meta(body, ~r/<meta[^>]+content=["']([^"']*)["'][^>]*property=["']og:title["'][^>]*>/i)
+      |> maybe_append_meta(body, ~r/<meta[^>]+property=["']og:description["'][^>]*content=["']([^"']*)["'][^>]*>/i)
+      |> maybe_append_meta(body, ~r/<meta[^>]+content=["']([^"']*)["'][^>]*property=["']og:description["'][^>]*>/i)
+      |> maybe_append_meta(body, ~r/<meta[^>]+name=["']description["'][^>]*content=["']([^"']*)["'][^>]*>/i)
+      |> maybe_append_meta(body, ~r/<meta[^>]+content=["']([^"']*)["'][^>]*name=["']description["'][^>]*>/i)
+      |> maybe_append_title(body)
+
+    body_text =
+      body
+      |> String.replace(~r/<script[\s\S]*?<\/script>/i, " ")
+      |> String.replace(~r/<style[\s\S]*?<\/style>/i, " ")
+      |> String.replace(~r/<[^>]+>/, " ")
+      |> String.replace(~r/\s+/, " ")
+      |> String.trim()
+
+    (meta_bits ++ [body_text])
+    |> Enum.reject(&(&1 == ""))
+    |> Enum.join(" ")
     |> String.replace(~r/\s+/, " ")
     |> String.trim()
     |> String.slice(0, 12_000)
+  end
+
+  defp maybe_append_meta(acc, html, pattern) do
+    case Regex.run(pattern, html) do
+      [_, content] ->
+        trimmed = String.trim(content)
+        if trimmed == "", do: acc, else: acc ++ [trimmed]
+
+      _ ->
+        acc
+    end
+  end
+
+  defp maybe_append_title(acc, html) do
+    case Regex.run(~r/<title[^>]*>([^<]*)<\/title>/i, html) do
+      [_, title] ->
+        trimmed = String.trim(title)
+        if trimmed == "" or trimmed in acc, do: acc, else: acc ++ [trimmed]
+
+      _ ->
+        acc
+    end
   end
 
   defp extract_messages(url, page_text) do

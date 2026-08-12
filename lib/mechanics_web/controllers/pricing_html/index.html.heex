@@ -8,6 +8,7 @@
   miles = Map.get(vehicle, "miles") || ""
   zipcode = Map.get(vehicle, "zipcode") || "00000"
   recent_queries = assigns[:recent_queries] || []
+  similar_market_prices = assigns[:similar_market_prices] || []
 %>
 
 <div class="space-y-6">
@@ -121,6 +122,7 @@
                   id="vehicle_make"
                   name="vehicle[make]"
                   value={make}
+                  required
                   class="mt-1 block w-full rounded-lg border-zinc-300 shadow-sm sm:text-sm"
                 />
               </div>
@@ -131,6 +133,7 @@
                   id="vehicle_model"
                   name="vehicle[model]"
                   value={model}
+                  required
                   class="mt-1 block w-full rounded-lg border-zinc-300 shadow-sm sm:text-sm"
                 />
               </div>
@@ -138,7 +141,9 @@
 
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div class="space-y-2">
-                <label for="vehicle_year" class="block text-sm font-semibold text-zinc-800">Year</label>
+                <label for="vehicle_year" class="block text-sm font-semibold text-zinc-800">
+                  Year <span class="font-normal text-zinc-500">(optional)</span>
+                </label>
                 <input
                   type="text"
                   id="vehicle_year"
@@ -148,7 +153,9 @@
                 />
               </div>
               <div class="space-y-2">
-                <label for="vehicle_miles" class="block text-sm font-semibold text-zinc-800">Miles</label>
+                <label for="vehicle_miles" class="block text-sm font-semibold text-zinc-800">
+                  Miles <span class="font-normal text-zinc-500">(optional)</span>
+                </label>
                 <input
                   type="text"
                   id="vehicle_miles"
@@ -157,6 +164,7 @@
                   min="0"
                   class="mt-1 block w-full rounded-lg border-zinc-300 shadow-sm sm:text-sm"
                 />
+                <p class="text-xs text-zinc-500">Defaults to 0 when blank.</p>
               </div>
             </div>
 
@@ -189,7 +197,13 @@
 
       <%= if @query do %>
         <div class="rounded-xl border border-zinc-200 bg-white p-6 shadow-sm space-y-3">
-          <h2 class="text-lg font-semibold text-zinc-900">Suggestion</h2>
+          <h2 class="text-lg font-semibold text-zinc-900">
+            <%= if @query.year in [nil, 0] and (@query.suggested_competitive_cents || @query.suggested_minimum_cents) do %>
+              Best guess
+            <% else %>
+              Suggestion
+            <% end %>
+          </h2>
 
           <dl class="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
             <div>
@@ -227,6 +241,68 @@
           <%= if @query.agent_summary do %>
             <p class="text-sm text-zinc-700"><%= @query.agent_summary %></p>
           <% end %>
+
+          <%= if @query.year in [nil, 0] or
+                (is_nil(@query.suggested_competitive_cents) and is_nil(@query.suggested_minimum_cents)) do %>
+            <div id="similar-market-prices" class="space-y-3 border-t border-zinc-100 pt-4">
+              <p class="text-sm text-zinc-800">
+                <%= if is_nil(@query.suggested_competitive_cents) and is_nil(@query.suggested_minimum_cents) do %>
+                  I can't suggest a price, but here are some that are similar.
+                <% else %>
+                  Matching market prices (by year):
+                <% end %>
+              </p>
+
+              <%= if similar_market_prices == [] do %>
+                <p class="text-sm text-zinc-500">No similar market prices found.</p>
+              <% else %>
+                <ul class="space-y-2">
+                  <%= for row <- similar_market_prices do %>
+                    <li class="rounded-lg border border-zinc-200 px-3 py-2 text-sm text-zinc-800">
+                      <div class="flex items-start justify-between gap-3">
+                        <div class="min-w-0 space-y-0.5">
+                          <p class="font-medium">
+                            <%= row.year %> <%= row.make %> <%= row.model %>
+                          </p>
+                          <p class="text-xs text-zinc-500">
+                            <%= MechanicsWeb.Helpers.CurrencyFormatter.format_integer(row.miles) %> miles
+                            · <%= row.price_type %>
+                            · <%= MechanicsWeb.Helpers.CurrencyFormatter.format(
+                              row.price_cents,
+                              row.currency || "USD"
+                            ) %>
+                          </p>
+                          <%= if row.source_url do %>
+                            <a
+                              href={row.source_url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              class="text-xs text-zinc-600 underline hover:text-zinc-900"
+                            >
+                              Source
+                            </a>
+                          <% end %>
+                        </div>
+                        <form
+                          action={~p"/pricing/queries/#{@query.id}/similar/#{row.id}/dismiss"}
+                          method="post"
+                          class="shrink-0"
+                        >
+                          <input type="hidden" name="_csrf_token" value={get_csrf_token()} />
+                          <button
+                            type="submit"
+                            class="text-xs font-medium text-zinc-500 hover:text-zinc-800"
+                          >
+                            Dismiss
+                          </button>
+                        </form>
+                      </div>
+                    </li>
+                  <% end %>
+                </ul>
+              <% end %>
+            </div>
+          <% end %>
         </div>
       <% end %>
     </div>
@@ -247,14 +323,16 @@
                 <input type="hidden" name="vehicle[vin]" value={query.vin || ""} />
                 <input type="hidden" name="vehicle[make]" value={query.make} />
                 <input type="hidden" name="vehicle[model]" value={query.model} />
-                <input type="hidden" name="vehicle[year]" value={query.year} />
+                <input type="hidden" name="vehicle[year]" value={if query.year in [nil, 0], do: "", else: query.year} />
                 <input type="hidden" name="vehicle[miles]" value={query.miles} />
                 <input type="hidden" name="vehicle[zipcode]" value={query.zipcode || "00000"} />
                 <button
                   type="submit"
                   class="w-full px-3 py-2 text-left text-sm text-zinc-800 hover:bg-zinc-50"
                 >
-                  <span class="font-medium"><%= query.year %> <%= query.make %> <%= query.model %></span>
+                  <span class="font-medium">
+                    <%= if query.year not in [nil, 0] do %><%= query.year %> <% end %><%= query.make %> <%= query.model %>
+                  </span>
                   <span class="mt-0.5 block text-xs text-zinc-500">
                     <%= MechanicsWeb.Helpers.CurrencyFormatter.format_integer(query.miles) %> miles
                   </span>

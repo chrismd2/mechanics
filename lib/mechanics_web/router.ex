@@ -56,6 +56,9 @@ defmodule MechanicsWeb.Router do
     get "/pricing", PricingController, :index
     get "/pricing/queries", PricingController, :queries
     delete "/pricing/queries/:id", PricingController, :delete_query
+    post "/pricing/queries/:id/similar/:market_price_id/dismiss",
+         PricingController,
+         :dismiss_similar
     post "/pricing/from-vin", PricingController, :lookup_from_vin
     get "/pricing/market-prices/new", PricingController, :new_market_price
     post "/pricing/market-prices/from-url", PricingController, :import_market_price_from_url

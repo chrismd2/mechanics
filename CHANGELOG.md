@@ -1,5 +1,53 @@
 # Changelog
 
+## 2026-08-12 — suggest-after-market-price
+
+- After a successful market-price URL import or manual save, run a price suggestion for that vehicle and show it on the suggestion page with the form prefilled
+
+## 2026-08-12 — pricing-bidwrangler-item-import
+
+- Implemented module BidWrangler `/ui/auctions/:auction_id/:item_id` URLs via `/api/items/:item_id` (never the auction catalog); map sold/listing fields deterministically with compact LLM fallback; keep Open Graph meta in generic HTML extraction
+
+## 2026-08-12 — pricing-year-specific-heuristic
+
+- For year-specific suggests, fall back to seed-comp percentiles when the LLM returns null prices; treat blank miles as unspecified
+
+## 2026-08-12 — pricing-trim-token-subset
+
+- Treat trim variants as similar via bidirectional token-set containment (`f450` ↔ `F450 King Ranch`)
+
+## 2026-08-12 — pricing-model-token-similarity
+
+- Match make/model via alphanumeric tokens so `f450` finds `F-450` but not `f-4500` deluxe-style names
+
+## 2026-08-12 — pricing-best-guess-list-years
+
+- On make/model best-guess (no year), list matching market prices with their years under the aggregated suggestion
+
+## 2026-08-12 — pricing-best-guess-without-year
+
+- With no year, suggest a labeled best-guess price from make/model comps (skip LLM)
+
+## 2026-08-12 — pricing-suggest-optional-year-miles
+
+- Allow suggest with make/model only (blank year → unspecified `0`, blank miles → `0`); form fields drive seed/similar search
+
+## 2026-08-12 — pricing-similar-comps-dismiss
+
+- When competitive and expected-minimum are both nil, show top 3 similar market prices with Dismiss; refill from the next match
+
+## 2026-08-12 — pricing-llm-heuristic-fallback
+
+- Fall back to seed-comp heuristic when the pricing LLM key is missing/invalid, HTTP fails, or the client raises; keep human summaries (no raw JSON under Suggestion)
+
+## 2026-08-12 — pricing-llm-provider-agnostic
+
+- Read pricing LLM credentials from `PRICING_LLM_API_KEY` / `PRICING_LLM_MODEL` / `PRICING_LLM_BASE_URL` (OpenAI-compatible; no Groq-named env)
+
+## 2026-08-12 — pricing-llm-docker-env
+
+- Document pricing LLM env vars and Docker wiring
+
 ## 2026-08-11 — ci-deploy-pull-branch
 
 - Redeploy on PR push (`synchronize`); hard-reset server checkout to the triggering remote branch

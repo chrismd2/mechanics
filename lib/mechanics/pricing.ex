@@ -96,6 +96,185 @@ defmodule Mechanics.Pricing do
     end
   end
 
+  @doc """
+  Downcases and strips non-alphanumeric characters for a single vehicle token.
+
+  Examples: `"F-450"` → `"f450"`, `"f_450"` → `"f450"`.
+  """
+  def normalize_vehicle_key(nil), do: ""
+
+  def normalize_vehicle_key(value) when is_binary(value) do
+    value
+    |> String.downcase()
+    |> String.replace(~r/[^a-z0-9]/u, "")
+  end
+
+  def normalize_vehicle_key(value), do: value |> to_string() |> normalize_vehicle_key()
+
+  @doc """
+  Splits a make/model string on whitespace and normalizes each token.
+
+  Used so `f450` matches `F450 King Ranch` (query tokens ⊆ stored) and
+  `f450 king ranch` matches base `F-450` (stored tokens ⊆ query).
+  """
+  def normalize_vehicle_tokens(nil), do: []
+
+  def normalize_vehicle_tokens(value) when is_binary(value) do
+    value
+    |> String.downcase()
+    |> String.split(~r/\s+/u, trim: true)
+    |> Enum.map(&normalize_vehicle_key/1)
+    |> Enum.reject(&(&1 == ""))
+    |> Enum.uniq()
+  end
+
+  def normalize_vehicle_tokens(value), do: value |> to_string() |> normalize_vehicle_tokens()
+
+  @doc """
+  Lists similar vehicle market prices for a suggest vehicle (looser than agent seeds).
+
+  Make/model use alphanumeric **token** matching (see `normalize_vehicle_tokens/1`):
+  tokens must match exactly (so `f450` ≠ `f4500`). Trim variants match when either
+  side's token set contains the other (`f450` ↔ `F450 King Ranch`).
+
+  Options:
+  - `:limit` — max rows (default 3)
+  - `:exclude_ids` — market price ids to skip (e.g. dismissed on a query)
+  """
+  def list_similar_market_prices(vehicle_attrs, opts \\ []) when is_map(vehicle_attrs) and is_list(opts) do
+    attrs = stringify_keys(vehicle_attrs)
+    make = attrs |> Map.get("make") |> to_string() |> String.trim()
+    model = attrs |> Map.get("model") |> to_string() |> String.trim()
+    year = parse_year(Map.get(attrs, "year"))
+
+    make_tokens = normalize_vehicle_tokens(make)
+    model_tokens = normalize_vehicle_tokens(model)
+
+    limit = Keyword.get(opts, :limit, 3)
+    exclude_ids = opts |> Keyword.get(:exclude_ids, []) |> List.wrap() |> Enum.map(&to_string/1)
+    require_year? = Keyword.get(opts, :require_year, false)
+
+    if make_tokens == [] or model_tokens == [] do
+      []
+    else
+      base =
+        from(m in VehicleMarketPrice,
+          where:
+            fragment(
+              """
+              (
+                SELECT coalesce(array_agg(tok) FILTER (WHERE tok <> ''), ARRAY[]::text[])
+                FROM (
+                  SELECT regexp_replace(raw_token, '[^a-z0-9]', '', 'g') AS tok
+                  FROM unnest(regexp_split_to_array(lower(btrim(?)), '\\s+')) AS raw_token
+                ) s
+              ) <@ ?::text[]
+              OR ?::text[] <@ (
+                SELECT coalesce(array_agg(tok) FILTER (WHERE tok <> ''), ARRAY[]::text[])
+                FROM (
+                  SELECT regexp_replace(raw_token, '[^a-z0-9]', '', 'g') AS tok
+                  FROM unnest(regexp_split_to_array(lower(btrim(?)), '\\s+')) AS raw_token
+                ) s
+              )
+              """,
+              m.make,
+              ^make_tokens,
+              ^make_tokens,
+              m.make
+            ) and
+              fragment(
+                """
+                (
+                  SELECT coalesce(array_agg(tok) FILTER (WHERE tok <> ''), ARRAY[]::text[])
+                  FROM (
+                    SELECT regexp_replace(raw_token, '[^a-z0-9]', '', 'g') AS tok
+                    FROM unnest(regexp_split_to_array(lower(btrim(?)), '\\s+')) AS raw_token
+                  ) s
+                ) <@ ?::text[]
+                OR ?::text[] <@ (
+                  SELECT coalesce(array_agg(tok) FILTER (WHERE tok <> ''), ARRAY[]::text[])
+                  FROM (
+                    SELECT regexp_replace(raw_token, '[^a-z0-9]', '', 'g') AS tok
+                    FROM unnest(regexp_split_to_array(lower(btrim(?)), '\\s+')) AS raw_token
+                  ) s
+                )
+                """,
+                m.model,
+                ^model_tokens,
+                ^model_tokens,
+                m.model
+              ),
+          order_by: [desc: m.inserted_at, desc: m.id]
+        )
+
+      base =
+        if exclude_ids == [] do
+          base
+        else
+          from(m in base, where: m.id not in ^exclude_ids)
+        end
+
+      with_year =
+        if is_integer(year) do
+          from(m in base, where: m.year >= ^(year - 2) and m.year <= ^(year + 2))
+          |> maybe_limit(limit)
+          |> Repo.all()
+        else
+          []
+        end
+
+      cond do
+        with_year != [] ->
+          with_year
+
+        require_year? ->
+          []
+
+        true ->
+          base
+          |> maybe_limit(limit)
+          |> Repo.all()
+      end
+    end
+  end
+
+  @doc """
+  Appends a market price id to a query's `dismissed_similar_ids` (owner-only).
+  """
+  def dismiss_similar_market_price(%User{} = user, query_id, market_price_id)
+      when is_binary(query_id) and is_binary(market_price_id) do
+    case Repo.get_by(VehiclePriceQuery, id: query_id, user_id: user.id) do
+      %VehiclePriceQuery{} = query ->
+        ids = query.dismissed_similar_ids || []
+
+        if market_price_id in ids do
+          {:ok, query}
+        else
+          query
+          |> Ecto.Changeset.change(%{dismissed_similar_ids: ids ++ [market_price_id]})
+          |> Repo.update()
+        end
+
+      nil ->
+        {:error, :not_found}
+    end
+  end
+
+  defp maybe_limit(query, limit) when is_integer(limit) and limit > 0, do: limit(query, ^limit)
+  defp maybe_limit(query, _), do: query
+
+  defp parse_year(nil), do: nil
+  defp parse_year(0), do: nil
+  defp parse_year(year) when is_integer(year) and year > 1900, do: year
+  defp parse_year(year) when is_integer(year), do: nil
+
+  defp parse_year(year) do
+    case Mechanics.NumberParse.to_integer(year) do
+      {:ok, int} -> parse_year(int)
+      :error -> nil
+    end
+  end
+
   def change_market_price(%VehicleMarketPrice{} = market_price, attrs \\ %{}) do
     VehicleMarketPrice.changeset(market_price, attrs)
   end
@@ -125,6 +304,8 @@ defmodule Mechanics.Pricing do
   2. Otherwise asks the agent to extract fields from the page.
   3. If extraction is complete, saves and returns `{:ok, :created, record}`.
   4. If extraction is incomplete, returns `{:needs_form, attrs}` with `source_url` set.
+
+  Tests may inject `:extract` via `opts` or `Application.put_env(:mechanics, Mechanics.Pricing, extract: fun)`.
   """
   def import_market_price_from_url(%User{} = user, url, opts \\ []) when is_binary(url) do
     source_url = normalize_source_url(url)
@@ -139,7 +320,10 @@ defmodule Mechanics.Pricing do
             {:ok, :already_exists, existing}
 
           nil ->
-            extract = Keyword.get(opts, :extract, &Agent.extract_listing_from_url/1)
+            extract =
+              Keyword.get(opts, :extract) ||
+                Keyword.get(Application.get_env(:mechanics, __MODULE__, []), :extract) ||
+                &Agent.extract_listing_from_url/1
 
             case extract.(source_url) do
               {:ok, attrs} ->
@@ -318,9 +502,10 @@ defmodule Mechanics.Pricing do
     attrs =
       attrs
       |> default_blank_miles()
+      |> default_blank_year()
       |> maybe_default_zipcode()
 
-    required = ["make", "model", "year", "miles", "zipcode"]
+    required = ["make", "model", "miles", "zipcode"]
 
     missing =
       Enum.filter(required, fn key ->
@@ -331,12 +516,14 @@ defmodule Mechanics.Pricing do
     if missing != [] do
       {:error, :invalid_vehicle}
     else
+      year = normalize_optional_year(Map.get(attrs, "year"))
+
       {:ok,
        %{
          "vin" => blank_to_nil(Map.get(attrs, "vin")),
          "make" => attrs |> Map.get("make") |> to_string() |> String.trim(),
          "model" => attrs |> Map.get("model") |> to_string() |> String.trim(),
-         "year" => Mechanics.NumberParse.to_integer!(Map.get(attrs, "year")),
+         "year" => year,
          "miles" => Mechanics.NumberParse.to_integer!(Map.get(attrs, "miles")),
          "zipcode" => attrs |> Map.get("zipcode") |> to_string() |> String.trim()
        }}
@@ -352,6 +539,24 @@ defmodule Mechanics.Pricing do
     end
   end
 
+  defp default_blank_year(attrs) do
+    case Map.get(attrs, "year") do
+      year when year in [nil, ""] -> Map.put(attrs, "year", 0)
+      _ -> attrs
+    end
+  end
+
+  # 0 means "unspecified" so make/model-only searches can persist and find similar comps.
+  defp normalize_optional_year(year) do
+    int = Mechanics.NumberParse.to_integer!(year)
+
+    cond do
+      int == 0 -> 0
+      int > 1900 and int < 2100 -> int
+      true -> raise ArgumentError, "invalid year"
+    end
+  end
+
   defp maybe_default_zipcode(attrs) do
     case Map.get(attrs, "zipcode") do
       zip when zip in [nil, ""] -> Map.put(attrs, "zipcode", "00000")
@@ -362,10 +567,72 @@ defmodule Mechanics.Pricing do
   defp apply_market_price_filters(query, filters) do
     Enum.reduce(filters, query, fn
       {:make, make}, q when is_binary(make) and make != "" ->
-        where(q, [m], ilike(m.make, ^make))
+        case normalize_vehicle_tokens(make) do
+          [] ->
+            q
+
+          make_tokens ->
+            where(
+              q,
+              [m],
+              fragment(
+                """
+                (
+                  SELECT coalesce(array_agg(tok) FILTER (WHERE tok <> ''), ARRAY[]::text[])
+                  FROM (
+                    SELECT regexp_replace(raw_token, '[^a-z0-9]', '', 'g') AS tok
+                    FROM unnest(regexp_split_to_array(lower(btrim(?)), '\\s+')) AS raw_token
+                  ) s
+                ) <@ ?::text[]
+                OR ?::text[] <@ (
+                  SELECT coalesce(array_agg(tok) FILTER (WHERE tok <> ''), ARRAY[]::text[])
+                  FROM (
+                    SELECT regexp_replace(raw_token, '[^a-z0-9]', '', 'g') AS tok
+                    FROM unnest(regexp_split_to_array(lower(btrim(?)), '\\s+')) AS raw_token
+                  ) s
+                )
+                """,
+                m.make,
+                ^make_tokens,
+                ^make_tokens,
+                m.make
+              )
+            )
+        end
 
       {:model, model}, q when is_binary(model) and model != "" ->
-        where(q, [m], ilike(m.model, ^model))
+        case normalize_vehicle_tokens(model) do
+          [] ->
+            q
+
+          model_tokens ->
+            where(
+              q,
+              [m],
+              fragment(
+                """
+                (
+                  SELECT coalesce(array_agg(tok) FILTER (WHERE tok <> ''), ARRAY[]::text[])
+                  FROM (
+                    SELECT regexp_replace(raw_token, '[^a-z0-9]', '', 'g') AS tok
+                    FROM unnest(regexp_split_to_array(lower(btrim(?)), '\\s+')) AS raw_token
+                  ) s
+                ) <@ ?::text[]
+                OR ?::text[] <@ (
+                  SELECT coalesce(array_agg(tok) FILTER (WHERE tok <> ''), ARRAY[]::text[])
+                  FROM (
+                    SELECT regexp_replace(raw_token, '[^a-z0-9]', '', 'g') AS tok
+                    FROM unnest(regexp_split_to_array(lower(btrim(?)), '\\s+')) AS raw_token
+                  ) s
+                )
+                """,
+                m.model,
+                ^model_tokens,
+                ^model_tokens,
+                m.model
+              )
+            )
+        end
 
       {:price_type, type}, q when type in ["listing", "sale"] ->
         where(q, [m], m.price_type == ^type)

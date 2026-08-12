@@ -56,6 +56,28 @@ defmodule MechanicsWeb.PricingController do
     end
   end
 
+  def dismiss_similar(conn, %{"id" => query_id, "market_price_id" => market_price_id}) do
+    case pricing_user(conn) do
+      {:ok, user} ->
+        case Pricing.dismiss_similar_market_price(user, query_id, market_price_id) do
+          {:ok, query} ->
+            render_suggest(conn, user,
+              step: :manual,
+              query: query,
+              vehicle: vehicle_from_query(query)
+            )
+
+          {:error, :not_found} ->
+            conn
+            |> put_flash(:error, "That search was not found.")
+            |> redirect(to: ~p"/pricing")
+        end
+
+      :error ->
+        redirect(conn, to: ~p"/")
+    end
+  end
+
   def new_market_price(conn, _params) do
     case pricing_user(conn) do
       {:ok, _user} ->
@@ -86,10 +108,8 @@ defmodule MechanicsWeb.PricingController do
               changeset: Pricing.change_market_price(%VehicleMarketPrice{})
             )
 
-          {:ok, :created, _record} ->
-            conn
-            |> put_flash(:info, "Vehicle market price imported from URL.")
-            |> redirect(to: ~p"/pricing")
+          {:ok, :created, record} ->
+            suggest_for_market_price(conn, user, record, "Vehicle market price imported from URL.")
 
           {:needs_form, attrs} ->
             changeset =
@@ -152,10 +172,8 @@ defmodule MechanicsWeb.PricingController do
 
           true ->
             case Pricing.create_market_price(user, attrs) do
-              {:ok, _market_price} ->
-                conn
-                |> put_flash(:info, "Vehicle market price saved.")
-                |> redirect(to: ~p"/pricing")
+              {:ok, market_price} ->
+                suggest_for_market_price(conn, user, market_price, "Vehicle market price saved.")
 
               {:error, %Ecto.Changeset{} = changeset} ->
                 conn =
@@ -207,7 +225,7 @@ defmodule MechanicsWeb.PricingController do
 
               {:error, :invalid_vehicle} ->
                 conn
-                |> put_flash(:error, "Enter make, model, year, and miles.")
+                |> put_flash(:error, "Enter make and model (year and miles are optional).")
                 |> render_suggest(user,
                   step: :manual,
                   query: nil,
@@ -259,7 +277,7 @@ defmodule MechanicsWeb.PricingController do
 
           {:error, :invalid_vehicle} ->
             conn
-            |> put_flash(:error, "Enter make, model, year, and miles.")
+            |> put_flash(:error, "Enter make and model (year and miles are optional).")
             |> render_suggest(user,
               step: :manual,
               query: nil,
@@ -272,16 +290,106 @@ defmodule MechanicsWeb.PricingController do
     end
   end
 
+  defp suggest_for_market_price(conn, user, market_price, flash_message) do
+    attrs = vehicle_from_market_price(market_price)
+    conn = put_flash(conn, :info, flash_message)
+
+    case Pricing.suggest_prices(user, attrs) do
+      {:ok, query} ->
+        render_suggest(conn, user,
+          step: :manual,
+          query: query,
+          vehicle: stringify_vehicle(attrs)
+        )
+
+      {:error, :invalid_vehicle} ->
+        render_suggest(conn, user,
+          step: :manual,
+          query: nil,
+          vehicle: stringify_vehicle(attrs)
+        )
+    end
+  end
+
   defp render_suggest(conn, user, assigns) do
+    query = Keyword.get(assigns, :query)
+    vehicle = Keyword.get(assigns, :vehicle) || empty_vehicle()
+
+    similar_market_prices =
+      cond do
+        is_nil(query) ->
+          []
+
+        # Best guess (no year): always list matching comps with years.
+        query.year in [nil, 0] ->
+          Pricing.list_similar_market_prices(
+            %{
+              "make" => query.make,
+              "model" => query.model,
+              "year" => query.year,
+              "miles" => query.miles,
+              "vin" => query.vin,
+              "zipcode" => query.zipcode
+            },
+            limit: 3,
+            exclude_ids: query.dismissed_similar_ids || []
+          )
+
+        # Year specified but no prices: only show year-nearby comps (do not drop year).
+        is_nil(query.suggested_competitive_cents) and is_nil(query.suggested_minimum_cents) ->
+          Pricing.list_similar_market_prices(
+            %{
+              "make" => query.make,
+              "model" => query.model,
+              "year" => query.year,
+              "miles" => query.miles,
+              "vin" => query.vin,
+              "zipcode" => query.zipcode
+            },
+            limit: 3,
+            exclude_ids: query.dismissed_similar_ids || [],
+            require_year: true
+          )
+
+        true ->
+          []
+      end
+
     conn
     |> assign(:wide_layout, true)
     |> render(
       :index,
       Keyword.merge(
-        [recent_queries: Pricing.list_queries(user, limit: 3)],
+        [
+          recent_queries: Pricing.list_queries(user, limit: 3),
+          similar_market_prices: similar_market_prices,
+          vehicle: vehicle
+        ],
         assigns
       )
     )
+  end
+
+  defp vehicle_from_market_price(market_price) do
+    %{
+      "vin" => market_price.vin || "",
+      "make" => market_price.make || "",
+      "model" => market_price.model || "",
+      "year" => market_price.year,
+      "miles" => market_price.miles,
+      "zipcode" => market_price.zipcode || "00000"
+    }
+  end
+
+  defp vehicle_from_query(query) do
+    %{
+      "vin" => query.vin || "",
+      "make" => query.make || "",
+      "model" => query.model || "",
+      "year" => if(query.year in [nil, 0], do: "", else: stringify_num(query.year)),
+      "miles" => stringify_num(query.miles),
+      "zipcode" => query.zipcode || "00000"
+    }
   end
 
   defp query_filter_params(params) when is_map(params) do

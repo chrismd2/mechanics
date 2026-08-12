@@ -21,6 +21,7 @@ defmodule Mechanics.Pricing.VehiclePriceQuery do
     field :currency, :string, default: "USD"
     field :match_count, :integer, default: 0
     field :agent_summary, :string
+    field :dismissed_similar_ids, {:array, :binary_id}, default: []
 
     belongs_to :user, User
 
@@ -41,21 +42,37 @@ defmodule Mechanics.Pricing.VehiclePriceQuery do
       :currency,
       :match_count,
       :agent_summary,
+      :dismissed_similar_ids,
       :user_id
     ])
     |> maybe_default_zipcode()
+    |> maybe_default_dismissed_similar_ids()
     |> validate_required([:make, :model, :year, :miles, :zipcode, :currency, :match_count])
     |> update_change(:make, &trim_string/1)
     |> update_change(:model, &trim_string/1)
     |> update_change(:zipcode, &normalize_zipcode/1)
     |> update_change(:currency, &upcase_currency/1)
-    |> validate_number(:year, greater_than: 1900, less_than: 2100)
+    |> validate_number(:year, greater_than_or_equal_to: 0, less_than: 2100)
+    |> validate_change(:year, fn :year, year ->
+      if year == 0 or year > 1900 do
+        []
+      else
+        [year: "must be blank or a real model year"]
+      end
+    end)
     |> validate_number(:miles, greater_than_or_equal_to: 0)
     |> validate_number(:match_count, greater_than_or_equal_to: 0)
     |> validate_length(:currency, is: 3)
     |> validate_format(:zipcode, ~r/\A\d{5}(-\d{4})?\z/, message: "must be a 5-digit ZIP or ZIP+4")
     |> foreign_key_constraint(:user_id)
     |> unique_constraint(:user_id, name: :vehicle_price_queries_user_vehicle_unique)
+  end
+
+  defp maybe_default_dismissed_similar_ids(changeset) do
+    case get_field(changeset, :dismissed_similar_ids) do
+      nil -> put_change(changeset, :dismissed_similar_ids, [])
+      _ -> changeset
+    end
   end
 
   defp maybe_default_zipcode(changeset) do
