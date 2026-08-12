@@ -478,6 +478,47 @@ defmodule Mechanics.PricingTest do
       assert query.agent_summary =~ "year not specified"
     end
 
+    test "year-specific ford f450 suggests prices from nearby-year comps" do
+      user = pricing_user!()
+
+      for {year, model, miles, cents, label} <- [
+            {2000, "F450", 104_410, 450_000, "2000"},
+            {2008, "F450", 149_092, 425_000, "2008-sale"},
+            {2008, "F-450", 272_645, 2_190_000, "2008-listing"},
+            {2015, "F450", 105_000, 2_599_500, "2015"},
+            {2017, "F-450", 140_151, 2_350_000, "2017"}
+          ] do
+        {:ok, _} =
+          Pricing.create_market_price(user, %{
+            "make" => "Ford",
+            "model" => model,
+            "year" => year,
+            "miles" => miles,
+            "price_cents" => cents,
+            "price_type" => "sale",
+            "source_url" => url!("f450-year-#{label}")
+          })
+      end
+
+      assert {:ok, query} =
+               Pricing.suggest_prices(user, %{
+                 "make" => "ford",
+                 "model" => "f450",
+                 "year" => 2008,
+                 "miles" => ""
+               })
+
+      assert query.year == 2008
+      assert query.match_count >= 2
+      assert is_integer(query.suggested_competitive_cents)
+      assert is_integer(query.suggested_minimum_cents)
+      # Year ±1 seeds are the two 2008 rows only (425k and 2190k)
+      assert query.suggested_minimum_cents == 425_000
+      assert query.suggested_competitive_cents in [425_000, 2_190_000]
+      assert query.agent_summary =~ "Suggested from"
+      refute query.agent_summary =~ "Best guess"
+    end
+
     test "defaults blank zipcode to 00000 on suggest" do
       user = pricing_user!()
 
@@ -688,6 +729,113 @@ defmodule Mechanics.PricingTest do
         })
 
       assert Enum.any?(similar, &(&1.id == f750.id))
+    end
+
+    test "token match: f450 matches F-450 and F450 but not f-4500 deluxe" do
+      user = pricing_user!()
+
+      {:ok, hyphen} =
+        Pricing.create_market_price(user, %{
+          "make" => "Ford",
+          "model" => "F-450",
+          "year" => 2000,
+          "miles" => 104_410,
+          "price_cents" => 450_000,
+          "price_type" => "sale",
+          "source_url" => url!("f450-hyphen")
+        })
+
+      {:ok, plain} =
+        Pricing.create_market_price(user, %{
+          "make" => "Ford",
+          "model" => "F450",
+          "year" => 2008,
+          "miles" => 149_092,
+          "price_cents" => 425_000,
+          "price_type" => "sale",
+          "source_url" => url!("f450-plain")
+        })
+
+      {:ok, deluxe} =
+        Pricing.create_market_price(user, %{
+          "make" => "Ford",
+          "model" => "space nut f-4500 deluxe",
+          "year" => 2010,
+          "miles" => 10_000,
+          "price_cents" => 999_000,
+          "price_type" => "listing",
+          "source_url" => url!("f4500-deluxe")
+        })
+
+      assert Pricing.normalize_vehicle_key("F-450") == "f450"
+      assert Pricing.normalize_vehicle_key("f450") == "f450"
+
+      similar =
+        Pricing.list_similar_market_prices(%{
+          "make" => "ford",
+          "model" => "f450"
+        })
+
+      ids = Enum.map(similar, & &1.id)
+      assert hyphen.id in ids
+      assert plain.id in ids
+      refute deluxe.id in ids
+
+      seeded =
+        Pricing.list_market_prices(%{
+          make: "ford",
+          model: "f450",
+          year_min: 1999,
+          year_max: 2009
+        })
+
+      seed_ids = Enum.map(seeded, & &1.id)
+      assert hyphen.id in seed_ids
+      assert plain.id in seed_ids
+      refute deluxe.id in seed_ids
+    end
+
+    test "token match: trim variants match both directions (f450 ↔ F450 King Ranch)" do
+      user = pricing_user!()
+
+      {:ok, base} =
+        Pricing.create_market_price(user, %{
+          "make" => "Ford",
+          "model" => "F-450",
+          "year" => 2008,
+          "miles" => 100_000,
+          "price_cents" => 400_000,
+          "price_type" => "sale",
+          "source_url" => url!("f450-base")
+        })
+
+      {:ok, trim} =
+        Pricing.create_market_price(user, %{
+          "make" => "Ford",
+          "model" => "F450 King Ranch",
+          "year" => 2012,
+          "miles" => 90_000,
+          "price_cents" => 550_000,
+          "price_type" => "sale",
+          "source_url" => url!("f450-king")
+        })
+
+      assert Pricing.normalize_vehicle_tokens("f450 king ranch") == ["f450", "king", "ranch"]
+
+      from_base =
+        Pricing.list_similar_market_prices(%{"make" => "ford", "model" => "f450"})
+
+      assert base.id in Enum.map(from_base, & &1.id)
+      assert trim.id in Enum.map(from_base, & &1.id)
+
+      from_trim =
+        Pricing.list_similar_market_prices(%{
+          "make" => "ford",
+          "model" => "f450 king ranch"
+        })
+
+      assert base.id in Enum.map(from_trim, & &1.id)
+      assert trim.id in Enum.map(from_trim, & &1.id)
     end
 
     test "returns at most 3 and skips exclude_ids so the next rows refill" do

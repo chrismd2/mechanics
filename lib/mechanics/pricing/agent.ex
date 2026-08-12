@@ -132,15 +132,20 @@ defmodule Mechanics.Pricing.Agent do
           limit: 50
         )
       else
+        # Miles 0 means unspecified — skip the miles band so year+make/model comps are found.
         tight =
-          Pricing.list_market_prices(%{
-            make: make,
-            model: model,
-            year_min: year - 1,
-            year_max: year + 1,
-            miles_min: trunc(miles * 0.8),
-            miles_max: trunc(miles * 1.2)
-          })
+          if miles in [nil, 0] do
+            []
+          else
+            Pricing.list_market_prices(%{
+              make: make,
+              model: model,
+              year_min: year - 1,
+              year_max: year + 1,
+              miles_min: trunc(miles * 0.8),
+              miles_max: trunc(miles * 1.2)
+            })
+          end
 
         if tight == [] do
           Pricing.list_market_prices(%{
@@ -215,13 +220,18 @@ defmodule Mechanics.Pricing.Agent do
 
     case parse_suggestion_json(content) do
       {:ok, competitive, minimum, summary} ->
-        %{
-          competitive_cents: competitive,
-          minimum_cents: minimum,
-          match_count: length(seed_matches),
-          summary: summary || blank_to_nil(String.slice(content, 0, 500)),
-          currency: "USD"
-        }
+        if is_nil(competitive) and is_nil(minimum) and seed_matches != [] do
+          # LLM said insufficient, but we have comps — use percentile suggestion.
+          heuristic_suggestion(seed_matches)
+        else
+          %{
+            competitive_cents: competitive,
+            minimum_cents: minimum,
+            match_count: length(seed_matches),
+            summary: summary || blank_to_nil(String.slice(content, 0, 500)),
+            currency: "USD"
+          }
+        end
 
       :error ->
         base = heuristic_suggestion(seed_matches)

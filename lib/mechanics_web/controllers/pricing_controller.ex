@@ -303,9 +303,8 @@ defmodule MechanicsWeb.PricingController do
         is_nil(query) ->
           []
 
-        # Year unspecified (best guess) or no price suggestion: show matching comps with years.
-        query.year in [nil, 0] or
-            (is_nil(query.suggested_competitive_cents) and is_nil(query.suggested_minimum_cents)) ->
+        # Best guess (no year): always list matching comps with years.
+        query.year in [nil, 0] ->
           Pricing.list_similar_market_prices(
             %{
               "make" => query.make,
@@ -317,6 +316,22 @@ defmodule MechanicsWeb.PricingController do
             },
             limit: 3,
             exclude_ids: query.dismissed_similar_ids || []
+          )
+
+        # Year specified but no prices: only show year-nearby comps (do not drop year).
+        is_nil(query.suggested_competitive_cents) and is_nil(query.suggested_minimum_cents) ->
+          Pricing.list_similar_market_prices(
+            %{
+              "make" => query.make,
+              "model" => query.model,
+              "year" => query.year,
+              "miles" => query.miles,
+              "vin" => query.vin,
+              "zipcode" => query.zipcode
+            },
+            limit: 3,
+            exclude_ids: query.dismissed_similar_ids || [],
+            require_year: true
           )
 
         true ->

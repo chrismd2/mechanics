@@ -1,5 +1,17 @@
 # Changelog
 
+## 2026-08-12 — pricing-year-specific-heuristic
+
+- For year-specific suggests, fall back to seed-comp percentiles when the LLM returns null prices; treat blank miles as unspecified
+
+## 2026-08-12 — pricing-trim-token-subset
+
+- Treat trim variants as similar via bidirectional token-set containment (`f450` ↔ `F450 King Ranch`)
+
+## 2026-08-12 — pricing-model-token-similarity
+
+- Match make/model via alphanumeric tokens so `f450` finds `F-450` but not `f-4500` deluxe-style names
+
 ## 2026-08-12 — pricing-best-guess-list-years
 
 - On make/model best-guess (no year), list matching market prices with their years under the aggregated suggestion

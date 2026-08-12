@@ -83,7 +83,9 @@ When **both** competitive and expected-minimum are nil, **or** when year was uns
 - Nil prices: “I can't suggest a price, but here are some that are similar.”
 - Best guess (no year): “Matching market prices (by year):” under the aggregated best-guess competitive/minimum
 
-It lists the **top 3** similar rows from `vehicle_market_prices` (make/model case-insensitive contains; prefer year ±2 when year is set, otherwise any year; no miles band). Each row shows **year**, make, model, miles, and price, and has **Dismiss** (`POST /pricing/queries/:id/similar/:market_price_id/dismiss`). Dismissed ids are stored on that query as `dismissed_similar_ids`; the list refills from the next similar match so up to three remain until the pool is exhausted. Re-running suggest for the same vehicle keeps prior dismissals.
+It lists the **top 3** similar rows from `vehicle_market_prices`. Make/model matching uses **alphanumeric tokens**: split on whitespace, strip non `[a-z0-9]` from each token, and match when either token set contains the other (so `f450` matches `F-450` / `F450 King Ranch`, and `f450 king ranch` matches base `F-450`, but `f450` does not match `f-4500` inside “space nut f-4500 deluxe”). Prefer year ±2 when year is set, otherwise any year; no miles band. Each row shows **year**, make, model, miles, and price, and has **Dismiss** (`POST /pricing/queries/:id/similar/:market_price_id/dismiss`). Dismissed ids are stored on that query as `dismissed_similar_ids`; the list refills from the next similar match so up to three remain until the pool is exhausted. Re-running suggest for the same vehicle keeps prior dismissals.
+
+The same token matching applies to `list_market_prices` make/model filters (agent seeds / tools), so year-banded comps also treat `F450` and `F-450` as the same model.
 
 ## Recent searches
 
@@ -131,9 +133,10 @@ The agent should use sales for floor / expected-minimum context and listings for
 Before (and alongside) tool calling, the agent seeds comps from `vehicle_market_prices`:
 
 1. If year is unspecified (`0` / blank): make/model **contains** match (up to 50 rows) → percentile **best guess** (skip LLM); summary notes year was not specified
-2. Otherwise: same make/model, year ±1, miles ±20%
+2. Otherwise: same make/model, year ±1; apply miles ±20% only when miles is non-zero (blank miles skips the miles band)
 3. If that band is empty, widen by dropping the miles filter (still make/model, year ±1)
 4. If a VIN is present, also include any rows with that VIN (any miles)
+5. If the LLM returns null prices but seed comps exist, fall back to the percentile heuristic so year-specific searches still get competitive/minimum numbers
 
 This matters when VIN decode fills make/model/year but the user’s miles differ from stored comps, when the user searches make/model only, and when the LLM is unavailable so the heuristic fallback must use those seeds.
 
@@ -146,7 +149,9 @@ This matters when VIN decode fills make/model/year but the user’s miles differ
 - `Pricing.list_market_prices/1` — filter/search (backing `search_vehicle_market_prices`; supports `vin` as well as make/model/year/miles; no per-user ownership filter)
 - `Pricing.get_market_price_details/1` — details for ids (backing `get_vehicle_market_price_details`)
 - `Pricing.suggest_prices/2` — run agent for a user + vehicle attrs; upsert `vehicle_price_query` (no duplicates per user/vehicle; preserves `dismissed_similar_ids`)
-- `Pricing.list_similar_market_prices/2` — looser comps for nil-suggestion UI (`limit:`, `exclude_ids:`)
+- `Pricing.list_similar_market_prices/2` — looser comps for nil-suggestion / best-guess UI (`limit:`, `exclude_ids:`; alphanumeric token make/model match, including trim variants)
+- `Pricing.normalize_vehicle_key/1` — downcase + strip non-alphanumerics for one token
+- `Pricing.normalize_vehicle_tokens/1` — whitespace-split then normalize each token
 - `Pricing.dismiss_similar_market_price/3` — append a market-price id to a query’s `dismissed_similar_ids` (owner-only)
 - `Pricing.list_queries/2` — list a user’s queries (`limit:`, `filters:` with `q` / make / model / year / vin)
 - `Pricing.delete_query/2` — dismiss a query owned by the user

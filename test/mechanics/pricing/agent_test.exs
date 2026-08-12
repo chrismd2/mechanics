@@ -203,4 +203,54 @@ defmodule Mechanics.Pricing.AgentTest do
     assert result.summary == "Only one listing found, insufficient data for expected-minimum price."
     refute result.summary =~ "{"
   end
+
+  test "suggest uses heuristic when LLM returns null prices but seed comps exist" do
+    user = pricing_user!()
+
+    {:ok, _} =
+      Pricing.create_market_price(user, %{
+        "make" => "Ford",
+        "model" => "F450",
+        "year" => 2008,
+        "miles" => 149_092,
+        "price_cents" => 425_000,
+        "price_type" => "sale",
+        "source_url" => "https://example.com/f450-null-llm-#{System.unique_integer([:positive])}"
+      })
+
+    llm_body =
+      ~s({"suggested_competitive_cents": null, "suggested_minimum_cents": null, "summary": "Insufficient data."})
+
+    http =
+      fn _url, _headers, _body ->
+        {:ok,
+         %{
+           status: 200,
+           body:
+             Jason.encode!(%{
+               "choices" => [
+                 %{"message" => %{"role" => "assistant", "content" => llm_body}}
+               ]
+             })
+         }}
+      end
+
+    result =
+      Agent.suggest(
+        %{
+          "make" => "ford",
+          "model" => "f450",
+          "year" => 2008,
+          "miles" => 0,
+          "zipcode" => "00000"
+        },
+        api_key: "valid-looking-key",
+        http_client: http
+      )
+
+    assert result.competitive_cents == 425_000
+    assert result.minimum_cents == 425_000
+    assert result.match_count >= 1
+    assert result.summary =~ "Suggested from"
+  end
 end
