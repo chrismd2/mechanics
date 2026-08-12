@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-08-12 — suggest-after-market-price
+
+- After a successful market-price URL import or manual save, run a price suggestion for that vehicle and show it on the suggestion page with the form prefilled
+
 ## 2026-08-12 — pricing-bidwrangler-item-import
 
 - Implemented module BidWrangler `/ui/auctions/:auction_id/:item_id` URLs via `/api/items/:item_id` (never the auction catalog); map sold/listing fields deterministically with compact LLM fallback; keep Open Graph meta in generic HTML extraction

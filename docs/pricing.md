@@ -17,8 +17,8 @@ Valid roles also remain `mechanic` and `customer`. A user may hold `pricing_user
 | Method | Path | Description |
 |--------|------|-------------|
 | GET | `/pricing/market-prices/new` | Start with a listing/sale URL |
-| POST | `/pricing/market-prices/from-url` | Look up URL, try agent extraction, save or fall back to form |
-| POST | `/pricing/market-prices` | Manual save of vehicle market price (`listing` or `sale`) |
+| POST | `/pricing/market-prices/from-url` | Look up URL, try agent extraction, save or fall back to form; on save, suggest prices for that vehicle |
+| POST | `/pricing/market-prices` | Manual save of vehicle market price (`listing` or `sale`); on save, suggest prices for that vehicle |
 | GET | `/pricing` | Suggest flow starts with VIN (`?manual=1` for the full form); shows top 3 recent searches |
 | GET | `/pricing/queries` | Searchable / filterable list of the user’s recent searches (collapsible filter block) |
 | DELETE | `/pricing/queries/:id` | Dismiss (delete) a recent suggestion query owned by the user |
@@ -37,8 +37,8 @@ Signed-in users open these from the header **Tools** drawer (pricing links only 
 3. Otherwise extract vehicle fields from the URL:
    - **BidWrangler item UI** (`/ui/auctions/:auction_id/:item_id`, e.g. Sexton): fetch **only** `{origin}/api/items/:item_id`, map fields deterministically (vin, sold/closing bid, labeled Year/Make/Model/Mileage in the description). Never call `/api/auctions/:auction_id` (multi‑MB catalog). If required fields are still missing, run the LLM on a **compact** text summary (no images / schedules / full JSON).
    - **Other URLs**: fetch HTML, turn it into text (visible body **plus** Open Graph / meta title and description for JS shells), then ask the LLM to extract.
-4. If extraction is complete, save immediately.
-5. If not, show a warning flash and the manual form (prefilled when possible) and save after review.
+4. If extraction is complete, save immediately, then run a price suggestion for that vehicle and show it on the suggestion page (form prefilled).
+5. If not, show a warning flash and the manual form (prefilled when possible) and save after review. A successful manual save also runs a suggestion for that vehicle.
 
 Local Docker stores market prices in the **`mechanics`** Postgres database (`docker-compose.yml` sets `DATABASE_URL=.../mechanics`), not `electricquestlog`.
 
@@ -147,7 +147,7 @@ This matters when VIN decode fills make/model/year but the user’s miles differ
 ## Context API (for tests / seeds)
 
 - `Pricing.create_market_price/2` — create a shared listing/sale market price (`pricing_user` gates the controller; row has no owner)
-- `Pricing.import_market_price_from_url/2` — URL lookup → agent extract (BidWrangler item API or HTML+LLM) → save or `{:needs_form, attrs}`
+- `Pricing.import_market_price_from_url/2` — URL lookup → agent extract (BidWrangler item API or HTML+LLM) → save or `{:needs_form, attrs}` (tests may inject `:extract` via opts or `Application.put_env(:mechanics, Mechanics.Pricing, extract: fun)`)
 - `Pricing.BidWrangler` — parse `/ui/auctions/:auction_id/:item_id`, map `/api/items/:id` JSON to attrs, compact LLM summary
 - `Pricing.lookup_vehicle_from_vin/2` — VIN check → `{:ok, :ready, attrs}` or `{:needs_form, attrs}` (blank miles → `0`)
 - `Pricing.get_market_price_by_source_url/1` — find an existing row by URL

@@ -304,6 +304,8 @@ defmodule Mechanics.Pricing do
   2. Otherwise asks the agent to extract fields from the page.
   3. If extraction is complete, saves and returns `{:ok, :created, record}`.
   4. If extraction is incomplete, returns `{:needs_form, attrs}` with `source_url` set.
+
+  Tests may inject `:extract` via `opts` or `Application.put_env(:mechanics, Mechanics.Pricing, extract: fun)`.
   """
   def import_market_price_from_url(%User{} = user, url, opts \\ []) when is_binary(url) do
     source_url = normalize_source_url(url)
@@ -318,7 +320,10 @@ defmodule Mechanics.Pricing do
             {:ok, :already_exists, existing}
 
           nil ->
-            extract = Keyword.get(opts, :extract, &Agent.extract_listing_from_url/1)
+            extract =
+              Keyword.get(opts, :extract) ||
+                Keyword.get(Application.get_env(:mechanics, __MODULE__, []), :extract) ||
+                &Agent.extract_listing_from_url/1
 
             case extract.(source_url) do
               {:ok, attrs} ->

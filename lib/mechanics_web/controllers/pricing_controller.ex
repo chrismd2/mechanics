@@ -108,10 +108,8 @@ defmodule MechanicsWeb.PricingController do
               changeset: Pricing.change_market_price(%VehicleMarketPrice{})
             )
 
-          {:ok, :created, _record} ->
-            conn
-            |> put_flash(:info, "Vehicle market price imported from URL.")
-            |> redirect(to: ~p"/pricing")
+          {:ok, :created, record} ->
+            suggest_for_market_price(conn, user, record, "Vehicle market price imported from URL.")
 
           {:needs_form, attrs} ->
             changeset =
@@ -174,10 +172,8 @@ defmodule MechanicsWeb.PricingController do
 
           true ->
             case Pricing.create_market_price(user, attrs) do
-              {:ok, _market_price} ->
-                conn
-                |> put_flash(:info, "Vehicle market price saved.")
-                |> redirect(to: ~p"/pricing")
+              {:ok, market_price} ->
+                suggest_for_market_price(conn, user, market_price, "Vehicle market price saved.")
 
               {:error, %Ecto.Changeset{} = changeset} ->
                 conn =
@@ -294,6 +290,27 @@ defmodule MechanicsWeb.PricingController do
     end
   end
 
+  defp suggest_for_market_price(conn, user, market_price, flash_message) do
+    attrs = vehicle_from_market_price(market_price)
+    conn = put_flash(conn, :info, flash_message)
+
+    case Pricing.suggest_prices(user, attrs) do
+      {:ok, query} ->
+        render_suggest(conn, user,
+          step: :manual,
+          query: query,
+          vehicle: stringify_vehicle(attrs)
+        )
+
+      {:error, :invalid_vehicle} ->
+        render_suggest(conn, user,
+          step: :manual,
+          query: nil,
+          vehicle: stringify_vehicle(attrs)
+        )
+    end
+  end
+
   defp render_suggest(conn, user, assigns) do
     query = Keyword.get(assigns, :query)
     vehicle = Keyword.get(assigns, :vehicle) || empty_vehicle()
@@ -351,6 +368,17 @@ defmodule MechanicsWeb.PricingController do
         assigns
       )
     )
+  end
+
+  defp vehicle_from_market_price(market_price) do
+    %{
+      "vin" => market_price.vin || "",
+      "make" => market_price.make || "",
+      "model" => market_price.model || "",
+      "year" => market_price.year,
+      "miles" => market_price.miles,
+      "zipcode" => market_price.zipcode || "00000"
+    }
   end
 
   defp vehicle_from_query(query) do
