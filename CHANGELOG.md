@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-08-12 — pricing-llm-heuristic-fallback
+
+- Fall back to seed-comp heuristic when the pricing LLM key is missing/invalid, HTTP fails, or the client raises; keep human summaries (no raw JSON under Suggestion)
+
 ## 2026-08-12 — pricing-llm-provider-agnostic
 
 - Read pricing LLM credentials from `PRICING_LLM_API_KEY` / `PRICING_LLM_MODEL` / `PRICING_LLM_BASE_URL` (OpenAI-compatible; no Groq-named env)

@@ -95,13 +95,19 @@ defmodule Mechanics.Pricing.Agent do
   def suggest(vehicle, opts \\ []) when is_map(vehicle) do
     seed_matches = seed_market_matches(vehicle)
 
-    case LLM.chat_completion(initial_messages(vehicle), tool_definitions(), opts) do
-      {:ok, response} ->
-        run_tool_loop(response, initial_messages(vehicle), 1, opts)
-        |> finalize_suggestion(seed_matches)
+    try do
+      case LLM.chat_completion(initial_messages(vehicle), tool_definitions(), opts) do
+        {:ok, response} ->
+          run_tool_loop(response, initial_messages(vehicle), 1, opts)
+          |> finalize_suggestion(seed_matches)
 
-      {:error, reason} ->
-        Logger.info("Pricing agent falling back without LLM: #{inspect(reason)}")
+        {:error, reason} ->
+          Logger.info("Pricing agent falling back without LLM: #{inspect(reason)}")
+          heuristic_suggestion(seed_matches)
+      end
+    rescue
+      e ->
+        Logger.warning("Pricing agent falling back after exception: #{Exception.message(e)}")
         heuristic_suggestion(seed_matches)
     end
   end
@@ -200,15 +206,28 @@ defmodule Mechanics.Pricing.Agent do
           competitive_cents: competitive,
           minimum_cents: minimum,
           match_count: length(seed_matches),
-          summary: summary || String.slice(content, 0, 500),
+          summary: summary || blank_to_nil(String.slice(content, 0, 500)),
           currency: "USD"
         }
 
       :error ->
-        heuristic_suggestion(seed_matches)
-        |> Map.put(:summary, blank_to_nil(String.slice(content, 0, 500)))
+        base = heuristic_suggestion(seed_matches)
+
+        # Prefer heuristic copy over raw model text (often unparsed JSON).
+        if usable_agent_summary?(content) do
+          Map.put(base, :summary, String.slice(String.trim(content), 0, 500))
+        else
+          base
+        end
     end
   end
+
+  defp usable_agent_summary?(content) when is_binary(content) do
+    trimmed = String.trim(content)
+    trimmed != "" and not String.contains?(trimmed, "{")
+  end
+
+  defp usable_agent_summary?(_), do: false
 
   defp heuristic_suggestion([]),
     do: %{
@@ -259,13 +278,22 @@ defmodule Mechanics.Pricing.Agent do
       end
 
     with true <- is_binary(json_blob),
-         {:ok, map} <- Jason.decode(json_blob),
-         competitive when is_integer(competitive) <-
-           Map.get(map, "suggested_competitive_cents") || Map.get(map, "competitive_cents"),
-         minimum when is_integer(minimum) <-
-           Map.get(map, "suggested_minimum_cents") || Map.get(map, "minimum_cents") do
+         {:ok, map} <- Jason.decode(json_blob) do
+      competitive =
+        Map.get(map, "suggested_competitive_cents") || Map.get(map, "competitive_cents")
+
+      minimum = Map.get(map, "suggested_minimum_cents") || Map.get(map, "minimum_cents")
       summary = Map.get(map, "summary") || Map.get(map, "agent_summary")
-      {:ok, competitive, minimum, summary}
+
+      competitive = if is_integer(competitive), do: competitive, else: nil
+      minimum = if is_integer(minimum), do: minimum, else: nil
+
+      # Accept partial or both-null (LLM said insufficient). Reject empty/non-object shapes.
+      if is_integer(competitive) or is_integer(minimum) or is_binary(summary) do
+        {:ok, competitive, minimum, summary}
+      else
+        :error
+      end
     else
       _ -> :error
     end

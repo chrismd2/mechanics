@@ -80,4 +80,127 @@ defmodule Mechanics.Pricing.AgentTest do
     assert cents == 2_400_000
     assert type == "sale"
   end
+
+  test "suggest falls back to heuristic when LLM returns HTTP 401 (invalid key)" do
+    user = pricing_user!()
+
+    {:ok, _} =
+      Pricing.create_market_price(user, %{
+        "make" => "Kenworth",
+        "model" => "T880",
+        "year" => 2016,
+        "miles" => 41_921,
+        "price_cents" => 2_600_000,
+        "price_type" => "listing",
+        "source_url" => "https://example.com/t880-#{System.unique_integer([:positive])}"
+      })
+
+    http =
+      fn _url, _headers, _body ->
+        {:ok, %{status: 401, body: ~s({"error":{"message":"Invalid API Key"}})}}
+      end
+
+    result =
+      Agent.suggest(
+        %{
+          "make" => "Kenworth",
+          "model" => "T880",
+          "year" => 2016,
+          "miles" => 41_921,
+          "zipcode" => "00000"
+        },
+        api_key: "invalid-key",
+        http_client: http
+      )
+
+    assert result.competitive_cents == 2_600_000
+    assert result.minimum_cents == 2_600_000
+    assert result.match_count == 1
+    assert result.summary =~ "matching vehicle market prices"
+    refute result.summary =~ "suggested_competitive_cents"
+  end
+
+  test "suggest falls back to heuristic when LLM http_client raises" do
+    user = pricing_user!()
+
+    {:ok, _} =
+      Pricing.create_market_price(user, %{
+        "make" => "Volvo",
+        "model" => "VNL",
+        "year" => 2018,
+        "miles" => 200_000,
+        "price_cents" => 3_100_000,
+        "price_type" => "sale",
+        "source_url" => "https://example.com/vnl-#{System.unique_integer([:positive])}"
+      })
+
+    http = fn _url, _headers, _body -> raise "connection reset" end
+
+    result =
+      Agent.suggest(
+        %{
+          "make" => "Volvo",
+          "model" => "VNL",
+          "year" => 2018,
+          "miles" => 200_000,
+          "zipcode" => "00000"
+        },
+        api_key: "any-key",
+        http_client: http
+      )
+
+    assert result.competitive_cents == 3_100_000
+    assert result.minimum_cents == 3_100_000
+    assert result.match_count == 1
+  end
+
+  test "suggest accepts partial LLM JSON with null minimum without showing raw JSON" do
+    user = pricing_user!()
+
+    {:ok, _} =
+      Pricing.create_market_price(user, %{
+        "make" => "Peterbilt",
+        "model" => "579",
+        "year" => 2017,
+        "miles" => 50_000,
+        "price_cents" => 2_600_000,
+        "price_type" => "listing",
+        "source_url" => "https://example.com/579-#{System.unique_integer([:positive])}"
+      })
+
+    llm_body =
+      ~s({"suggested_competitive_cents": 2600000, "suggested_minimum_cents": null, "summary": "Only one listing found, insufficient data for expected-minimum price."})
+
+    http =
+      fn _url, _headers, _body ->
+        {:ok,
+         %{
+           status: 200,
+           body:
+             Jason.encode!(%{
+               "choices" => [
+                 %{"message" => %{"role" => "assistant", "content" => llm_body}}
+               ]
+             })
+         }}
+      end
+
+    result =
+      Agent.suggest(
+        %{
+          "make" => "Peterbilt",
+          "model" => "579",
+          "year" => 2017,
+          "miles" => 50_000,
+          "zipcode" => "00000"
+        },
+        api_key: "valid-looking-key",
+        http_client: http
+      )
+
+    assert result.competitive_cents == 2_600_000
+    assert is_nil(result.minimum_cents)
+    assert result.summary == "Only one listing found, insufficient data for expected-minimum price."
+    refute result.summary =~ "{"
+  end
 end

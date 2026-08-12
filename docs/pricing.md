@@ -112,7 +112,9 @@ Examples: Groq (`https://api.groq.com/openai/v1`), OpenAI (`https://api.openai.c
 | `search_vehicle_market_prices` | Filter by make, model, year range, miles band, optional `price_type` (`listing`, `sale`, or both). Returns ids and vehicle fields. |
 | `get_vehicle_market_price_details` | Given ids, return `price_cents`, `currency`, `price_type`, year, miles. |
 
-The agent should use sales for floor / expected-minimum context and listings for asking / competitive context, then return **competitive** and **expected minimum** prices in cents. On missing credentials, HTTP failure, or empty results: persist the query with nil suggestions and show a clear UI message.
+The agent should use sales for floor / expected-minimum context and listings for asking / competitive context, then return **competitive** and **expected minimum** prices in cents.
+
+**LLM unavailable** (missing/blank `PRICING_LLM_API_KEY`, invalid key / non-2xx, transport failure, or raised HTTP client error): fall back to the percentile **heuristic** over seed comps. Nil competitive/minimum only when there are no seed matches. The UI summary should stay human-readable (not raw model JSON).
 
 ### Seed matches (heuristic / match_count)
 
