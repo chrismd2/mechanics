@@ -263,7 +263,7 @@ defmodule MechanicsWeb.AccountControllerTest do
       assert html =~ "Oil change"
     end
 
-    test "shows a delete listing button on each listing card", %{conn: conn} do
+    test "shows a delete listing button on each listing card" do
       {:ok, customer} =
         Accounts.create_user(%{
           "email" => "lst-acct-del-#{System.unique_integer([:positive])}@example.com",

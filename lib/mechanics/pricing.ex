@@ -27,11 +27,14 @@ defmodule Mechanics.Pricing do
 
   def list_market_prices(filters \\ %{}) when is_map(filters) do
     filters = atomize_filter_keys(filters)
+    make_tokens = normalize_vehicle_tokens(Map.get(filters, :make))
+    model_tokens = normalize_vehicle_tokens(Map.get(filters, :model))
 
     VehicleMarketPrice
-    |> apply_market_price_filters(filters)
+    |> apply_market_price_filters(Map.drop(filters, [:make, :model]))
     |> order_by([m], desc: m.inserted_at, desc: m.id)
     |> Repo.all()
+    |> Enum.filter(&matches_make_model_tokens?(&1, make_tokens, model_tokens))
   end
 
   def get_market_price_details(ids) when is_list(ids) do
@@ -131,6 +134,23 @@ defmodule Mechanics.Pricing do
   def normalize_vehicle_tokens(value), do: value |> to_string() |> normalize_vehicle_tokens()
 
   @doc """
+  True when both token lists are non-empty and one is a subset of the other.
+
+  Tokens compare exactly (`f450` ≠ `f4500`). Trim variants match when either
+  side contains the other (`f450` ↔ `F450 King Ranch`).
+  """
+  def token_sets_match?(left, right) when is_list(left) and is_list(right) do
+    left != [] and right != [] and (tokens_subset?(left, right) or tokens_subset?(right, left))
+  end
+
+  defp tokens_subset?(left, right), do: Enum.all?(left, &(&1 in right))
+
+  defp matches_make_model_tokens?(row, make_tokens, model_tokens) do
+    (make_tokens == [] or token_sets_match?(normalize_vehicle_tokens(row.make), make_tokens)) and
+      (model_tokens == [] or token_sets_match?(normalize_vehicle_tokens(row.model), model_tokens))
+  end
+
+  @doc """
   Lists similar vehicle market prices for a suggest vehicle (looser than agent seeds).
 
   Make/model use alphanumeric **token** matching (see `normalize_vehicle_tokens/1`):
@@ -157,83 +177,34 @@ defmodule Mechanics.Pricing do
     if make_tokens == [] or model_tokens == [] do
       []
     else
-      base =
+      query =
         from(m in VehicleMarketPrice,
-          where:
-            fragment(
-              """
-              (
-                SELECT coalesce(array_agg(tok) FILTER (WHERE tok <> ''), ARRAY[]::text[])
-                FROM (
-                  SELECT regexp_replace(raw_token, '[^a-z0-9]', '', 'g') AS tok
-                  FROM unnest(regexp_split_to_array(lower(btrim(?)), '\\s+')) AS raw_token
-                ) s
-              ) <@ ?::text[]
-              OR ?::text[] <@ (
-                SELECT coalesce(array_agg(tok) FILTER (WHERE tok <> ''), ARRAY[]::text[])
-                FROM (
-                  SELECT regexp_replace(raw_token, '[^a-z0-9]', '', 'g') AS tok
-                  FROM unnest(regexp_split_to_array(lower(btrim(?)), '\\s+')) AS raw_token
-                ) s
-              )
-              """,
-              m.make,
-              ^make_tokens,
-              ^make_tokens,
-              m.make
-            ) and
-              fragment(
-                """
-                (
-                  SELECT coalesce(array_agg(tok) FILTER (WHERE tok <> ''), ARRAY[]::text[])
-                  FROM (
-                    SELECT regexp_replace(raw_token, '[^a-z0-9]', '', 'g') AS tok
-                    FROM unnest(regexp_split_to_array(lower(btrim(?)), '\\s+')) AS raw_token
-                  ) s
-                ) <@ ?::text[]
-                OR ?::text[] <@ (
-                  SELECT coalesce(array_agg(tok) FILTER (WHERE tok <> ''), ARRAY[]::text[])
-                  FROM (
-                    SELECT regexp_replace(raw_token, '[^a-z0-9]', '', 'g') AS tok
-                    FROM unnest(regexp_split_to_array(lower(btrim(?)), '\\s+')) AS raw_token
-                  ) s
-                )
-                """,
-                m.model,
-                ^model_tokens,
-                ^model_tokens,
-                m.model
-              ),
           order_by: [desc: m.inserted_at, desc: m.id]
         )
 
-      base =
+      query =
         if exclude_ids == [] do
-          base
+          query
         else
-          from(m in base, where: m.id not in ^exclude_ids)
+          from(m in query, where: m.id not in ^exclude_ids)
         end
+
+      matched =
+        query
+        |> Repo.all()
+        |> Enum.filter(&matches_make_model_tokens?(&1, make_tokens, model_tokens))
 
       with_year =
         if is_integer(year) do
-          from(m in base, where: m.year >= ^(year - 2) and m.year <= ^(year + 2))
-          |> maybe_limit(limit)
-          |> Repo.all()
+          Enum.filter(matched, fn row -> row.year >= year - 2 and row.year <= year + 2 end)
         else
           []
         end
 
       cond do
-        with_year != [] ->
-          with_year
-
-        require_year? ->
-          []
-
-        true ->
-          base
-          |> maybe_limit(limit)
-          |> Repo.all()
+        with_year != [] -> Enum.take(with_year, limit)
+        require_year? -> []
+        true -> Enum.take(matched, limit)
       end
     end
   end
@@ -259,9 +230,6 @@ defmodule Mechanics.Pricing do
         {:error, :not_found}
     end
   end
-
-  defp maybe_limit(query, limit) when is_integer(limit) and limit > 0, do: limit(query, ^limit)
-  defp maybe_limit(query, _), do: query
 
   defp parse_year(nil), do: nil
   defp parse_year(0), do: nil
@@ -566,74 +534,6 @@ defmodule Mechanics.Pricing do
 
   defp apply_market_price_filters(query, filters) do
     Enum.reduce(filters, query, fn
-      {:make, make}, q when is_binary(make) and make != "" ->
-        case normalize_vehicle_tokens(make) do
-          [] ->
-            q
-
-          make_tokens ->
-            where(
-              q,
-              [m],
-              fragment(
-                """
-                (
-                  SELECT coalesce(array_agg(tok) FILTER (WHERE tok <> ''), ARRAY[]::text[])
-                  FROM (
-                    SELECT regexp_replace(raw_token, '[^a-z0-9]', '', 'g') AS tok
-                    FROM unnest(regexp_split_to_array(lower(btrim(?)), '\\s+')) AS raw_token
-                  ) s
-                ) <@ ?::text[]
-                OR ?::text[] <@ (
-                  SELECT coalesce(array_agg(tok) FILTER (WHERE tok <> ''), ARRAY[]::text[])
-                  FROM (
-                    SELECT regexp_replace(raw_token, '[^a-z0-9]', '', 'g') AS tok
-                    FROM unnest(regexp_split_to_array(lower(btrim(?)), '\\s+')) AS raw_token
-                  ) s
-                )
-                """,
-                m.make,
-                ^make_tokens,
-                ^make_tokens,
-                m.make
-              )
-            )
-        end
-
-      {:model, model}, q when is_binary(model) and model != "" ->
-        case normalize_vehicle_tokens(model) do
-          [] ->
-            q
-
-          model_tokens ->
-            where(
-              q,
-              [m],
-              fragment(
-                """
-                (
-                  SELECT coalesce(array_agg(tok) FILTER (WHERE tok <> ''), ARRAY[]::text[])
-                  FROM (
-                    SELECT regexp_replace(raw_token, '[^a-z0-9]', '', 'g') AS tok
-                    FROM unnest(regexp_split_to_array(lower(btrim(?)), '\\s+')) AS raw_token
-                  ) s
-                ) <@ ?::text[]
-                OR ?::text[] <@ (
-                  SELECT coalesce(array_agg(tok) FILTER (WHERE tok <> ''), ARRAY[]::text[])
-                  FROM (
-                    SELECT regexp_replace(raw_token, '[^a-z0-9]', '', 'g') AS tok
-                    FROM unnest(regexp_split_to_array(lower(btrim(?)), '\\s+')) AS raw_token
-                  ) s
-                )
-                """,
-                m.model,
-                ^model_tokens,
-                ^model_tokens,
-                m.model
-              )
-            )
-        end
-
       {:price_type, type}, q when type in ["listing", "sale"] ->
         where(q, [m], m.price_type == ^type)
 

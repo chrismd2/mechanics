@@ -157,6 +157,7 @@ This matters when VIN decode fills make/model/year but the user’s miles differ
 - `Pricing.list_similar_market_prices/2` — looser comps for nil-suggestion / best-guess UI (`limit:`, `exclude_ids:`; alphanumeric token make/model match, including trim variants)
 - `Pricing.normalize_vehicle_key/1` — downcase + strip non-alphanumerics for one token
 - `Pricing.normalize_vehicle_tokens/1` — whitespace-split then normalize each token
+- `Pricing.token_sets_match?/2` — exact token-set subset either direction (`f450` ≠ `f4500`; `f450` ↔ `F450 King Ranch`)
 - `Pricing.dismiss_similar_market_price/3` — append a market-price id to a query’s `dismissed_similar_ids` (owner-only)
 - `Pricing.list_queries/2` — list a user’s queries (`limit:`, `filters:` with `q` / make / model / year / vin)
 - `Pricing.delete_query/2` — dismiss a query owned by the user

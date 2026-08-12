@@ -3,6 +3,7 @@
 ## 2026-08-12 — suggest-after-market-price
 
 - After a successful market-price URL import or manual save, run a price suggestion for that vehicle and show it on the suggestion page with the form prefilled
+- Match make/model with exact token-set containment so `f450` does not match `f-4500` deluxe-style names
 
 ## 2026-08-12 — pricing-bidwrangler-item-import
 

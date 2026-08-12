@@ -734,6 +734,21 @@ defmodule Mechanics.PricingTest do
     test "token match: f450 matches F-450 and F450 but not f-4500 deluxe" do
       user = pricing_user!()
 
+      assert Pricing.token_sets_match?(
+               Pricing.normalize_vehicle_tokens("F-450"),
+               Pricing.normalize_vehicle_tokens("f450")
+             )
+
+      assert Pricing.token_sets_match?(
+               Pricing.normalize_vehicle_tokens("F450 King Ranch"),
+               Pricing.normalize_vehicle_tokens("f450")
+             )
+
+      refute Pricing.token_sets_match?(
+               Pricing.normalize_vehicle_tokens("space nut f-4500 deluxe"),
+               Pricing.normalize_vehicle_tokens("f450")
+             )
+
       {:ok, hyphen} =
         Pricing.create_market_price(user, %{
           "make" => "Ford",
