@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-08-11 — pricing-zipcode
+
+- Add `zipcode` to vehicle market prices and suggestion queries (default `00000`; backfill existing rows)
+- Collect zipcode on market-price and suggest forms; include it in recent-search re-runs
+
 ## 2026-08-11 — pricing-ui-polish
 
 - Flash clearly when a market-price URL is already saved (from-url and manual save)

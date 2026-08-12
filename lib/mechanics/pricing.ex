@@ -17,6 +17,7 @@ defmodule Mechanics.Pricing do
       |> stringify_keys()
       |> Map.delete("user_id")
       |> maybe_default_currency()
+      |> maybe_default_zipcode()
       |> coerce_market_price_numbers()
 
     %VehicleMarketPrice{}
@@ -147,6 +148,7 @@ defmodule Mechanics.Pricing do
                   |> stringify_keys()
                   |> Map.put("source_url", source_url)
                   |> maybe_default_currency()
+                  |> maybe_default_zipcode()
 
                 if complete_market_price_attrs?(attrs) do
                   case create_market_price(user, attrs) do
@@ -176,6 +178,7 @@ defmodule Mechanics.Pricing do
 
     normalized = VinChecker.normalize(vin)
     miles = Keyword.get(opts, :miles)
+    zipcode = Keyword.get(opts, :zipcode)
 
     cond do
       normalized == "" ->
@@ -192,6 +195,8 @@ defmodule Mechanics.Pricing do
               |> stringify_keys()
               |> Map.put("vin", normalized)
               |> maybe_merge_miles(miles)
+              |> maybe_merge_zipcode(zipcode)
+              |> maybe_default_zipcode()
               |> coerce_market_price_numbers()
 
             if complete_suggest_attrs?(attrs) do
@@ -204,6 +209,8 @@ defmodule Mechanics.Pricing do
             attrs =
               %{"vin" => normalized}
               |> maybe_merge_miles(miles)
+              |> maybe_merge_zipcode(zipcode)
+              |> maybe_default_zipcode()
               |> coerce_market_price_numbers()
 
             {:needs_form, attrs}
@@ -221,6 +228,14 @@ defmodule Mechanics.Pricing do
       :error -> Map.put_new(attrs, "miles", 0)
     end
   end
+
+  defp maybe_merge_zipcode(attrs, zipcode) when zipcode in [nil, ""], do: attrs
+
+  defp maybe_merge_zipcode(attrs, zipcode) when is_binary(zipcode) do
+    Map.put(attrs, "zipcode", String.trim(zipcode))
+  end
+
+  defp maybe_merge_zipcode(attrs, _), do: attrs
 
   defp complete_suggest_attrs?(attrs) do
     required = ["make", "model", "year", "miles"]
@@ -245,7 +260,7 @@ defmodule Mechanics.Pricing do
   @doc """
   Runs the pricing agent and upserts a `vehicle_price_query` for this user + vehicle.
 
-  Duplicate searches (same make, model, year, miles, and VIN) update the existing row
+  Duplicate searches (same make, model, year, miles, VIN, and zipcode) update the existing row
   instead of inserting another.
   """
   def suggest_prices(%User{} = user, attrs) when is_map(attrs) do
@@ -275,14 +290,18 @@ defmodule Mechanics.Pricing do
     end
   end
 
-  defp get_query_by_vehicle(user_id, %{"make" => make, "model" => model, "year" => year, "miles" => miles, "vin" => vin}) do
+  defp get_query_by_vehicle(
+         user_id,
+         %{"make" => make, "model" => model, "year" => year, "miles" => miles, "vin" => vin, "zipcode" => zipcode}
+       ) do
     query =
       from(q in VehiclePriceQuery,
         where: q.user_id == ^user_id,
         where: q.make == ^make,
         where: q.model == ^model,
         where: q.year == ^year,
-        where: q.miles == ^miles
+        where: q.miles == ^miles,
+        where: q.zipcode == ^zipcode
       )
 
     query =
@@ -296,8 +315,12 @@ defmodule Mechanics.Pricing do
   end
 
   defp normalize_vehicle_attrs(attrs) do
-    attrs = default_blank_miles(attrs)
-    required = ["make", "model", "year", "miles"]
+    attrs =
+      attrs
+      |> default_blank_miles()
+      |> maybe_default_zipcode()
+
+    required = ["make", "model", "year", "miles", "zipcode"]
 
     missing =
       Enum.filter(required, fn key ->
@@ -314,7 +337,8 @@ defmodule Mechanics.Pricing do
          "make" => attrs |> Map.get("make") |> to_string() |> String.trim(),
          "model" => attrs |> Map.get("model") |> to_string() |> String.trim(),
          "year" => Mechanics.NumberParse.to_integer!(Map.get(attrs, "year")),
-         "miles" => Mechanics.NumberParse.to_integer!(Map.get(attrs, "miles"))
+         "miles" => Mechanics.NumberParse.to_integer!(Map.get(attrs, "miles")),
+         "zipcode" => attrs |> Map.get("zipcode") |> to_string() |> String.trim()
        }}
     end
   rescue
@@ -324,6 +348,13 @@ defmodule Mechanics.Pricing do
   defp default_blank_miles(attrs) do
     case Map.get(attrs, "miles") do
       miles when miles in [nil, ""] -> Map.put(attrs, "miles", 0)
+      _ -> attrs
+    end
+  end
+
+  defp maybe_default_zipcode(attrs) do
+    case Map.get(attrs, "zipcode") do
+      zip when zip in [nil, ""] -> Map.put(attrs, "zipcode", "00000")
       _ -> attrs
     end
   end

@@ -193,8 +193,9 @@ defmodule MechanicsWeb.PricingController do
     case pricing_user(conn) do
       {:ok, user} ->
         miles = get_in(params, ["vehicle", "miles"])
+        zipcode = get_in(params, ["vehicle", "zipcode"])
 
-        case Pricing.lookup_vehicle_from_vin(vin, miles: miles) do
+        case Pricing.lookup_vehicle_from_vin(vin, miles: miles, zipcode: zipcode) do
           {:ok, :ready, attrs} ->
             case Pricing.suggest_prices(user, attrs) do
               {:ok, query} ->
@@ -232,7 +233,11 @@ defmodule MechanicsWeb.PricingController do
             |> render_suggest(user,
               step: :vin,
               query: nil,
-              vehicle: %{"vin" => vin || "", "miles" => miles || ""}
+              vehicle: %{
+                "vin" => vin || "",
+                "miles" => miles || "0",
+                "zipcode" => zipcode || "00000"
+              }
             )
         end
 
@@ -303,7 +308,7 @@ defmodule MechanicsWeb.PricingController do
   end
 
   defp empty_vehicle do
-    %{"vin" => "", "make" => "", "model" => "", "year" => "", "miles" => "0"}
+    %{"vin" => "", "make" => "", "model" => "", "year" => "", "miles" => "0", "zipcode" => "00000"}
   end
 
   defp stringify_vehicle(attrs) when is_map(attrs) do
@@ -313,7 +318,8 @@ defmodule MechanicsWeb.PricingController do
       "make" => to_string(Map.get(attrs, "make") || ""),
       "model" => to_string(Map.get(attrs, "model") || ""),
       "year" => stringify_num(Map.get(attrs, "year")),
-      "miles" => stringify_num(Map.get(attrs, "miles"))
+      "miles" => stringify_num(Map.get(attrs, "miles")),
+      "zipcode" => to_string(Map.get(attrs, "zipcode") || "00000")
     })
   end
 

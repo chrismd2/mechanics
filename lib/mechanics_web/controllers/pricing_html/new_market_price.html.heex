@@ -5,6 +5,7 @@
   model = Ecto.Changeset.get_field(@changeset, :model) || ""
   year = Ecto.Changeset.get_field(@changeset, :year)
   miles = Ecto.Changeset.get_field(@changeset, :miles)
+  zipcode = Ecto.Changeset.get_field(@changeset, :zipcode) || "00000"
   vin = Ecto.Changeset.get_field(@changeset, :vin) || ""
   notes = Ecto.Changeset.get_field(@changeset, :notes) || ""
   price_type = Ecto.Changeset.get_field(@changeset, :price_type) || "listing"
@@ -158,15 +159,32 @@
           </div>
         </div>
 
-        <div class="space-y-2">
-          <label for="market_price_vin" class="block text-sm font-semibold text-zinc-800">VIN (optional)</label>
-          <input
-            type="text"
-            id="market_price_vin"
-            name="market_price[vin]"
-            value={vin}
-            class="mt-1 block w-full rounded-lg border-zinc-300 shadow-sm sm:text-sm"
-          />
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div class="space-y-2">
+            <label for="market_price_zipcode" class="block text-sm font-semibold text-zinc-800">
+              Zipcode
+            </label>
+            <input
+              type="text"
+              id="market_price_zipcode"
+              name="market_price[zipcode]"
+              value={zipcode}
+              maxlength="10"
+              inputmode="numeric"
+              class="mt-1 block w-full rounded-lg border-zinc-300 shadow-sm sm:text-sm"
+            />
+            <p class="text-xs text-zinc-500">Defaults to 00000 when blank.</p>
+          </div>
+          <div class="space-y-2">
+            <label for="market_price_vin" class="block text-sm font-semibold text-zinc-800">VIN (optional)</label>
+            <input
+              type="text"
+              id="market_price_vin"
+              name="market_price[vin]"
+              value={vin}
+              class="mt-1 block w-full rounded-lg border-zinc-300 shadow-sm sm:text-sm"
+            />
+          </div>
         </div>
 
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">

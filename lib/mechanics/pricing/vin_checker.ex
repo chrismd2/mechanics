@@ -82,7 +82,8 @@ defmodule Mechanics.Pricing.VinChecker do
            "make" => m.make,
            "model" => m.model,
            "year" => m.year,
-           "miles" => m.miles
+           "miles" => m.miles,
+           "zipcode" => m.zipcode || "00000"
          }}
 
       nil ->

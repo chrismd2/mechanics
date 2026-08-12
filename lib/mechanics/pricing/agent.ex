@@ -73,6 +73,7 @@ defmodule Mechanics.Pricing.Agent do
         model: row.model,
         year: row.year,
         miles: row.miles,
+        zipcode: row.zipcode,
         price_type: row.price_type
       }
     end)
@@ -278,6 +279,7 @@ defmodule Mechanics.Pricing.Agent do
     make = Map.get(vehicle, "make") || Map.get(vehicle, :make)
     model = Map.get(vehicle, "model") || Map.get(vehicle, :model)
     vin = Map.get(vehicle, "vin") || Map.get(vehicle, :vin)
+    zipcode = Map.get(vehicle, "zipcode") || Map.get(vehicle, :zipcode) || "00000"
 
     system = """
     You help price used vehicles using only tool results from our vehicle_market_prices database.
@@ -290,7 +292,7 @@ defmodule Mechanics.Pricing.Agent do
 
     user = """
     Suggest competitive and expected-minimum prices for:
-    make=#{make}, model=#{model}, year=#{year}, miles=#{miles}, vin=#{vin || "n/a"}
+    make=#{make}, model=#{model}, year=#{year}, miles=#{miles}, zipcode=#{zipcode}, vin=#{vin || "n/a"}
     Search around year ±1 and miles ±20% first; widen if needed.
     """
 
@@ -369,6 +371,7 @@ defmodule Mechanics.Pricing.Agent do
       "model": string|null,
       "year": integer|null,
       "miles": integer|null,
+      "zipcode": string|null,
       "price_cents": integer|null,
       "currency": string|null,
       "price_type": "listing"|"sale"|null,
@@ -376,6 +379,7 @@ defmodule Mechanics.Pricing.Agent do
       "notes": string|null
     }
     price_cents must be an integer in minor units (USD cents). Prefer "listing" for asking prices and "sale" for sold/completed transactions.
+    zipcode should be a 5-digit US ZIP when present on the page.
     Use null for unknown fields. Do not invent values that are not supported by the text.
     """
 
@@ -418,6 +422,7 @@ defmodule Mechanics.Pricing.Agent do
           "model" => blank_to_nil(Map.get(map, "model")),
           "year" => parse_optional_int(Map.get(map, "year")),
           "miles" => parse_optional_int(Map.get(map, "miles")),
+          "zipcode" => blank_to_nil(Map.get(map, "zipcode")),
           "price_cents" => parse_optional_int(Map.get(map, "price_cents")),
           "currency" => blank_to_nil(Map.get(map, "currency")) || "USD",
           "price_type" => normalize_price_type(Map.get(map, "price_type")),
