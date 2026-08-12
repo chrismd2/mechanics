@@ -28,8 +28,8 @@
   current_exponent = MechanicsWeb.Helpers.CurrencyFormatter.get_exponent(currency)
   price_step = if current_exponent == 0, do: "1", else: "0." <> String.duplicate("0", current_exponent - 1) <> "1"
   source_url_label =
-    if String.length(source_url) > 90 do
-      String.slice(source_url, 0, 90) <> "..."
+    if String.length(source_url) > 60 do
+      String.slice(source_url, 0, 60) <> "..."
     else
       source_url
     end
