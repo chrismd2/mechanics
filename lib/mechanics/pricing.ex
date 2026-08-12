@@ -96,6 +96,97 @@ defmodule Mechanics.Pricing do
     end
   end
 
+  @doc """
+  Lists similar vehicle market prices for a suggest vehicle (looser than agent seeds).
+
+  Options:
+  - `:limit` — max rows (default 3)
+  - `:exclude_ids` — market price ids to skip (e.g. dismissed on a query)
+  """
+  def list_similar_market_prices(vehicle_attrs, opts \\ []) when is_map(vehicle_attrs) and is_list(opts) do
+    attrs = stringify_keys(vehicle_attrs)
+    make = attrs |> Map.get("make") |> to_string() |> String.trim()
+    model = attrs |> Map.get("model") |> to_string() |> String.trim()
+    year = parse_year(Map.get(attrs, "year"))
+
+    limit = Keyword.get(opts, :limit, 3)
+    exclude_ids = opts |> Keyword.get(:exclude_ids, []) |> List.wrap() |> Enum.map(&to_string/1)
+
+    if make == "" or model == "" do
+      []
+    else
+      make_pattern = "%" <> make <> "%"
+      model_pattern = "%" <> model <> "%"
+
+      base =
+        from(m in VehicleMarketPrice,
+          where: ilike(m.make, ^make_pattern) and ilike(m.model, ^model_pattern),
+          order_by: [desc: m.inserted_at, desc: m.id]
+        )
+
+      base =
+        if exclude_ids == [] do
+          base
+        else
+          from(m in base, where: m.id not in ^exclude_ids)
+        end
+
+      with_year =
+        if is_integer(year) do
+          from(m in base, where: m.year >= ^(year - 2) and m.year <= ^(year + 2))
+          |> maybe_limit(limit)
+          |> Repo.all()
+        else
+          []
+        end
+
+      if with_year != [] do
+        with_year
+      else
+        base
+        |> maybe_limit(limit)
+        |> Repo.all()
+      end
+    end
+  end
+
+  @doc """
+  Appends a market price id to a query's `dismissed_similar_ids` (owner-only).
+  """
+  def dismiss_similar_market_price(%User{} = user, query_id, market_price_id)
+      when is_binary(query_id) and is_binary(market_price_id) do
+    case Repo.get_by(VehiclePriceQuery, id: query_id, user_id: user.id) do
+      %VehiclePriceQuery{} = query ->
+        ids = query.dismissed_similar_ids || []
+
+        if market_price_id in ids do
+          {:ok, query}
+        else
+          query
+          |> Ecto.Changeset.change(%{dismissed_similar_ids: ids ++ [market_price_id]})
+          |> Repo.update()
+        end
+
+      nil ->
+        {:error, :not_found}
+    end
+  end
+
+  defp maybe_limit(query, limit) when is_integer(limit) and limit > 0, do: limit(query, ^limit)
+  defp maybe_limit(query, _), do: query
+
+  defp parse_year(nil), do: nil
+  defp parse_year(0), do: nil
+  defp parse_year(year) when is_integer(year) and year > 1900, do: year
+  defp parse_year(year) when is_integer(year), do: nil
+
+  defp parse_year(year) do
+    case Mechanics.NumberParse.to_integer(year) do
+      {:ok, int} -> parse_year(int)
+      :error -> nil
+    end
+  end
+
   def change_market_price(%VehicleMarketPrice{} = market_price, attrs \\ %{}) do
     VehicleMarketPrice.changeset(market_price, attrs)
   end
@@ -318,9 +409,10 @@ defmodule Mechanics.Pricing do
     attrs =
       attrs
       |> default_blank_miles()
+      |> default_blank_year()
       |> maybe_default_zipcode()
 
-    required = ["make", "model", "year", "miles", "zipcode"]
+    required = ["make", "model", "miles", "zipcode"]
 
     missing =
       Enum.filter(required, fn key ->
@@ -331,12 +423,14 @@ defmodule Mechanics.Pricing do
     if missing != [] do
       {:error, :invalid_vehicle}
     else
+      year = normalize_optional_year(Map.get(attrs, "year"))
+
       {:ok,
        %{
          "vin" => blank_to_nil(Map.get(attrs, "vin")),
          "make" => attrs |> Map.get("make") |> to_string() |> String.trim(),
          "model" => attrs |> Map.get("model") |> to_string() |> String.trim(),
-         "year" => Mechanics.NumberParse.to_integer!(Map.get(attrs, "year")),
+         "year" => year,
          "miles" => Mechanics.NumberParse.to_integer!(Map.get(attrs, "miles")),
          "zipcode" => attrs |> Map.get("zipcode") |> to_string() |> String.trim()
        }}
@@ -349,6 +443,24 @@ defmodule Mechanics.Pricing do
     case Map.get(attrs, "miles") do
       miles when miles in [nil, ""] -> Map.put(attrs, "miles", 0)
       _ -> attrs
+    end
+  end
+
+  defp default_blank_year(attrs) do
+    case Map.get(attrs, "year") do
+      year when year in [nil, ""] -> Map.put(attrs, "year", 0)
+      _ -> attrs
+    end
+  end
+
+  # 0 means "unspecified" so make/model-only searches can persist and find similar comps.
+  defp normalize_optional_year(year) do
+    int = Mechanics.NumberParse.to_integer!(year)
+
+    cond do
+      int == 0 -> 0
+      int > 1900 and int < 2100 -> int
+      true -> raise ArgumentError, "invalid year"
     end
   end
 

@@ -94,21 +94,27 @@ defmodule Mechanics.Pricing.Agent do
   """
   def suggest(vehicle, opts \\ []) when is_map(vehicle) do
     seed_matches = seed_market_matches(vehicle)
+    year = Map.get(vehicle, "year") || Map.get(vehicle, :year)
 
-    try do
-      case LLM.chat_completion(initial_messages(vehicle), tool_definitions(), opts) do
-        {:ok, response} ->
-          run_tool_loop(response, initial_messages(vehicle), 1, opts)
-          |> finalize_suggestion(seed_matches)
+    # No year → percentile best guess from make/model comps (skip LLM).
+    if year in [nil, 0] do
+      heuristic_suggestion(seed_matches, best_guess: true)
+    else
+      try do
+        case LLM.chat_completion(initial_messages(vehicle), tool_definitions(), opts) do
+          {:ok, response} ->
+            run_tool_loop(response, initial_messages(vehicle), 1, opts)
+            |> finalize_suggestion(seed_matches)
 
-        {:error, reason} ->
-          Logger.info("Pricing agent falling back without LLM: #{inspect(reason)}")
+          {:error, reason} ->
+            Logger.info("Pricing agent falling back without LLM: #{inspect(reason)}")
+            heuristic_suggestion(seed_matches)
+        end
+      rescue
+        e ->
+          Logger.warning("Pricing agent falling back after exception: #{Exception.message(e)}")
           heuristic_suggestion(seed_matches)
       end
-    rescue
-      e ->
-        Logger.warning("Pricing agent falling back after exception: #{Exception.message(e)}")
-        heuristic_suggestion(seed_matches)
     end
   end
 
@@ -119,26 +125,33 @@ defmodule Mechanics.Pricing.Agent do
     model = Map.get(vehicle, "model") || Map.get(vehicle, :model)
     vin = blank_to_nil(Map.get(vehicle, "vin") || Map.get(vehicle, :vin))
 
-    tight =
-      Pricing.list_market_prices(%{
-        make: make,
-        model: model,
-        year_min: year - 1,
-        year_max: year + 1,
-        miles_min: trunc(miles * 0.8),
-        miles_max: trunc(miles * 1.2)
-      })
-
-    by_year =
-      if tight == [] do
-        Pricing.list_market_prices(%{
-          make: make,
-          model: model,
-          year_min: year - 1,
-          year_max: year + 1
-        })
+    by_make_model =
+      if year in [nil, 0] do
+        Pricing.list_similar_market_prices(
+          %{"make" => make, "model" => model},
+          limit: 50
+        )
       else
-        tight
+        tight =
+          Pricing.list_market_prices(%{
+            make: make,
+            model: model,
+            year_min: year - 1,
+            year_max: year + 1,
+            miles_min: trunc(miles * 0.8),
+            miles_max: trunc(miles * 1.2)
+          })
+
+        if tight == [] do
+          Pricing.list_market_prices(%{
+            make: make,
+            model: model,
+            year_min: year - 1,
+            year_max: year + 1
+          })
+        else
+          tight
+        end
       end
 
     by_vin =
@@ -148,7 +161,7 @@ defmodule Mechanics.Pricing.Agent do
         []
       end
 
-    (by_year ++ by_vin)
+    (by_make_model ++ by_vin)
     |> Enum.uniq_by(& &1.id)
   end
 
@@ -229,7 +242,9 @@ defmodule Mechanics.Pricing.Agent do
 
   defp usable_agent_summary?(_), do: false
 
-  defp heuristic_suggestion([]),
+  defp heuristic_suggestion(matches, opts \\ [])
+
+  defp heuristic_suggestion([], _opts),
     do: %{
       competitive_cents: nil,
       minimum_cents: nil,
@@ -238,17 +253,24 @@ defmodule Mechanics.Pricing.Agent do
       currency: "USD"
     }
 
-  defp heuristic_suggestion(matches) do
+  defp heuristic_suggestion(matches, opts) do
     prices =
       matches
       |> Enum.map(& &1.price_cents)
       |> Enum.sort()
 
+    summary =
+      if Keyword.get(opts, :best_guess, false) do
+        "Best guess from #{length(prices)} matching vehicle market prices (year not specified)."
+      else
+        "Suggested from #{length(prices)} matching vehicle market prices."
+      end
+
     %{
       competitive_cents: percentile(prices, 0.5),
       minimum_cents: percentile(prices, 0.1),
       match_count: length(prices),
-      summary: "Suggested from #{length(prices)} matching vehicle market prices.",
+      summary: summary,
       currency: "USD"
     }
   end

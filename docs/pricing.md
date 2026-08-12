@@ -24,6 +24,7 @@ Valid roles also remain `mechanic` and `customer`. A user may hold `pricing_user
 | DELETE | `/pricing/queries/:id` | Dismiss (delete) a recent suggestion query owned by the user |
 | POST | `/pricing/from-vin` | Check VIN; suggest when complete, otherwise open the manual form |
 | POST | `/pricing/suggest` | Run suggestion from the manual form or a recent-search re-run; show result and persist query |
+| POST | `/pricing/queries/:id/similar/:market_price_id/dismiss` | Dismiss a similar market-price row on a nil-suggestion result; refill top 3 |
 
 Signed-in users open these from the header **Tools** drawer (pricing links only when the user has `pricing_user`).
 
@@ -67,13 +68,22 @@ VIN-first flow (mirrors market-price URL entry):
 | Field | Required | Notes |
 |-------|----------|-------|
 | `vin` | for VIN step | 17-character VIN |
-| `make` | yes (manual / ready) | |
-| `model` | yes | |
-| `year` | yes | |
-| `miles` | yes | defaults to `0` when blank on VIN or suggest |
+| `make` | yes (manual / ready) | used as suggest / similar search input (case-insensitive) |
+| `model` | yes | used as suggest / similar search input (case-insensitive) |
+| `year` | no | blank → `0` (unspecified); when unset, suggestion is a **best guess** from make/model comps (no LLM); when set, seeds/similar prefer nearby years |
+| `miles` | no | defaults to `0` when blank on VIN or suggest |
 | `zipcode` | yes | defaults to `00000` when blank |
 
 Every successful suggest attempt is stored in `vehicle_price_queries` for the current user (even when suggestions are nil / insufficient data), including suggested competitive and expected-minimum cents when available, match count, and a short agent summary when present. The same user + vehicle (make, model, year, miles, VIN, zipcode) updates the existing row instead of creating a duplicate.
+
+### Similar market prices (when no price suggestion)
+
+When **both** competitive and expected-minimum are nil, **or** when year was unspecified (best-guess search), the suggestion result lists matching comps:
+
+- Nil prices: “I can't suggest a price, but here are some that are similar.”
+- Best guess (no year): “Matching market prices (by year):” under the aggregated best-guess competitive/minimum
+
+It lists the **top 3** similar rows from `vehicle_market_prices` (make/model case-insensitive contains; prefer year ±2 when year is set, otherwise any year; no miles band). Each row shows **year**, make, model, miles, and price, and has **Dismiss** (`POST /pricing/queries/:id/similar/:market_price_id/dismiss`). Dismissed ids are stored on that query as `dismissed_similar_ids`; the list refills from the next similar match so up to three remain until the pool is exhausted. Re-running suggest for the same vehicle keeps prior dismissals.
 
 ## Recent searches
 
@@ -120,11 +130,12 @@ The agent should use sales for floor / expected-minimum context and listings for
 
 Before (and alongside) tool calling, the agent seeds comps from `vehicle_market_prices`:
 
-1. Same make/model, year ±1, miles ±20%
-2. If that band is empty, widen by dropping the miles filter (still make/model, year ±1)
-3. If a VIN is present, also include any rows with that VIN (any miles)
+1. If year is unspecified (`0` / blank): make/model **contains** match (up to 50 rows) → percentile **best guess** (skip LLM); summary notes year was not specified
+2. Otherwise: same make/model, year ±1, miles ±20%
+3. If that band is empty, widen by dropping the miles filter (still make/model, year ±1)
+4. If a VIN is present, also include any rows with that VIN (any miles)
 
-This matters when VIN decode fills make/model/year but the user’s miles differ from stored comps, and when the LLM is unavailable so the heuristic fallback must use those seeds.
+This matters when VIN decode fills make/model/year but the user’s miles differ from stored comps, when the user searches make/model only, and when the LLM is unavailable so the heuristic fallback must use those seeds.
 
 ## Context API (for tests / seeds)
 
@@ -134,7 +145,9 @@ This matters when VIN decode fills make/model/year but the user’s miles differ
 - `Pricing.get_market_price_by_source_url/1` — find an existing row by URL
 - `Pricing.list_market_prices/1` — filter/search (backing `search_vehicle_market_prices`; supports `vin` as well as make/model/year/miles; no per-user ownership filter)
 - `Pricing.get_market_price_details/1` — details for ids (backing `get_vehicle_market_price_details`)
-- `Pricing.suggest_prices/2` — run agent for a user + vehicle attrs; upsert `vehicle_price_query` (no duplicates per user/vehicle)
+- `Pricing.suggest_prices/2` — run agent for a user + vehicle attrs; upsert `vehicle_price_query` (no duplicates per user/vehicle; preserves `dismissed_similar_ids`)
+- `Pricing.list_similar_market_prices/2` — looser comps for nil-suggestion UI (`limit:`, `exclude_ids:`)
+- `Pricing.dismiss_similar_market_price/3` — append a market-price id to a query’s `dismissed_similar_ids` (owner-only)
 - `Pricing.list_queries/2` — list a user’s queries (`limit:`, `filters:` with `q` / make / model / year / vin)
 - `Pricing.delete_query/2` — dismiss a query owned by the user
 - `Accounts.add_pricing_user_role/1` — grant role

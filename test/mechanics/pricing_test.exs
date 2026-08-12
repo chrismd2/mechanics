@@ -447,6 +447,37 @@ defmodule Mechanics.PricingTest do
       assert query.miles == 0
     end
 
+    test "accepts make and model only (blank year and miles)" do
+      user = pricing_user!()
+
+      {:ok, f750} =
+        Pricing.create_market_price(user, %{
+          "make" => "Ford",
+          "model" => "F750",
+          "year" => 2015,
+          "miles" => 179_473,
+          "price_cents" => 6_300_000,
+          "price_type" => "sale",
+          "source_url" => url!("f750-make-model-only")
+        })
+
+      assert {:ok, query} =
+               Pricing.suggest_prices(user, %{
+                 "make" => "ford",
+                 "model" => "f750",
+                 "year" => "",
+                 "miles" => ""
+               })
+
+      assert query.year == 0
+      assert query.miles == 0
+      assert query.match_count >= 1
+      assert query.suggested_competitive_cents == f750.price_cents
+      assert query.suggested_minimum_cents == f750.price_cents
+      assert query.agent_summary =~ "Best guess"
+      assert query.agent_summary =~ "year not specified"
+    end
+
     test "defaults blank zipcode to 00000 on suggest" do
       user = pricing_user!()
 
@@ -629,6 +660,146 @@ defmodule Mechanics.PricingTest do
 
       assert {:error, :not_found} = Pricing.delete_query(other, query.id)
       assert length(Pricing.list_queries(owner)) == 1
+    end
+  end
+
+  describe "list_similar_market_prices/2" do
+    test "finds Ford F750 with lowercase ford/f750 and mismatched miles" do
+      user = pricing_user!()
+
+      {:ok, f750} =
+        Pricing.create_market_price(user, %{
+          "make" => "Ford",
+          "model" => "F750",
+          "year" => 2015,
+          "miles" => 179_473,
+          "price_cents" => 6_300_000,
+          "price_type" => "sale",
+          "vin" => "3FRWF7FC1FV747306",
+          "source_url" => url!("f750-sale")
+        })
+
+      similar =
+        Pricing.list_similar_market_prices(%{
+          "make" => "ford",
+          "model" => "f750",
+          "year" => 2015,
+          "miles" => 10_000
+        })
+
+      assert Enum.any?(similar, &(&1.id == f750.id))
+    end
+
+    test "returns at most 3 and skips exclude_ids so the next rows refill" do
+      user = pricing_user!()
+
+      rows =
+        for n <- 1..5 do
+          {:ok, row} =
+            Pricing.create_market_price(user, %{
+              "make" => "Ford",
+              "model" => "F750",
+              "year" => 2015,
+              "miles" => 100_000 + n,
+              "price_cents" => 5_000_000 + n * 1000,
+              "price_type" => "sale",
+              "source_url" => url!("f750-#{n}")
+            })
+
+          # Ensure deterministic newest-first by bumping inserted_at
+          {:ok, row} =
+            row
+            |> Ecto.Changeset.change(%{
+              inserted_at: DateTime.add(DateTime.utc_now(), n, :second) |> DateTime.truncate(:second)
+            })
+            |> Mechanics.Repo.update()
+
+          row
+        end
+
+      # Newest first: n=5,4,3,2,1
+      top = Pricing.list_similar_market_prices(%{"make" => "Ford", "model" => "F750", "year" => 2015})
+      assert length(top) == 3
+      top_ids = Enum.map(top, & &1.id)
+      assert hd(top_ids) == Enum.at(rows, 4).id
+
+      exclude = Enum.take(top_ids, 1)
+
+      next =
+        Pricing.list_similar_market_prices(
+          %{"make" => "Ford", "model" => "F750", "year" => 2015},
+          exclude_ids: exclude
+        )
+
+      assert length(next) == 3
+      refute Enum.at(rows, 4).id in Enum.map(next, & &1.id)
+      assert Enum.at(rows, 1).id in Enum.map(next, & &1.id)
+    end
+
+    test "widens past year band when needed" do
+      user = pricing_user!()
+
+      {:ok, f750} =
+        Pricing.create_market_price(user, %{
+          "make" => "Ford",
+          "model" => "F750",
+          "year" => 2015,
+          "miles" => 179_473,
+          "price_cents" => 6_300_000,
+          "price_type" => "sale",
+          "source_url" => url!("f750-widen")
+        })
+
+      similar =
+        Pricing.list_similar_market_prices(%{
+          "make" => "ford",
+          "model" => "f750",
+          "year" => 2020
+        })
+
+      assert Enum.any?(similar, &(&1.id == f750.id))
+    end
+  end
+
+  describe "dismiss_similar_market_price/3" do
+    test "appends id and preserves dismissals across suggest re-run" do
+      user = pricing_user!()
+
+      {:ok, market} =
+        Pricing.create_market_price(user, %{
+          "make" => "RareMake",
+          "model" => "RareModel",
+          "year" => 1999,
+          "miles" => 1,
+          "price_cents" => 100_000,
+          "price_type" => "listing",
+          "source_url" => url!("rare-dismiss")
+        })
+
+      # Year far from market so agent seeds miss; suggestions nil
+      assert {:ok, query} =
+               Pricing.suggest_prices(user, %{
+                 "make" => "RareMake",
+                 "model" => "RareModel",
+                 "year" => 2010,
+                 "miles" => 50_000
+               })
+
+      assert is_nil(query.suggested_competitive_cents)
+
+      assert {:ok, updated} = Pricing.dismiss_similar_market_price(user, query.id, market.id)
+      assert market.id in updated.dismissed_similar_ids
+
+      assert {:ok, rerun} =
+               Pricing.suggest_prices(user, %{
+                 "make" => "RareMake",
+                 "model" => "RareModel",
+                 "year" => 2010,
+                 "miles" => 50_000
+               })
+
+      assert rerun.id == query.id
+      assert market.id in rerun.dismissed_similar_ids
     end
   end
 end

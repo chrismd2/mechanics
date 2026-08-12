@@ -1,5 +1,21 @@
 # Changelog
 
+## 2026-08-12 — pricing-best-guess-list-years
+
+- On make/model best-guess (no year), list matching market prices with their years under the aggregated suggestion
+
+## 2026-08-12 — pricing-best-guess-without-year
+
+- With no year, suggest a labeled best-guess price from make/model comps (skip LLM)
+
+## 2026-08-12 — pricing-suggest-optional-year-miles
+
+- Allow suggest with make/model only (blank year → unspecified `0`, blank miles → `0`); form fields drive seed/similar search
+
+## 2026-08-12 — pricing-similar-comps-dismiss
+
+- When competitive and expected-minimum are both nil, show top 3 similar market prices with Dismiss; refill from the next match
+
 ## 2026-08-12 — pricing-llm-heuristic-fallback
 
 - Fall back to seed-comp heuristic when the pricing LLM key is missing/invalid, HTTP fails, or the client raises; keep human summaries (no raw JSON under Suggestion)

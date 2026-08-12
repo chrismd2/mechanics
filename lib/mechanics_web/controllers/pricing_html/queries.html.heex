@@ -111,7 +111,7 @@
           <li class="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
             <div class="min-w-0 space-y-1">
               <p class="text-sm font-semibold text-zinc-900">
-                <%= query.year %> <%= query.make %> <%= query.model %>
+                <%= if query.year not in [nil, 0] do %><%= query.year %> <% end %><%= query.make %> <%= query.model %>
               </p>
               <p class="pl-3 text-xs text-zinc-500">
                 <%= MechanicsWeb.Helpers.CurrencyFormatter.format_integer(query.miles) %> miles
@@ -150,7 +150,7 @@
                 <input type="hidden" name="vehicle[vin]" value={query.vin || ""} />
                 <input type="hidden" name="vehicle[make]" value={query.make} />
                 <input type="hidden" name="vehicle[model]" value={query.model} />
-                <input type="hidden" name="vehicle[year]" value={query.year} />
+                <input type="hidden" name="vehicle[year]" value={if query.year in [nil, 0], do: "", else: query.year} />
                 <input type="hidden" name="vehicle[miles]" value={query.miles} />
                 <input type="hidden" name="vehicle[zipcode]" value={query.zipcode || "00000"} />
                 <button

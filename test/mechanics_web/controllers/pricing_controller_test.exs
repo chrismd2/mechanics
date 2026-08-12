@@ -511,6 +511,79 @@ defmodule MechanicsWeb.PricingControllerTest do
       assert hd(queries).make == "Honda"
     end
 
+    test "accepts make and model only without year or miles" do
+      {:ok, conn: conn, user: user} = create_pricing_user(conn)
+
+      {:ok, _} =
+        Pricing.create_market_price(user, %{
+          "make" => "Ford",
+          "model" => "F750",
+          "year" => 2015,
+          "miles" => 179_473,
+          "price_cents" => 6_300_000,
+          "price_type" => "sale",
+          "source_url" => "https://example.com/f750-only-#{System.unique_integer([:positive])}"
+        })
+
+      conn =
+        post(conn, "/pricing/suggest", %{
+          "vehicle" => %{
+            "make" => "ford",
+            "model" => "f750",
+            "year" => "",
+            "miles" => "",
+            "vin" => "",
+            "zipcode" => ""
+          }
+        })
+
+      html = html_response(conn, 200)
+      refute html =~ "Enter make and model"
+      assert html =~ "Best guess"
+      assert html =~ "$63,000"
+      assert length(Pricing.list_queries(user)) == 1
+      assert hd(Pricing.list_queries(user)).year == 0
+    end
+
+    test "best guess without year lists matching comps with their years" do
+      {:ok, conn: conn, user: user} = create_pricing_user(conn)
+
+      for {year, miles, cents, label} <- [
+            {2000, 104_410, 450_000, "2000"},
+            {2008, 149_092, 425_000, "2008"}
+          ] do
+        {:ok, _} =
+          Pricing.create_market_price(user, %{
+            "make" => "Ford",
+            "model" => "F450",
+            "year" => year,
+            "miles" => miles,
+            "price_cents" => cents,
+            "price_type" => "sale",
+            "source_url" => "https://example.com/f450-#{label}-#{System.unique_integer([:positive])}"
+          })
+      end
+
+      conn =
+        post(conn, "/pricing/suggest", %{
+          "vehicle" => %{
+            "make" => "ford",
+            "model" => "f450",
+            "year" => "",
+            "miles" => "",
+            "zipcode" => "00000"
+          }
+        })
+
+      html = html_response(conn, 200)
+      assert html =~ "Best guess"
+      assert html =~ "Matching market prices (by year)"
+      assert html =~ "2000 Ford F450"
+      assert html =~ "2008 Ford F450"
+      assert html =~ "$4,500.00"
+      assert html =~ "$4,250.00"
+    end
+
     test "re-running a recent search updates the existing query", %{conn: conn} do
       {:ok, conn: conn, user: user} = create_pricing_user(conn)
 
@@ -539,6 +612,95 @@ defmodule MechanicsWeb.PricingControllerTest do
       queries = Pricing.list_queries(user)
       assert length(queries) == 1
       assert hd(queries).id == original.id
+    end
+
+    test "shows similar market prices when suggestion prices are nil" do
+      {:ok, conn: conn, user: user} = create_pricing_user(conn)
+
+      {:ok, _} =
+        Pricing.create_market_price(user, %{
+          "make" => "Ford",
+          "model" => "F750",
+          "year" => 2015,
+          "miles" => 179_473,
+          "price_cents" => 6_300_000,
+          "price_type" => "sale",
+          "source_url" => "https://example.com/f750-#{System.unique_integer([:positive])}"
+        })
+
+      # Year far from 2015 so seed comps miss; similar list still finds make/model
+      conn =
+        post(conn, "/pricing/suggest", %{
+          "vehicle" => %{
+            "make" => "ford",
+            "model" => "f750",
+            "year" => "2020",
+            "miles" => "10000",
+            "vin" => "",
+            "zipcode" => "00000"
+          }
+        })
+
+      html = html_response(conn, 200)
+      assert html =~ "I can't suggest a price, but here are some that are similar"
+      assert html =~ "F750"
+      assert html =~ "$63,000.00"
+      assert html =~ "Dismiss"
+      assert Floki.find(Floki.parse_document!(html), "#similar-market-prices") != []
+    end
+
+    test "dismissing a similar market price refills from the next match" do
+      {:ok, conn: conn, user: user} = create_pricing_user(conn)
+
+      rows =
+        for n <- 1..4 do
+          {:ok, row} =
+            Pricing.create_market_price(user, %{
+              "make" => "Ford",
+              "model" => "F750",
+              "year" => 2015,
+              "miles" => 100_000 + n,
+              "price_cents" => 6_000_000 + n * 10_000,
+              "price_type" => "sale",
+              "source_url" => "https://example.com/f750-dismiss-#{n}-#{System.unique_integer([:positive])}"
+            })
+
+          {:ok, row} =
+            row
+            |> Ecto.Changeset.change(%{
+              inserted_at: DateTime.add(DateTime.utc_now(), n, :second) |> DateTime.truncate(:second)
+            })
+            |> Mechanics.Repo.update()
+
+          row
+        end
+
+      conn =
+        post(conn, "/pricing/suggest", %{
+          "vehicle" => %{
+            "make" => "ford",
+            "model" => "f750",
+            "year" => "2020",
+            "miles" => "10000",
+            "zipcode" => "00000"
+          }
+        })
+
+      html = html_response(conn, 200)
+      query = hd(Pricing.list_queries(user))
+      first_id = Enum.at(rows, 3).id
+      fourth_id = Enum.at(rows, 0).id
+
+      assert html =~ first_id
+      refute html =~ fourth_id
+
+      conn =
+        post(conn, "/pricing/queries/#{query.id}/similar/#{first_id}/dismiss")
+
+      html = html_response(conn, 200)
+      refute html =~ first_id
+      assert html =~ fourth_id
+      assert html =~ "I can't suggest a price, but here are some that are similar"
     end
   end
 end
