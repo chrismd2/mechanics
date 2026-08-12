@@ -1,8 +1,12 @@
 # Changelog
 
+## 2026-08-12 — pricing-llm-provider-agnostic
+
+- Read pricing LLM credentials from `PRICING_LLM_API_KEY` / `PRICING_LLM_MODEL` / `PRICING_LLM_BASE_URL` (OpenAI-compatible; no Groq-named env)
+
 ## 2026-08-12 — pricing-llm-docker-env
 
-- Document pricing LLM env vars (`GROQ_API_KEY`, optional model/base URL) and Docker wiring
+- Document pricing LLM env vars and Docker wiring
 
 ## 2026-08-11 — ci-deploy-pull-branch
 

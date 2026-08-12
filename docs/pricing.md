@@ -91,15 +91,19 @@ The agent uses local tool calling against `vehicle_market_prices`. Provider cred
 
 ### LLM environment
 
+The client talks to any **OpenAI-compatible** `/chat/completions` host. Provider is chosen only by these env vars (or equivalent opts in tests):
+
 | Variable | Required | Default | Notes |
 |----------|----------|---------|-------|
-| `GROQ_API_KEY` | yes (for LLM) | — | Without it, suggest/extract fall back to heuristics / manual form |
-| `GROQ_MODEL` | no | `llama-3.3-70b-versatile` | Any model the provider supports with tool calling |
-| `PRICING_LLM_BASE_URL` | no | `https://api.groq.com/openai/v1` | OpenAI-compatible chat-completions base URL |
+| `PRICING_LLM_API_KEY` | yes (for LLM) | — | Without it, suggest/extract fall back to heuristics / manual form |
+| `PRICING_LLM_MODEL` | no | `llama-3.3-70b-versatile` | Model id for the chosen provider (must support tool calling for suggestions) |
+| `PRICING_LLM_BASE_URL` | no | `https://api.groq.com/openai/v1` | Base URL ending before `/chat/completions` |
 
-**Local Docker** (`christenson_server_host`): set `GROQ_API_KEY` in `.env-local-docker` (compose `--env-file`). The `mechanics` service passes it through in `docker-compose.yml`. Recreate the container after changing the key (`make down mechanics` then `make up mechanics`, or equivalent).
+Examples: Groq (`https://api.groq.com/openai/v1`), OpenAI (`https://api.openai.com/v1`), or any other compatible gateway — set key, model, and base URL together.
 
-**Prod**: set `GROQ_API_KEY` in the host env file used for compose, then recreate `mechanics` the same way.
+**Local Docker** (`christenson_server_host`): set `PRICING_LLM_API_KEY` (and optionally model/base URL) in `.env-local-docker` (compose `--env-file`). The `mechanics` service passes them through in `docker-compose.yml`. Recreate the container after changing env (`make down mechanics` then `make up mechanics`, or equivalent).
+
+**Prod**: set the same `PRICING_LLM_*` vars in the host env file used for compose, then recreate `mechanics`.
 
 ### Tools
 

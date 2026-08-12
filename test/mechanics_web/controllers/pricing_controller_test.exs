@@ -66,7 +66,7 @@ defmodule MechanicsWeb.PricingControllerTest do
       {:ok, conn: conn, user: _user} = create_pricing_user(conn)
       source_url = "https://example.com/needs-form-#{System.unique_integer([:positive])}"
 
-      # Without GROQ_API_KEY / fetchable page, import falls back to needs_form.
+      # Without PRICING_LLM_API_KEY / fetchable page, import falls back to needs_form.
       conn =
         post(conn, "/pricing/market-prices/from-url", %{
           "market_price" => %{"source_url" => source_url}
