@@ -253,4 +253,151 @@ defmodule Mechanics.Pricing.AgentTest do
     assert result.match_count >= 1
     assert result.summary =~ "Suggested from"
   end
+
+  describe "extract_listing_from_url/2 BidWrangler" do
+    test "fetches /api/items/:id only and maps sold item without LLM" do
+      ui = "https://bid.sextonauctioneers.com/ui/auctions/154363/23926836"
+      item_api = "https://bid.sextonauctioneers.com/api/items/23926836"
+
+      item_json =
+        Jason.encode!(%{
+          "id" => 23_926_836,
+          "name" => "2008 Victory Kingpin 8-Ball Motorcycle",
+          "vin" => "5VPPB26D883006543",
+          "status" => "sold",
+          "currency_name" => "USD",
+          "simple_id" => "#24221",
+          "lot_identifier" => "24221",
+          "auction_name" => "Sexton Auction",
+          "description_without_html" =>
+            "Item Location: Pomona, MO 65789 Year: 2008 Make: Victory Model: Kingpin 8-Ball Mileage:47,040",
+          "api_bidding_state" => %{
+            "closing_bid" => %{"amount" => 3850},
+            "high" => %{"amount" => 3850}
+          },
+          "images" => List.duplicate(%{"url" => "x"}, 20)
+        })
+
+      http_get = fn url ->
+        refute String.contains?(url, "/api/auctions/")
+        assert url == item_api
+        {:ok, item_json}
+      end
+
+      assert {:ok, attrs} =
+               Agent.extract_listing_from_url(ui,
+                 http_get: http_get,
+                 api_key: "should-not-be-used",
+                 http_client: fn _, _, _ -> flunk("LLM should not run when attrs are complete") end
+               )
+
+      assert attrs["make"] == "Victory"
+      assert attrs["model"] == "Kingpin 8-Ball"
+      assert attrs["year"] == 2008
+      assert attrs["miles"] == 47_040
+      assert attrs["price_cents"] == 385_000
+      assert attrs["price_type"] == "sale"
+      assert attrs["vin"] == "5VPPB26D883006543"
+      assert attrs["zipcode"] == "65789"
+    end
+
+    test "falls back to LLM on compact summary when required fields are missing" do
+      ui = "https://bid.example.com/ui/auctions/1/2"
+      item_api = "https://bid.example.com/api/items/2"
+
+      item_json =
+        Jason.encode!(%{
+          "id" => 2,
+          "name" => "Mystery Lot",
+          "status" => "preview",
+          "currency_name" => "USD",
+          "description_without_html" => "No labeled vehicle fields here",
+          "images" => List.duplicate(%{}, 10)
+        })
+
+      http_get = fn url ->
+        refute String.contains?(url, "/api/auctions/")
+        assert url == item_api
+        {:ok, item_json}
+      end
+
+      http_client = fn _url, _headers, body ->
+        decoded = Jason.decode!(body)
+        user = Enum.find(decoded["messages"], &(&1["role"] == "user"))
+        content = user["content"]
+        refute content =~ "images"
+        assert content =~ "Mystery Lot"
+
+        {:ok,
+         %{
+           status: 200,
+           body:
+             Jason.encode!(%{
+               "choices" => [
+                 %{
+                   "message" => %{
+                     "content" =>
+                       ~s({"make":"Ford","model":"F-150","year":2018,"miles":50000,"price_cents":1500000,"currency":"USD","price_type":"listing","vin":null,"notes":null,"zipcode":null})
+                   }
+                 }
+               ]
+             })
+         }}
+      end
+
+      assert {:ok, attrs} =
+               Agent.extract_listing_from_url(ui,
+                 http_get: http_get,
+                 api_key: "test-key",
+                 http_client: http_client
+               )
+
+      assert attrs["make"] == "Ford"
+      assert attrs["model"] == "F-150"
+      assert attrs["year"] == 2018
+      assert attrs["miles"] == 50_000
+      assert attrs["price_cents"] == 1_500_000
+    end
+  end
+
+  describe "page_text_from_html/1" do
+    test "keeps Open Graph title and description for JS-rendered auction shells" do
+      html = """
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>Sexton Auctioneers, LLC</title>
+          <meta property="og:title" content="2008 Victory Kingpin 8-Ball Motorcycle"/>
+          <meta property="og:description" content="Year: 2008 Make: Victory Model: Kingpin 8-Ball Mileage:47,040 VIN #: 5VPPB26D883006543"/>
+        </head>
+        <body>
+          <div id="root"></div>
+          <script>window.app = {}</script>
+        </body>
+      </html>
+      """
+
+      text = Agent.page_text_from_html(html)
+
+      assert text =~ "2008 Victory Kingpin 8-Ball Motorcycle"
+      assert text =~ "Make: Victory"
+      assert text =~ "Kingpin 8-Ball"
+      assert text =~ "47,040"
+      assert text =~ "5VPPB26D883006543"
+      refute text =~ "<script"
+      refute text =~ "window.app"
+    end
+
+    test "still includes visible body text when present" do
+      html = """
+      <html><body><h1>2019 Toyota Camry</h1><p>Miles: 40000 Asking $19,000</p></body></html>
+      """
+
+      text = Agent.page_text_from_html(html)
+
+      assert text =~ "2019 Toyota Camry"
+      assert text =~ "40000"
+      assert text =~ "19,000"
+    end
+  end
 end

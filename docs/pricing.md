@@ -34,9 +34,13 @@ Signed-in users open these from the header **Tools** drawer (pricing links only 
 
 1. Submit a listing/sale **URL**.
 2. If that `source_url` already exists, fail with an error flash and stay on the URL entry view (no duplicate, no manual form).
-3. Otherwise fetch the page and ask the pricing agent to extract vehicle fields.
+3. Otherwise extract vehicle fields from the URL:
+   - **BidWrangler item UI** (`/ui/auctions/:auction_id/:item_id`, e.g. Sexton): fetch **only** `{origin}/api/items/:item_id`, map fields deterministically (vin, sold/closing bid, labeled Year/Make/Model/Mileage in the description). Never call `/api/auctions/:auction_id` (multi‑MB catalog). If required fields are still missing, run the LLM on a **compact** text summary (no images / schedules / full JSON).
+   - **Other URLs**: fetch HTML, turn it into text (visible body **plus** Open Graph / meta title and description for JS shells), then ask the LLM to extract.
 4. If extraction is complete, save immediately.
 5. If not, show a warning flash and the manual form (prefilled when possible) and save after review.
+
+Local Docker stores market prices in the **`mechanics`** Postgres database (`docker-compose.yml` sets `DATABASE_URL=.../mechanics`), not `electricquestlog`.
 
 Each row is one observed asking price or sold price for a vehicle. **`source_url` is always stored.**
 
@@ -143,7 +147,8 @@ This matters when VIN decode fills make/model/year but the user’s miles differ
 ## Context API (for tests / seeds)
 
 - `Pricing.create_market_price/2` — create a shared listing/sale market price (`pricing_user` gates the controller; row has no owner)
-- `Pricing.import_market_price_from_url/2` — URL lookup → agent extract → save or `{:needs_form, attrs}`
+- `Pricing.import_market_price_from_url/2` — URL lookup → agent extract (BidWrangler item API or HTML+LLM) → save or `{:needs_form, attrs}`
+- `Pricing.BidWrangler` — parse `/ui/auctions/:auction_id/:item_id`, map `/api/items/:id` JSON to attrs, compact LLM summary
 - `Pricing.lookup_vehicle_from_vin/2` — VIN check → `{:ok, :ready, attrs}` or `{:needs_form, attrs}` (blank miles → `0`)
 - `Pricing.get_market_price_by_source_url/1` — find an existing row by URL
 - `Pricing.list_market_prices/1` — filter/search (backing `search_vehicle_market_prices`; supports `vin` as well as make/model/year/miles; no per-user ownership filter)

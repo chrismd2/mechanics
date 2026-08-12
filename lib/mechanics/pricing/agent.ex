@@ -7,6 +7,7 @@ defmodule Mechanics.Pricing.Agent do
   require Logger
 
   alias Mechanics.Pricing
+  alias Mechanics.Pricing.BidWrangler
   alias Mechanics.Pricing.LLM
 
   @max_rounds 5
@@ -381,9 +382,63 @@ defmodule Mechanics.Pricing.Agent do
   @doc """
   Fetches a listing/sale page and asks the LLM to extract vehicle market price fields.
 
+  BidWrangler UI item URLs (`/ui/auctions/:auction_id/:item_id`) use `{origin}/api/items/:item_id`
+  with deterministic mapping (LLM only if required fields are still missing).
+
   Returns `{:ok, attrs_map}` with string keys (may be partial), or `{:error, reason}`.
   """
   def extract_listing_from_url(url, opts \\ []) when is_binary(url) do
+    case BidWrangler.parse_item_ui_url(url) do
+      {:ok, parsed} ->
+        extract_bidwrangler_item(url, parsed, opts)
+
+      :error ->
+        extract_from_html_page(url, opts)
+    end
+  end
+
+  defp extract_bidwrangler_item(url, %{origin: origin, item_id: item_id}, opts) do
+    http_get = Keyword.get(opts, :http_get, &default_http_get/1)
+    api_url = "#{origin}/api/items/#{item_id}"
+
+    case http_get.(api_url) do
+      {:ok, body} ->
+        case Jason.decode(body) do
+          {:ok, item} when is_map(item) ->
+            attrs = BidWrangler.attrs_from_item(item)
+
+            if BidWrangler.complete_extract_attrs?(attrs) do
+              {:ok, attrs}
+            else
+              summary = BidWrangler.compact_summary(item)
+              llm_extract_or_attrs(url, summary, attrs, opts)
+            end
+
+          _ ->
+            {:error, :invalid_item_json}
+        end
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  defp llm_extract_or_attrs(url, page_text, attrs, opts) do
+    case LLM.chat_completion(extract_messages(url, page_text), [], opts) do
+      {:ok, response} ->
+        content = get_in(response, ["choices", Access.at(0), "message", "content"]) || ""
+
+        case parse_extracted_listing(content) do
+          {:ok, llm_attrs} -> {:ok, Map.merge(attrs, llm_attrs)}
+          {:error, _} -> {:ok, attrs}
+        end
+
+      {:error, _} ->
+        {:ok, attrs}
+    end
+  end
+
+  defp extract_from_html_page(url, opts) do
     fetch = Keyword.get(opts, :fetch, &fetch_page_text/1)
 
     with {:ok, page_text} <- fetch.(url),
@@ -391,6 +446,24 @@ defmodule Mechanics.Pricing.Agent do
            LLM.chat_completion(extract_messages(url, page_text), [], opts) do
       content = get_in(response, ["choices", Access.at(0), "message", "content"]) || ""
       parse_extracted_listing(content)
+    end
+  end
+
+  defp default_http_get(url) do
+    headers = [
+      {"Accept", "application/json"},
+      {"User-Agent", "MechanicsPricingBot/1.0"}
+    ]
+
+    case Finch.build(:get, url, headers) |> Finch.request(Mechanics.Finch, receive_timeout: 15_000) do
+      {:ok, %{status: status, body: body}} when status in 200..299 ->
+        {:ok, body}
+
+      {:ok, %{status: status}} ->
+        {:error, {:http_error, status}}
+
+      {:error, reason} ->
+        {:error, reason}
     end
   end
 
@@ -402,7 +475,7 @@ defmodule Mechanics.Pricing.Agent do
 
     case Finch.build(:get, url, headers) |> Finch.request(Mechanics.Finch, receive_timeout: 15_000) do
       {:ok, %{status: status, body: body}} when status in 200..299 ->
-        {:ok, html_to_text(body)}
+        {:ok, page_text_from_html(body)}
 
       {:ok, %{status: status}} ->
         {:error, {:http_error, status}}
@@ -412,14 +485,59 @@ defmodule Mechanics.Pricing.Agent do
     end
   end
 
-  defp html_to_text(body) when is_binary(body) do
-    body
-    |> String.replace(~r/<script[\s\S]*?<\/script>/i, " ")
-    |> String.replace(~r/<style[\s\S]*?<\/style>/i, " ")
-    |> String.replace(~r/<[^>]+>/, " ")
+  @doc """
+  Convert fetched HTML into plain text for listing extraction.
+
+  Keeps Open Graph / meta title and description (and the document title) in addition
+  to stripped body text so JS-rendered auction pages still yield vehicle details.
+  """
+  def page_text_from_html(body) when is_binary(body) do
+    meta_bits =
+      []
+      |> maybe_append_meta(body, ~r/<meta[^>]+property=["']og:title["'][^>]*content=["']([^"']*)["'][^>]*>/i)
+      |> maybe_append_meta(body, ~r/<meta[^>]+content=["']([^"']*)["'][^>]*property=["']og:title["'][^>]*>/i)
+      |> maybe_append_meta(body, ~r/<meta[^>]+property=["']og:description["'][^>]*content=["']([^"']*)["'][^>]*>/i)
+      |> maybe_append_meta(body, ~r/<meta[^>]+content=["']([^"']*)["'][^>]*property=["']og:description["'][^>]*>/i)
+      |> maybe_append_meta(body, ~r/<meta[^>]+name=["']description["'][^>]*content=["']([^"']*)["'][^>]*>/i)
+      |> maybe_append_meta(body, ~r/<meta[^>]+content=["']([^"']*)["'][^>]*name=["']description["'][^>]*>/i)
+      |> maybe_append_title(body)
+
+    body_text =
+      body
+      |> String.replace(~r/<script[\s\S]*?<\/script>/i, " ")
+      |> String.replace(~r/<style[\s\S]*?<\/style>/i, " ")
+      |> String.replace(~r/<[^>]+>/, " ")
+      |> String.replace(~r/\s+/, " ")
+      |> String.trim()
+
+    (meta_bits ++ [body_text])
+    |> Enum.reject(&(&1 == ""))
+    |> Enum.join(" ")
     |> String.replace(~r/\s+/, " ")
     |> String.trim()
     |> String.slice(0, 12_000)
+  end
+
+  defp maybe_append_meta(acc, html, pattern) do
+    case Regex.run(pattern, html) do
+      [_, content] ->
+        trimmed = String.trim(content)
+        if trimmed == "", do: acc, else: acc ++ [trimmed]
+
+      _ ->
+        acc
+    end
+  end
+
+  defp maybe_append_title(acc, html) do
+    case Regex.run(~r/<title[^>]*>([^<]*)<\/title>/i, html) do
+      [_, title] ->
+        trimmed = String.trim(title)
+        if trimmed == "" or trimmed in acc, do: acc, else: acc ++ [trimmed]
+
+      _ ->
+        acc
+    end
   end
 
   defp extract_messages(url, page_text) do

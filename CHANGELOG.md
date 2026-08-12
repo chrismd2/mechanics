@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-08-12 — pricing-bidwrangler-item-import
+
+- Implemented module BidWrangler `/ui/auctions/:auction_id/:item_id` URLs via `/api/items/:item_id` (never the auction catalog); map sold/listing fields deterministically with compact LLM fallback; keep Open Graph meta in generic HTML extraction
+
 ## 2026-08-12 — pricing-year-specific-heuristic
 
 - For year-specific suggests, fall back to seed-comp percentiles when the LLM returns null prices; treat blank miles as unspecified
