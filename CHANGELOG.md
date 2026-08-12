@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-08-11 — ci-deploy-workflow
+
+- Run `mix test` in GitHub Actions (Postgres service) before deploy; skip draft PRs; trigger on ready_for_review
+- Deploy over SSH only after CI tests pass (same conditions as electricquestlog)
+
 ## 2026-08-11 — pricing-zipcode
 
 - Add `zipcode` to vehicle market prices and suggestion queries (default `00000`; backfill existing rows)

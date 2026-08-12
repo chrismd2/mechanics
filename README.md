@@ -9,6 +9,10 @@ Now you can visit [`localhost:4000`](http://localhost:4000) from your browser.
 
 Ready to run in production? Please [check our deployment guides](https://hexdocs.pm/phoenix/deployment.html).
 
+## CI / Deploy
+
+The [deploy workflow](.github/workflows/deploy.yml) runs `mix test` (with Postgres) before deploying on push to `main`/`master`, non-draft PR open / ready for review, or manual dispatch.
+
 ## Vehicle pricing
 
 Users with the `pricing_user` role can submit observed vehicle market prices (listing or sale) and request competitive and expected-minimum suggestions via a pricing agent that queries that stored data. See [docs/pricing.md](docs/pricing.md).
