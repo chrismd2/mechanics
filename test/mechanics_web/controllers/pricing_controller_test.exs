@@ -78,6 +78,7 @@ defmodule MechanicsWeb.PricingControllerTest do
       assert Floki.find(parsed, "form#market_price_manual_form") != []
       assert html =~ source_url
       assert Floki.find(parsed, "input[name='market_price[make]']") != []
+      assert Floki.find(parsed, "input#market_price_zipcode[name='market_price[zipcode]']") != []
       assert Phoenix.Flash.get(conn.assigns.flash, :warning) =~ "extract"
     end
 
@@ -139,6 +140,30 @@ defmodule MechanicsWeb.PricingControllerTest do
       assert hd(market_prices).price_type == "listing"
       assert hd(market_prices).price_cents == 1_850_000
       assert hd(market_prices).source_url == source_url
+      assert hd(market_prices).zipcode == "00000"
+    end
+
+    test "saves zipcode from the market price form", %{conn: conn} do
+      {:ok, conn: conn, user: _user} = create_pricing_user(conn)
+      source_url = "https://example.com/zip-#{System.unique_integer([:positive])}"
+
+      conn =
+        post(conn, "/pricing/market-prices", %{
+          "market_price" => %{
+            "make" => "Toyota",
+            "model" => "Camry",
+            "year" => "2019",
+            "miles" => "45000",
+            "zipcode" => "55401",
+            "price" => "18500.00",
+            "currency" => "USD",
+            "price_type" => "listing",
+            "source_url" => source_url
+          }
+        })
+
+      assert redirected_to(conn) =~ "/pricing"
+      assert [%{zipcode: "55401"}] = Pricing.list_market_prices(%{make: "Toyota", model: "Camry"})
     end
 
     test "flashes when saving a market price whose URL already exists", %{conn: conn} do
@@ -233,6 +258,7 @@ defmodule MechanicsWeb.PricingControllerTest do
       parsed = Floki.parse_document!(html)
       assert Floki.find(parsed, "form#vehicle_manual_form[action='/pricing/suggest']") != []
       assert Floki.find(parsed, "input[name='vehicle[make]']") != []
+      assert Floki.find(parsed, "input#vehicle_zipcode[name='vehicle[zipcode]']") != []
     end
 
     test "redirects home without pricing_user", %{conn: conn} do

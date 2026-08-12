@@ -48,8 +48,49 @@ defmodule Mechanics.PricingTest do
       assert market_price.source_url == source_url
     end
 
+    test "defaults blank zipcode to 00000" do
+      user = pricing_user!()
+
+      assert {:ok, market_price} =
+               Pricing.create_market_price(user, %{
+                 "make" => "Toyota",
+                 "model" => "Camry",
+                 "year" => 2019,
+                 "miles" => 45_000,
+                 "price_cents" => 1_850_000,
+                 "price_type" => "listing",
+                 "source_url" => url!("zip-default"),
+                 "zipcode" => ""
+               })
+
+      assert market_price.zipcode == "00000"
+    end
+
+    test "stores an explicit zipcode" do
+      user = pricing_user!()
+
+      assert {:ok, market_price} =
+               Pricing.create_market_price(user, %{
+                 "make" => "Toyota",
+                 "model" => "Camry",
+                 "year" => 2019,
+                 "miles" => 45_000,
+                 "price_cents" => 1_850_000,
+                 "price_type" => "listing",
+                 "source_url" => url!("zip-explicit"),
+                 "zipcode" => "55401"
+               })
+
+      assert market_price.zipcode == "55401"
+    end
+
     test "does not store a submitting user on market prices" do
       assert :user_id not in Mechanics.Pricing.VehicleMarketPrice.__schema__(:fields)
+    end
+
+    test "schema includes zipcode" do
+      assert :zipcode in Mechanics.Pricing.VehicleMarketPrice.__schema__(:fields)
+      assert :zipcode in Mechanics.Pricing.VehiclePriceQuery.__schema__(:fields)
     end
 
     test "stores a sale market price" do
@@ -404,6 +445,21 @@ defmodule Mechanics.PricingTest do
                })
 
       assert query.miles == 0
+    end
+
+    test "defaults blank zipcode to 00000 on suggest" do
+      user = pricing_user!()
+
+      assert {:ok, query} =
+               Pricing.suggest_prices(user, %{
+                 "make" => "Ford",
+                 "model" => "F-150",
+                 "year" => 2015,
+                 "miles" => 10_000,
+                 "zipcode" => ""
+               })
+
+      assert query.zipcode == "00000"
     end
 
     test "widens miles band so same make/model/year comps are used" do

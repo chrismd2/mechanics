@@ -47,6 +47,7 @@ Each row is one observed asking price or sold price for a vehicle. **`source_url
 | `model` | yes | |
 | `year` | yes | integer |
 | `miles` | yes | integer |
+| `zipcode` | yes | US ZIP; defaults to `00000` when blank; existing rows backfilled to `00000` |
 | `price` / `price_cents` | yes | stored as integer cents |
 | `currency` | no | default `USD` |
 | `price_type` | yes | `listing` (asking) or `sale` (sold) |
@@ -70,8 +71,9 @@ VIN-first flow (mirrors market-price URL entry):
 | `model` | yes | |
 | `year` | yes | |
 | `miles` | yes | defaults to `0` when blank on VIN or suggest |
+| `zipcode` | yes | defaults to `00000` when blank |
 
-Every successful suggest attempt is stored in `vehicle_price_queries` for the current user (even when suggestions are nil / insufficient data), including suggested competitive and expected-minimum cents when available, match count, and a short agent summary when present. The same user + vehicle (make, model, year, miles, VIN) updates the existing row instead of creating a duplicate.
+Every successful suggest attempt is stored in `vehicle_price_queries` for the current user (even when suggestions are nil / insufficient data), including suggested competitive and expected-minimum cents when available, match count, and a short agent summary when present. The same user + vehicle (make, model, year, miles, VIN, zipcode) updates the existing row instead of creating a duplicate.
 
 ## Recent searches
 
