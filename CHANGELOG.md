@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-08-12 — pricing-llm-docker-env
+
+- Document pricing LLM env vars (`GROQ_API_KEY`, optional model/base URL) and Docker wiring
+
 ## 2026-08-11 — ci-deploy-pull-branch
 
 - Redeploy on PR push (`synchronize`); hard-reset server checkout to the triggering remote branch

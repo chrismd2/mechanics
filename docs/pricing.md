@@ -87,7 +87,19 @@ Every successful suggest attempt is stored in `vehicle_price_queries` for the cu
 
 ## Pricing agent
 
-The agent uses local tool calling against `vehicle_market_prices`. Provider credentials and model are read from environment (see deployment config); the client is isolated so the backend can change without changing this feature’s contract.
+The agent uses local tool calling against `vehicle_market_prices`. Provider credentials and model are read from environment; the client is isolated so the backend can change without changing this feature’s contract.
+
+### LLM environment
+
+| Variable | Required | Default | Notes |
+|----------|----------|---------|-------|
+| `GROQ_API_KEY` | yes (for LLM) | — | Without it, suggest/extract fall back to heuristics / manual form |
+| `GROQ_MODEL` | no | `llama-3.3-70b-versatile` | Any model the provider supports with tool calling |
+| `PRICING_LLM_BASE_URL` | no | `https://api.groq.com/openai/v1` | OpenAI-compatible chat-completions base URL |
+
+**Local Docker** (`christenson_server_host`): set `GROQ_API_KEY` in `.env-local-docker` (compose `--env-file`). The `mechanics` service passes it through in `docker-compose.yml`. Recreate the container after changing the key (`make down mechanics` then `make up mechanics`, or equivalent).
+
+**Prod**: set `GROQ_API_KEY` in the host env file used for compose, then recreate `mechanics` the same way.
 
 ### Tools
 
