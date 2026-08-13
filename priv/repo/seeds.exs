@@ -26,7 +26,7 @@ alias Mechanics.Accounts.User
 #   })
 # end
 
-if System.get_env("ENV") != "prod" do
+if System.get_env("ENV") == "test" do
   pricing_user =
     case Accounts.get_user_by_email("pricing@example.com") do
       %User{} = user ->

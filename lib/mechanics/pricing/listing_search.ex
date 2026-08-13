@@ -147,6 +147,96 @@ defmodule Mechanics.Pricing.ListingSearch do
   def get_oban_job!(id), do: Repo.get!(Oban.Job, id)
 
   @doc """
+  Results for `/admin/jobs/:id`. Prefers `job.meta["results"]`, then auction sources
+  linked by `config.last_crawl_job_id`, then sources crawled near the job timestamp.
+  """
+  def results_for_oban_job(%Oban.Job{} = job) do
+    cond do
+      is_list(job.meta["results"]) ->
+        job.meta["results"]
+
+      crawl_worker?(job) ->
+        case results_from_sources_for_job(job) do
+          [] -> nil
+          list -> list
+        end
+
+      true ->
+        nil
+    end
+  end
+
+  defp crawl_worker?(%Oban.Job{worker: worker}) when is_binary(worker) do
+    String.ends_with?(worker, "CrawlPastAuctionsWorker")
+  end
+
+  defp crawl_worker?(_), do: false
+
+  defp results_from_sources_for_job(%Oban.Job{} = job) do
+    job_id = to_string(job.id)
+
+    linked =
+      list_auction_sources()
+      |> Enum.filter(fn source ->
+        to_string(get_in(source.config || %{}, ["last_crawl_job_id"])) == job_id
+      end)
+
+    sources =
+      if linked != [] do
+        linked
+      else
+        list_auction_sources()
+        |> Enum.filter(&source_crawled_near_job?(&1, job))
+      end
+
+    Enum.map(sources, &source_crawl_result/1)
+  end
+
+  defp source_crawled_near_job?(%{last_crawled_at: %DateTime{} = crawled}, job) do
+    anchor = job.completed_at || job.discarded_at || job.attempted_at || job.inserted_at
+
+    if match?(%DateTime{}, anchor) do
+      abs(DateTime.diff(crawled, DateTime.truncate(anchor, :second), :second)) <= 180
+    else
+      false
+    end
+  end
+
+  defp source_crawled_near_job?(_, _), do: false
+
+  defp source_crawl_result(source) do
+    config = source.config || %{}
+    report = Map.get(config, "last_crawl_report") || %{}
+    auctions = Map.get(config, "last_crawl_auctions")
+
+    auctions =
+      cond do
+        is_list(auctions) ->
+          auctions
+
+        is_list(report["auction_ids"]) ->
+          Enum.map(report["auction_ids"], fn id ->
+            %{"auction_id" => to_string(id), "title" => nil, "auction_status" => nil, "end_time" => nil}
+          end)
+
+        true ->
+          []
+      end
+
+    %{
+      "source_id" => source.id,
+      "label" => source.label,
+      "base_url" => source.base_url,
+      "status" => Map.get(report, "status") || "ok",
+      "error" => Map.get(report, "error"),
+      "at" => Map.get(report, "at"),
+      "auction_count" => Map.get(report, "auction_count") || length(auctions),
+      "auction_ids" => Map.get(report, "auction_ids") || Enum.map(auctions, & &1["auction_id"]),
+      "auctions" => auctions
+    }
+  end
+
+  @doc """
   Enqueue a past-auction crawl. Optional `source_id` limits to one Royal source.
   """
   def enqueue_crawl(opts \\ []) do

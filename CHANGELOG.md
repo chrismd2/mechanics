@@ -1,5 +1,25 @@
 # Changelog
 
+## 2026-08-13 — admin-job-collapsible-sections
+
+- Make Details, Results, Args, Meta, and Errors collapsible on `/admin/jobs/:id`
+
+## 2026-08-13 — admin-job-results-fallback
+
+- Show crawl Results on `/admin/jobs/:id` from job meta or auction-source crawl data (so older jobs still list auctions)
+
+## 2026-08-13 — admin-source-link-last-crawl-job
+
+- Wrap auction-source `last_crawl_report` in the source row; link the source block to the last crawl Oban job
+
+## 2026-08-13 — admin-job-crawl-results
+
+- Persist crawl auction lists on Oban job `meta.results` and show them on `/admin/jobs/:id`
+
+## 2026-08-13 — royal-past-auctions-pagination-type
+
+- Fix Royal past-auction crawl GraphQL 400 by using `AuctionPaginationInput` (not `Pagination`)
+
 ## 2026-08-13 — royal-model-from-title-only
 
 - Parse Royal make/model from lot title only (description was overflowing `model` varchar(255) and failing digest inserts)

@@ -25,4 +25,13 @@ defmodule MechanicsWeb.Admin.JobsHTML do
   rescue
     _ -> inspect(value, pretty: true, limit: :infinity)
   end
+
+  def job_results(%{meta: meta}) when is_map(meta) do
+    case Map.get(meta, "results") do
+      list when is_list(list) -> list
+      _ -> nil
+    end
+  end
+
+  def job_results(_), do: nil
 end

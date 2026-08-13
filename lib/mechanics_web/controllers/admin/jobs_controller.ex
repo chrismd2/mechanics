@@ -16,10 +16,11 @@ defmodule MechanicsWeb.Admin.JobsController do
     case admin_user(conn) do
       {:ok, _user} ->
         job = ListingSearch.get_oban_job!(id)
+        results = ListingSearch.results_for_oban_job(job)
 
         conn
         |> assign(:wide_layout, true)
-        |> render(:show, job: job)
+        |> render(:show, job: job, results: results)
 
       :error ->
         redirect(conn, to: ~p"/")

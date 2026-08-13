@@ -90,6 +90,46 @@ defmodule Mechanics.Pricing.SourcesTest do
     assert attrs["miles"] == 85_000
   end
 
+  test "royal list_past_auctions uses AuctionPaginationInput" do
+    source = %AuctionSource{
+      id: Ecto.UUID.generate(),
+      kind: "royal",
+      base_url: "https://live.royalauctiongroup.com",
+      label: "Royal",
+      enabled: true,
+      config: %{}
+    }
+
+    http_post = fn url, body ->
+      assert url == "https://live.royalauctiongroup.com/api"
+      decoded = Jason.decode!(body)
+      assert decoded["operationName"] == "get_past_auctions"
+      assert decoded["query"] =~ "AuctionPaginationInput"
+      assert decoded["query"] =~ "AuctionFilterInput"
+      assert get_in(decoded, ["variables", "filter", "auction_status"]) == [300]
+
+      {:ok,
+       Jason.encode!(%{
+         "data" => %{
+           "auctions" => %{
+             "total" => 1,
+             "auctions" => [
+               %{
+                 "auction_id" => "6329",
+                 "title" => "December Auction",
+                 "auction_status" => 300,
+                 "end_time" => "2024-12-15T01:00:00Z"
+               }
+             ]
+           }
+         }
+       })}
+    end
+
+    assert {:ok, [auction]} = Royal.list_past_auctions(source, http_post: http_post)
+    assert auction["auction_id"] == "6329"
+  end
+
   test "royal attrs_from_lot treats Odom Reads N/A as miles 0" do
     attrs =
       Royal.attrs_from_lot(%{

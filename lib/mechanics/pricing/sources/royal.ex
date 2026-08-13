@@ -43,7 +43,7 @@ defmodule Mechanics.Pricing.Sources.Royal do
   """
 
   @past_auctions_query """
-  query get_past_auctions($pagination: Pagination, $filter: AuctionFilterInput) {
+  query get_past_auctions($pagination: AuctionPaginationInput, $filter: AuctionFilterInput) {
     auctions(pagination: $pagination, filter: $filter) {
       total
       auctions {

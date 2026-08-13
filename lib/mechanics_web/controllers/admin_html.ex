@@ -46,4 +46,31 @@ defmodule MechanicsWeb.AdminHTML do
     query = Map.put(extras, "tab", tab)
     "/admin?" <> URI.encode_query(query)
   end
+
+  attr :source, :map, required: true
+  attr :report, :any, default: nil
+  attr :linked?, :boolean, default: false
+
+  def auction_source_summary(assigns) do
+    ~H"""
+    <div class="min-w-0">
+      <div class="font-medium text-zinc-900">
+        <%= @source.label %>
+        <%= if @linked? do %>
+          <span class="ml-1 text-xs font-normal text-zinc-500">View last crawl job →</span>
+        <% end %>
+      </div>
+      <div class="break-words text-zinc-600">
+        <%= @source.base_url %> · <%= @source.kind %> ·
+        <%= if @source.enabled, do: "enabled", else: "disabled" %>
+        <%= if @source.last_crawled_at do %>
+          · crawled <%= Calendar.strftime(@source.last_crawled_at, "%Y-%m-%d %H:%M") %>
+        <% end %>
+      </div>
+      <%= if @report do %>
+        <pre class="mt-2 max-h-32 max-w-full overflow-auto whitespace-pre-wrap break-words rounded bg-zinc-50 p-2 text-xs text-zinc-700"><%= Jason.encode!(@report) %></pre>
+      <% end %>
+    </div>
+    """
+  end
 end

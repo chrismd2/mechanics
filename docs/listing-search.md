@@ -63,7 +63,7 @@ Explicit unknown odometer text (`Odom Reads N/A`, `exempt`, etc.) is stored as *
 | POST | `/admin/auction-sources/from-suggestion` | admin | Add a suggested origin |
 | POST | `/admin/jobs/crawl` | admin | Enqueue `CrawlPastAuctionsWorker` |
 | POST | `/admin/jobs/search` | admin | Trial search via vehicle form (`make`/`model`; same as agent) |
-| GET | `/admin/jobs/:id` | admin | Job args / meta / errors |
+| GET | `/admin/jobs/:id` | admin | Job args / meta / errors; crawl Results from `meta.results` or source `last_crawl_*` |
 | POST | `/admin/candidates/:id/digest` | admin | Enqueue `DigestCandidateWorker` |
 | POST | `/admin/candidates/:id/dismiss` | admin | Mark candidate dismissed |
 | GET | `/admin/candidates/:id` | admin | Candidate detail + raw snapshot |
@@ -74,7 +74,7 @@ Tools drawer → **Admin** opens the hub; nested links open the matching panel.
 
 ## Background jobs (Oban)
 
-- `CrawlPastAuctionsWorker` — enabled Royal sources (or optional `source_id`), past auctions (`auction_status: [300]`), writes `config.last_crawl_report` + `last_crawled_at`.
+- `CrawlPastAuctionsWorker` — enabled Royal sources (or optional `source_id`), past auctions (`auction_status: [300]` via GraphQL `AuctionPaginationInput` + `AuctionFilterInput`), writes job `meta.results`, source `config.last_crawl_report` / `last_crawl_auctions` / `last_crawl_job_id`, and `last_crawled_at`.
 - `DigestCandidateWorker` — import a candidate URL into `vehicle_market_prices` (pass `user_id`).
 
 Cron: every 6 hours for crawl. Admins can also enqueue from `/admin/jobs`.
