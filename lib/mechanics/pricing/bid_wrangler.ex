@@ -176,11 +176,15 @@ defmodule Mechanics.Pricing.BidWrangler do
         nil
 
       value ->
-        digits = String.replace(value, ~r/[^\d]/, "")
+        if Regex.match?(~r/\A(?:N\/?A|n\/?a|NA|Exempt|Unknown|Not\s+Available)\z/i, String.trim(value)) do
+          0
+        else
+          digits = String.replace(value, ~r/[^\d]/, "")
 
-        case Integer.parse(digits) do
-          {n, _} -> n
-          :error -> nil
+          case Integer.parse(digits) do
+            {n, _} -> n
+            :error -> nil
+          end
         end
     end
   end

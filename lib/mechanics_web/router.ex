@@ -65,6 +65,21 @@ defmodule MechanicsWeb.Router do
     post "/pricing/market-prices", PricingController, :create_market_price
     post "/pricing/suggest", PricingController, :suggest
 
+    get "/admin", AdminController, :index
+    post "/admin/auction-sources", AdminController, :create_source
+    post "/admin/auction-sources/from-suggestion", AdminController, :create_source_from_suggestion
+    patch "/admin/auction-sources/:id", AdminController, :update_source
+    post "/admin/jobs/crawl", AdminController, :enqueue_crawl
+    post "/admin/jobs/search", AdminController, :trial_search
+    post "/admin/candidates/:id/digest", AdminController, :enqueue_digest
+    post "/admin/candidates/:id/dismiss", AdminController, :dismiss_candidate
+
+    get "/admin/auction-sources", Admin.AuctionSourcesController, :index
+    get "/admin/jobs", Admin.JobsController, :index
+    get "/admin/jobs/:id", Admin.JobsController, :show
+    get "/admin/candidates", Admin.CandidatesController, :index
+    get "/admin/candidates/:id", Admin.CandidatesController, :show
+
     get "/chats/open/mechanic/:mechanic_user_id", ChatController, :open_by_mechanic
     get "/chats/open/listing/:listing_id", ChatController, :open_by_listing
     get "/chats/open/listing_owner/:listing_id", ChatController, :open_listing_owner_next

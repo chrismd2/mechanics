@@ -1,5 +1,41 @@
 # Changelog
 
+## 2026-08-13 — royal-model-from-title-only
+
+- Parse Royal make/model from lot title only (description was overflowing `model` varchar(255) and failing digest inserts)
+
+## 2026-08-13 — auction-odometer-na-as-zero
+
+- Treat auction odometer N/A / exempt / unknown as miles `0` so digest can import lots without a manual form
+
+## 2026-08-13 — admin-oban-job-timestamp
+
+- Fix Oban Jobs list crash: use Oban timestamps (`completed_at` / `attempted_at` / …) instead of missing `updated_at`
+
+## 2026-08-13 — admin-oban-jobs-label
+
+- Rename Admin “Jobs” UI labels to “Oban Jobs”
+
+## 2026-08-13 — admin-hub-tab-panels
+
+- Put Admin tools on one `/admin` page with Account-style panels (sources, jobs, candidates); legacy list URLs redirect to `?tab=`
+
+## 2026-08-13 — admin-trial-search-vehicle-form
+
+- Trial listing search on `/admin/jobs` uses the same make/model/year/miles/zip fields as price suggestions
+
+## 2026-08-13 — admin-jobs-and-candidates-ui
+
+- Nest Admin tools (auction sources, jobs, listing candidates); add manual crawl enqueue, trial search, Oban job detail, and candidate digest/dismiss
+
+## 2026-08-13 — pricing-external-comps-in-agent-tools
+
+- Wire BidWrangler/Royal search into existing `search_vehicle_market_prices` / `get_vehicle_market_price_details` for suggestions
+
+## 2026-08-13 — multi-source-listing-search
+
+- Add BidWrangler + Royal listing search with review queue, admin-managed auction sources (suggestions from recent market-price URLs), Craigslist stub, Oban past-auction crawl + deferred digest, and Royal lot URL extract
+
 ## 2026-08-12 — suggest-after-market-price
 
 - After a successful market-price URL import or manual save, run a price suggestion for that vehicle and show it on the suggestion page with the form prefilled

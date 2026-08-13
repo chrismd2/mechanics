@@ -16,8 +16,7 @@ defmodule Mechanics.Application do
       {Phoenix.PubSub, name: Mechanics.PubSub},
       # Start the Finch HTTP client for sending emails
       {Finch, name: Mechanics.Finch},
-      # Start a worker by calling: Mechanics.Worker.start_link(arg)
-      # {Mechanics.Worker, arg},
+      {Oban, Application.fetch_env!(:mechanics, Oban)},
       # Start to serve requests, typically the last entry
       MechanicsWeb.Endpoint
     ]

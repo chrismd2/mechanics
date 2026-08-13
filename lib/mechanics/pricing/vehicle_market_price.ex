@@ -60,6 +60,8 @@ defmodule Mechanics.Pricing.VehicleMarketPrice do
     |> validate_number(:year, greater_than: 1900, less_than: 2100)
     |> validate_number(:miles, greater_than_or_equal_to: 0)
     |> validate_number(:price_cents, greater_than_or_equal_to: 0)
+    |> validate_length(:make, max: 255)
+    |> validate_length(:model, max: 255)
     |> validate_length(:currency, is: 3)
     |> validate_format(:zipcode, ~r/\A\d{5}(-\d{4})?\z/, message: "must be a 5-digit ZIP or ZIP+4")
     |> validate_source_url()

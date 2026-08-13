@@ -1,0 +1,65 @@
+<div class="mx-auto max-w-4xl space-y-6">
+  <div class="flex flex-wrap items-center justify-between gap-3">
+    <div class="space-y-1">
+      <h1 class="text-2xl font-semibold text-zinc-900">
+        <%= @candidate.title || "Listing candidate" %>
+      </h1>
+      <p class="text-sm text-zinc-600">
+        <%= @candidate.status %> · <%= format_dt(@candidate.inserted_at) %>
+      </p>
+    </div>
+    <.link href={~p"/admin?tab=candidates"} class="text-sm font-medium text-zinc-700 hover:underline">
+      ← Admin candidates
+    </.link>
+  </div>
+
+  <section class="space-y-3 rounded-xl border border-zinc-200 bg-white p-6 shadow-sm">
+    <h2 class="text-lg font-semibold text-zinc-900">Details</h2>
+    <dl class="grid gap-3 text-sm">
+      <div>
+        <dt class="font-semibold text-zinc-800">Source URL</dt>
+        <dd class="break-all text-zinc-700">
+          <a href={@candidate.source_url} class="hover:underline" target="_blank" rel="noopener noreferrer">
+            <%= @candidate.source_url %>
+          </a>
+        </dd>
+      </div>
+      <div>
+        <dt class="font-semibold text-zinc-800">Query</dt>
+        <dd class="text-zinc-700"><%= @candidate.query || "—" %></dd>
+      </div>
+      <div>
+        <dt class="font-semibold text-zinc-800">External id</dt>
+        <dd class="text-zinc-700"><%= @candidate.external_id || "—" %></dd>
+      </div>
+      <div>
+        <dt class="font-semibold text-zinc-800">Market price id</dt>
+        <dd class="text-zinc-700"><%= @candidate.vehicle_market_price_id || "—" %></dd>
+      </div>
+    </dl>
+
+    <div class="flex flex-wrap gap-2 pt-2">
+      <%= if @candidate.status in ["new", "failed"] do %>
+        <form action={~p"/admin/candidates/#{@candidate.id}/digest"} method="post">
+          <input type="hidden" name="_csrf_token" value={get_csrf_token()} />
+          <button type="submit" class="rounded-lg bg-zinc-900 px-4 py-2 text-sm font-semibold text-white hover:bg-zinc-700">
+            Enqueue digest
+          </button>
+        </form>
+      <% end %>
+      <%= if @candidate.status == "new" do %>
+        <form action={~p"/admin/candidates/#{@candidate.id}/dismiss"} method="post">
+          <input type="hidden" name="_csrf_token" value={get_csrf_token()} />
+          <button type="submit" class="rounded-lg border border-zinc-300 px-4 py-2 text-sm font-semibold text-zinc-800 hover:bg-zinc-50">
+            Dismiss
+          </button>
+        </form>
+      <% end %>
+    </div>
+  </section>
+
+  <section class="space-y-2 rounded-xl border border-zinc-200 bg-white p-6 shadow-sm">
+    <h2 class="text-lg font-semibold text-zinc-900">Raw snapshot</h2>
+    <pre class="overflow-x-auto rounded-lg bg-zinc-50 p-3 text-xs text-zinc-800"><%= pretty_json(@candidate.raw) %></pre>
+  </section>
+</div>

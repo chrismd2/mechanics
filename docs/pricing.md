@@ -10,7 +10,7 @@ Browser tool for users with the `pricing_user` role. They submit observed vehicl
 | Grant | `Accounts.add_pricing_user_role/1` (idempotent; no self-service UI in v1) |
 | Gate | Controllers require `"pricing_user" in current_user.roles`; others redirect home |
 
-Valid roles also remain `mechanic` and `customer`. A user may hold `pricing_user` alongside other roles.
+Valid roles also remain `mechanic` and `customer`. A user may hold `pricing_user` alongside other roles. Users with the `admin` role manage auction origins used by multi-source search (see [listing-search.md](listing-search.md)).
 
 ## Routes (browser HTML)
 
@@ -125,8 +125,8 @@ Examples: Groq (`https://api.groq.com/openai/v1`), OpenAI (`https://api.openai.c
 
 | Tool | Purpose |
 |------|---------|
-| `search_vehicle_market_prices` | Filter by make, model, year range, miles band, optional `price_type` (`listing`, `sale`, or both). Returns ids and vehicle fields. |
-| `get_vehicle_market_price_details` | Given ids, return `price_cents`, `currency`, `price_type`, year, miles. |
+| `search_vehicle_market_prices` | Filter local `vehicle_market_prices` **and** search enabled external auction sources (BidWrangler / Royal) by make/model (plus optional year/miles/`price_type`). External hits use `candidate:` ids. |
+| `get_vehicle_market_price_details` | Given ids (local or `candidate:`), return `price_cents`, `currency`, `price_type`, year, miles. |
 
 The agent should use sales for floor / expected-minimum context and listings for asking / competitive context, then return **competitive** and **expected minimum** prices in cents.
 
@@ -147,8 +147,9 @@ This matters when VIN decode fills make/model/year but the user’s miles differ
 ## Context API (for tests / seeds)
 
 - `Pricing.create_market_price/2` — create a shared listing/sale market price (`pricing_user` gates the controller; row has no owner)
-- `Pricing.import_market_price_from_url/2` — URL lookup → agent extract (BidWrangler item API or HTML+LLM) → save or `{:needs_form, attrs}` (tests may inject `:extract` via opts or `Application.put_env(:mechanics, Mechanics.Pricing, extract: fun)`)
+- `Pricing.import_market_price_from_url/2` — URL lookup → agent extract (BidWrangler item API, Royal lot GraphQL, or HTML+LLM) → save or `{:needs_form, attrs}` (tests may inject `:extract` via opts or `Application.put_env(:mechanics, Mechanics.Pricing, extract: fun)`)
 - `Pricing.BidWrangler` — parse `/ui/auctions/:auction_id/:item_id`, map `/api/items/:id` JSON to attrs, compact LLM summary
+- `Pricing.ListingSearch` — auction sources, listing candidates, multi-source search / suggestions (see [listing-search.md](listing-search.md))
 - `Pricing.lookup_vehicle_from_vin/2` — VIN check → `{:ok, :ready, attrs}` or `{:needs_form, attrs}` (blank miles → `0`)
 - `Pricing.get_market_price_by_source_url/1` — find an existing row by URL
 - `Pricing.list_market_prices/1` — filter/search (backing `search_vehicle_market_prices`; supports `vin` as well as make/model/year/miles; no per-user ownership filter)

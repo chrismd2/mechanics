@@ -1,0 +1,62 @@
+<div class="mx-auto max-w-4xl space-y-6">
+  <div class="flex flex-wrap items-center justify-between gap-3">
+    <div class="space-y-1">
+      <h1 class="text-2xl font-semibold text-zinc-900">Job #<%= @job.id %></h1>
+      <p class="text-sm text-zinc-600">
+        <%= @job.state %> · <%= @job.queue %> · <%= short_worker(@job.worker) %>
+      </p>
+    </div>
+    <.link href={~p"/admin?tab=jobs"} class="text-sm font-medium text-zinc-700 hover:underline">
+      ← Oban Jobs
+    </.link>
+  </div>
+
+  <section class="space-y-3 rounded-xl border border-zinc-200 bg-white p-6 shadow-sm">
+    <h2 class="text-lg font-semibold text-zinc-900">Details</h2>
+    <dl class="grid gap-3 text-sm sm:grid-cols-2">
+      <div>
+        <dt class="font-semibold text-zinc-800">Worker</dt>
+        <dd class="text-zinc-700"><%= @job.worker %></dd>
+      </div>
+      <div>
+        <dt class="font-semibold text-zinc-800">Attempt</dt>
+        <dd class="text-zinc-700"><%= @job.attempt %>/<%= @job.max_attempts %></dd>
+      </div>
+      <div>
+        <dt class="font-semibold text-zinc-800">Inserted</dt>
+        <dd class="text-zinc-700"><%= format_dt(@job.inserted_at) %></dd>
+      </div>
+      <div>
+        <dt class="font-semibold text-zinc-800">Scheduled</dt>
+        <dd class="text-zinc-700"><%= format_dt(@job.scheduled_at) %></dd>
+      </div>
+      <div>
+        <dt class="font-semibold text-zinc-800">Attempted</dt>
+        <dd class="text-zinc-700"><%= format_dt(@job.attempted_at) %></dd>
+      </div>
+      <div>
+        <dt class="font-semibold text-zinc-800">Completed</dt>
+        <dd class="text-zinc-700"><%= format_dt(@job.completed_at) %></dd>
+      </div>
+    </dl>
+  </section>
+
+  <section class="space-y-2 rounded-xl border border-zinc-200 bg-white p-6 shadow-sm">
+    <h2 class="text-lg font-semibold text-zinc-900">Args</h2>
+    <pre class="overflow-x-auto rounded-lg bg-zinc-50 p-3 text-xs text-zinc-800"><%= pretty_json(@job.args) %></pre>
+  </section>
+
+  <section class="space-y-2 rounded-xl border border-zinc-200 bg-white p-6 shadow-sm">
+    <h2 class="text-lg font-semibold text-zinc-900">Meta</h2>
+    <pre class="overflow-x-auto rounded-lg bg-zinc-50 p-3 text-xs text-zinc-800"><%= pretty_json(@job.meta) %></pre>
+  </section>
+
+  <section class="space-y-2 rounded-xl border border-zinc-200 bg-white p-6 shadow-sm">
+    <h2 class="text-lg font-semibold text-zinc-900">Errors</h2>
+    <%= if @job.errors == [] do %>
+      <p class="text-sm text-zinc-600">No errors recorded.</p>
+    <% else %>
+      <pre class="overflow-x-auto rounded-lg bg-zinc-50 p-3 text-xs text-zinc-800"><%= pretty_json(@job.errors) %></pre>
+    <% end %>
+  </section>
+</div>

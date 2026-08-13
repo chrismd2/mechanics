@@ -243,6 +243,46 @@
               </.link>
             </li>
           <% end %>
+          <%= if "admin" in (@current_user.roles || []) do %>
+            <li>
+              <.link
+                href={~p"/admin"}
+                id="tools-link-admin"
+                class="block rounded-lg px-3 py-2 text-sm font-medium text-zinc-800 hover:bg-zinc-50"
+              >
+                Admin
+              </.link>
+              <ul class="mt-0.5 space-y-0.5 border-l border-zinc-200 ml-3 pl-2">
+                <li>
+                  <.link
+                    href={~p"/admin?tab=sources"}
+                    id="tools-link-auction-sources"
+                    class="block rounded-lg px-3 py-1.5 text-sm font-medium text-zinc-600 hover:bg-zinc-50 hover:text-zinc-900"
+                  >
+                    Auction sources
+                  </.link>
+                </li>
+                <li>
+                  <.link
+                    href={~p"/admin?tab=jobs"}
+                    id="tools-link-admin-jobs"
+                    class="block rounded-lg px-3 py-1.5 text-sm font-medium text-zinc-600 hover:bg-zinc-50 hover:text-zinc-900"
+                  >
+                    Oban Jobs
+                  </.link>
+                </li>
+                <li>
+                  <.link
+                    href={~p"/admin?tab=candidates"}
+                    id="tools-link-admin-candidates"
+                    class="block rounded-lg px-3 py-1.5 text-sm font-medium text-zinc-600 hover:bg-zinc-50 hover:text-zinc-900"
+                  >
+                    Listing candidates
+                  </.link>
+                </li>
+              </ul>
+            </li>
+          <% end %>
         </ul>
       </nav>
     </aside>
