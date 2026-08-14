@@ -8,7 +8,9 @@ defmodule Mechanics.Pricing.Agent do
 
   alias Mechanics.Pricing
   alias Mechanics.Pricing.BidWrangler
+  alias Mechanics.Pricing.ListingSearch
   alias Mechanics.Pricing.LLM
+  alias Mechanics.Pricing.Sources.Royal, as: RoyalSource
 
   @max_rounds 5
 
@@ -19,7 +21,7 @@ defmodule Mechanics.Pricing.Agent do
         "function" => %{
           "name" => "search_vehicle_market_prices",
           "description" =>
-            "Search stored vehicle market prices (asking listings or completed sales) by make, model, year, miles, and optional price_type.",
+            "Search stored vehicle market prices and enabled external auction sources (BidWrangler, Royal) by make, model, year, miles, and optional price_type. External hits use ids prefixed with candidate:.",
           "parameters" => %{
             "type" => "object",
             "properties" => %{
@@ -39,7 +41,8 @@ defmodule Mechanics.Pricing.Agent do
         "type" => "function",
         "function" => %{
           "name" => "get_vehicle_market_price_details",
-          "description" => "Fetch price details for vehicle market price ids returned by search.",
+          "description" =>
+            "Fetch price details for vehicle market price ids or external candidate: ids returned by search.",
           "parameters" => %{
             "type" => "object",
             "properties" => %{
@@ -56,36 +59,67 @@ defmodule Mechanics.Pricing.Agent do
   end
 
   def execute_tool("search_vehicle_market_prices", args) when is_map(args) do
+    make = Map.get(args, "make") || Map.get(args, :make)
+    model = Map.get(args, "model") || Map.get(args, :model)
+
     filters =
       %{}
-      |> maybe_put(:make, Map.get(args, "make") || Map.get(args, :make))
-      |> maybe_put(:model, Map.get(args, "model") || Map.get(args, :model))
+      |> maybe_put(:make, make)
+      |> maybe_put(:model, model)
       |> maybe_put(:price_type, Map.get(args, "price_type") || Map.get(args, :price_type))
       |> maybe_put(:year_min, parse_optional_int(Map.get(args, "year_min") || Map.get(args, :year_min)))
       |> maybe_put(:year_max, parse_optional_int(Map.get(args, "year_max") || Map.get(args, :year_max)))
       |> maybe_put(:miles_min, parse_optional_int(Map.get(args, "miles_min") || Map.get(args, :miles_min)))
       |> maybe_put(:miles_max, parse_optional_int(Map.get(args, "miles_max") || Map.get(args, :miles_max)))
 
-    Pricing.list_market_prices(filters)
-    |> Enum.map(fn row ->
-      %{
-        id: row.id,
-        make: row.make,
-        model: row.model,
-        year: row.year,
-        miles: row.miles,
-        zipcode: row.zipcode,
-        price_type: row.price_type
-      }
-    end)
+    local =
+      Pricing.list_market_prices(filters)
+      |> Enum.map(fn row ->
+        %{
+          id: row.id,
+          make: row.make,
+          model: row.model,
+          year: row.year,
+          miles: row.miles,
+          zipcode: row.zipcode,
+          price_type: row.price_type,
+          source: "local"
+        }
+      end)
+
+    external =
+      case ListingSearch.search_for_vehicle(make, model) do
+        {:ok, candidates} ->
+          candidates
+          |> Enum.map(&ListingSearch.candidate_to_search_row/1)
+          |> maybe_filter_external_price_type(Map.get(filters, :price_type))
+
+        {:error, _} ->
+          []
+      end
+
+    local ++ external
   end
 
   def execute_tool("get_vehicle_market_price_details", args) when is_map(args) do
     ids = Map.get(args, "ids") || Map.get(args, :ids) || []
-    Pricing.get_market_price_details(List.wrap(ids))
+    ids = List.wrap(ids) |> Enum.map(&to_string/1)
+
+    {candidate_ids, market_ids} =
+      Enum.split_with(ids, fn id -> match?({:ok, _}, ListingSearch.parse_candidate_tool_id(id)) end)
+
+    Pricing.get_market_price_details(market_ids) ++
+      ListingSearch.get_candidate_price_details(candidate_ids)
   end
 
   def execute_tool(_name, _args), do: %{error: "unknown_tool"}
+
+  defp maybe_filter_external_price_type(rows, nil), do: rows
+  defp maybe_filter_external_price_type(rows, ""), do: rows
+
+  defp maybe_filter_external_price_type(rows, price_type) when is_binary(price_type) do
+    Enum.filter(rows, fn row -> row[:price_type] == price_type or row.price_type == price_type end)
+  end
 
   @doc """
   Suggests competitive and expected-minimum prices for a vehicle map.
@@ -388,12 +422,35 @@ defmodule Mechanics.Pricing.Agent do
   Returns `{:ok, attrs_map}` with string keys (may be partial), or `{:error, reason}`.
   """
   def extract_listing_from_url(url, opts \\ []) when is_binary(url) do
-    case BidWrangler.parse_item_ui_url(url) do
-      {:ok, parsed} ->
+    cond do
+      match?({:ok, _}, BidWrangler.parse_item_ui_url(url)) ->
+        {:ok, parsed} = BidWrangler.parse_item_ui_url(url)
         extract_bidwrangler_item(url, parsed, opts)
 
-      :error ->
+      match?({:ok, _}, RoyalSource.parse_lot_url(url)) ->
+        extract_royal_lot(url, opts)
+
+      true ->
         extract_from_html_page(url, opts)
+    end
+  end
+
+  defp extract_royal_lot(url, opts) do
+    case RoyalSource.fetch_detail(url, opts) do
+      {:ok, attrs} ->
+        if BidWrangler.complete_extract_attrs?(attrs) do
+          {:ok, attrs}
+        else
+          summary =
+            attrs
+            |> Enum.map(fn {k, v} -> "#{k}: #{v}" end)
+            |> Enum.join("\n")
+
+          llm_extract_or_attrs(url, summary, attrs, opts)
+        end
+
+      {:error, reason} ->
+        {:error, reason}
     end
   end
 

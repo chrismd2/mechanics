@@ -53,8 +53,54 @@ defmodule Mechanics.Pricing.AgentTest do
     assert is_list(result)
 
     assert Enum.any?(result, fn row ->
-             Map.get(row, :id) == market_price.id or Map.get(row, "id") == market_price.id
+             (Map.get(row, :id) == market_price.id or Map.get(row, "id") == market_price.id) and
+               (Map.get(row, :source) == "local" or Map.get(row, "source") == "local")
            end)
+  end
+
+  test "listing search candidates expose candidate: tool ids and price details" do
+    {:ok, source} =
+      Mechanics.Pricing.ListingSearch.create_auction_source(%{
+        "kind" => "bidwrangler",
+        "base_url" => "https://bid.example.com",
+        "label" => "Example"
+      })
+
+    http_get = fn url ->
+      assert String.contains?(url, "/api/items/search?query=")
+
+      {:ok,
+       Jason.encode!(%{
+         "items" => [
+           %{
+             "id" => 42,
+             "auction_id" => 9,
+             "name" => "2019 Ford F450",
+             "status" => "sold",
+             "api_bidding_state" => %{"closing_bid" => %{"amount" => 12_000}}
+           }
+         ]
+       })}
+    end
+
+    assert {:ok, [candidate]} =
+             Mechanics.Pricing.ListingSearch.search("Ford F450",
+               sources: [source],
+               http_get: http_get
+             )
+
+    row = Mechanics.Pricing.ListingSearch.candidate_to_search_row(candidate)
+    assert String.starts_with?(row.id, "candidate:")
+    assert row.source == "external"
+    assert row.price_type == "sale"
+
+    details = Mechanics.Pricing.ListingSearch.get_candidate_price_details([row.id])
+    assert hd(details).price_cents == 1_200_000
+
+    merged =
+      Agent.execute_tool("get_vehicle_market_price_details", %{"ids" => [row.id]})
+
+    assert Enum.any?(merged, fn d -> Map.get(d, :price_cents) == 1_200_000 end)
   end
 
   test "execute_tool get_vehicle_market_price_details returns price fields for ids" do

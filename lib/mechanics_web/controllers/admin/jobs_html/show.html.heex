@@ -1,0 +1,255 @@
+<div class="mx-auto max-w-4xl space-y-6">
+  <div class="flex flex-wrap items-center justify-between gap-3">
+    <div class="space-y-1">
+      <h1 class="text-2xl font-semibold text-zinc-900">Job #<%= @job.id %></h1>
+      <p class="text-sm text-zinc-600">
+        <%= @job.state %> · <%= @job.queue %> · <%= short_worker(@job.worker) %>
+      </p>
+    </div>
+    <div class="flex flex-wrap items-center gap-3">
+      <%= if runnable_now_job?(@job) do %>
+        <form action={~p"/admin/jobs/#{@job.id}/run-now"} method="post">
+          <input type="hidden" name="_csrf_token" value={get_csrf_token()} />
+          <button
+            type="submit"
+            class="rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-sm font-semibold text-zinc-900 hover:bg-zinc-50"
+          >
+            Run now
+          </button>
+        </form>
+      <% end %>
+      <%= if retryable_job?(@job) do %>
+        <form action={~p"/admin/jobs/#{@job.id}/retry"} method="post">
+          <input type="hidden" name="_csrf_token" value={get_csrf_token()} />
+          <button
+            type="submit"
+            class="rounded-lg bg-zinc-900 px-3 py-1.5 text-sm font-semibold text-white hover:bg-zinc-700"
+          >
+            Retry job
+          </button>
+        </form>
+      <% end %>
+      <.link href={~p"/admin?tab=jobs"} class="text-sm font-medium text-zinc-700 hover:underline">
+        ← Oban Jobs
+      </.link>
+    </div>
+  </div>
+
+  <details class="rounded-xl border border-zinc-200 bg-white shadow-sm" open>
+    <summary class="cursor-pointer list-none px-6 py-4 text-lg font-semibold text-zinc-900 marker:content-none [&::-webkit-details-marker]:hidden">
+      <span class="inline-flex w-full items-center justify-between gap-3">
+        <span>Details</span>
+        <span class="text-xs font-medium text-zinc-500">Click to collapse</span>
+      </span>
+    </summary>
+    <div class="border-t border-zinc-100 px-6 pb-6 pt-4">
+      <dl class="grid gap-3 text-sm sm:grid-cols-2">
+        <div>
+          <dt class="font-semibold text-zinc-800">Worker</dt>
+          <dd class="text-zinc-700"><%= @job.worker %></dd>
+        </div>
+        <div>
+          <dt class="font-semibold text-zinc-800">Attempt</dt>
+          <dd class="text-zinc-700"><%= @job.attempt %>/<%= @job.max_attempts %></dd>
+        </div>
+        <div>
+          <dt class="font-semibold text-zinc-800">Inserted</dt>
+          <dd class="text-zinc-700"><%= format_dt(@job.inserted_at) %></dd>
+        </div>
+        <div>
+          <dt class="font-semibold text-zinc-800">Scheduled</dt>
+          <dd class="text-zinc-700"><%= format_dt(@job.scheduled_at) %></dd>
+        </div>
+        <div>
+          <dt class="font-semibold text-zinc-800">Attempted</dt>
+          <dd class="text-zinc-700"><%= format_dt(@job.attempted_at) %></dd>
+        </div>
+        <div>
+          <dt class="font-semibold text-zinc-800">Completed</dt>
+          <dd class="text-zinc-700"><%= format_dt(@job.completed_at) %></dd>
+        </div>
+      </dl>
+    </div>
+  </details>
+
+  <%= if not is_nil(@results) do %>
+    <details class="rounded-xl border border-zinc-200 bg-white shadow-sm" open>
+      <summary class="cursor-pointer list-none px-6 py-4 text-lg font-semibold text-zinc-900 marker:content-none [&::-webkit-details-marker]:hidden">
+        <span class="inline-flex w-full items-center justify-between gap-3">
+          <span>Results</span>
+          <span class="text-xs font-medium text-zinc-500">Click to collapse</span>
+        </span>
+      </summary>
+      <div class="space-y-4 border-t border-zinc-100 px-6 pb-6 pt-4">
+        <%= if @results == [] do %>
+          <p class="text-sm text-zinc-600">No sources were crawled (none enabled Royal, or empty args).</p>
+        <% else %>
+          <%= for report <- @results do %>
+            <%= if report["kind"] == "digest" or Map.has_key?(report, "candidate_id") and not Map.has_key?(report, "auctions") do %>
+              <div class="space-y-2 rounded-lg border border-zinc-100 p-4">
+                <div class="flex flex-wrap items-baseline justify-between gap-2">
+                  <h3 class="text-sm font-semibold text-zinc-900">
+                    <%= report["title"] || "Listing candidate" %>
+                  </h3>
+                  <span class="text-xs text-zinc-600">
+                    <%= report["status"] %>
+                    <%= if report["outcome"] && report["outcome"] != report["status"] do %>
+                      · <%= report["outcome"] %>
+                    <% end %>
+                  </span>
+                </div>
+                <%= if report["query"] do %>
+                  <p class="text-xs text-zinc-500">Query: <%= report["query"] %></p>
+                <% end %>
+                <%= if report["source_url"] do %>
+                  <p class="text-sm">
+                    <a href={report["source_url"]} target="_blank" rel="noopener noreferrer" class="text-zinc-900 underline hover:text-zinc-700">
+                      <%= report["source_url"] %>
+                    </a>
+                  </p>
+                <% end %>
+                <dl class="grid gap-2 text-sm sm:grid-cols-2">
+                  <%= if report["candidate_id"] do %>
+                    <div>
+                      <dt class="font-semibold text-zinc-800">Candidate</dt>
+                      <dd>
+                        <.link href={~p"/admin/candidates/#{report["candidate_id"]}"} class="text-zinc-700 underline hover:text-zinc-900">
+                          <%= report["candidate_id"] %>
+                        </.link>
+                      </dd>
+                    </div>
+                  <% end %>
+                  <%= if report["vehicle_market_price_id"] do %>
+                    <div>
+                      <dt class="font-semibold text-zinc-800">Market price</dt>
+                      <dd class="text-zinc-700 tabular-nums"><%= report["vehicle_market_price_id"] %></dd>
+                    </div>
+                  <% end %>
+                  <%= if report["make"] || report["model"] || report["year"] do %>
+                    <div>
+                      <dt class="font-semibold text-zinc-800">Vehicle</dt>
+                      <dd class="text-zinc-700">
+                        <%= [report["year"], report["make"], report["model"]] |> Enum.reject(&is_nil/1) |> Enum.join(" ") %>
+                      </dd>
+                    </div>
+                  <% end %>
+                  <%= if report["miles"] do %>
+                    <div>
+                      <dt class="font-semibold text-zinc-800">Miles</dt>
+                      <dd class="text-zinc-700 tabular-nums"><%= report["miles"] %></dd>
+                    </div>
+                  <% end %>
+                  <%= if report["price_cents"] do %>
+                    <div>
+                      <dt class="font-semibold text-zinc-800">Price</dt>
+                      <dd class="text-zinc-700">
+                        <%= format_cents(report["price_cents"]) %>
+                        <%= if report["price_type"] do %>
+                          · <%= report["price_type"] %>
+                        <% end %>
+                      </dd>
+                    </div>
+                  <% end %>
+                </dl>
+                <%= if report["error"] do %>
+                  <p class="text-sm text-rose-700"><%= report["error"] %></p>
+                <% end %>
+                <%= if is_map(report["attrs"]) and report["attrs"] != %{} do %>
+                  <pre class="overflow-x-auto rounded-lg bg-zinc-50 p-3 text-xs text-zinc-800"><%= pretty_json(report["attrs"]) %></pre>
+                <% end %>
+              </div>
+            <% else %>
+              <div class="space-y-2 rounded-lg border border-zinc-100 p-4">
+                <div class="flex flex-wrap items-baseline justify-between gap-2">
+                  <h3 class="text-sm font-semibold text-zinc-900">
+                    <%= report["label"] || report["base_url"] || "Source" %>
+                  </h3>
+                  <span class="text-xs text-zinc-600">
+                    <%= report["status"] %>
+                    <%= if report["auction_count"] do %>
+                      · <%= report["auction_count"] %> auction(s)
+                    <% end %>
+                  </span>
+                </div>
+                <%= if report["base_url"] do %>
+                  <p class="text-xs text-zinc-500"><%= report["base_url"] %></p>
+                <% end %>
+                <%= if report["error"] do %>
+                  <p class="text-sm text-rose-700"><%= report["error"] %></p>
+                <% end %>
+                <%= if is_list(report["auctions"]) and report["auctions"] != [] do %>
+                  <div class="overflow-x-auto">
+                    <table class="min-w-full text-left text-sm">
+                      <thead class="border-b border-zinc-200 text-xs uppercase text-zinc-500">
+                        <tr>
+                          <th class="py-1.5 pr-3">Auction id</th>
+                          <th class="py-1.5 pr-3">Title</th>
+                          <th class="py-1.5 pr-3">Status</th>
+                          <th class="py-1.5">End</th>
+                        </tr>
+                      </thead>
+                      <tbody class="divide-y divide-zinc-100">
+                        <%= for auction <- report["auctions"] do %>
+                          <tr>
+                            <td class="py-1.5 pr-3 tabular-nums"><%= auction["auction_id"] %></td>
+                            <td class="py-1.5 pr-3"><%= auction["title"] || "—" %></td>
+                            <td class="py-1.5 pr-3"><%= auction["auction_status"] || "—" %></td>
+                            <td class="py-1.5 text-zinc-600"><%= auction["end_time"] || "—" %></td>
+                          </tr>
+                        <% end %>
+                      </tbody>
+                    </table>
+                  </div>
+                <% else %>
+                  <%= if report["status"] == "ok" do %>
+                    <p class="text-sm text-zinc-600">No auctions returned.</p>
+                  <% end %>
+                <% end %>
+              </div>
+            <% end %>
+          <% end %>
+        <% end %>
+      </div>
+    </details>
+  <% end %>
+
+  <details class="rounded-xl border border-zinc-200 bg-white shadow-sm">
+    <summary class="cursor-pointer list-none px-6 py-4 text-lg font-semibold text-zinc-900 marker:content-none [&::-webkit-details-marker]:hidden">
+      <span class="inline-flex w-full items-center justify-between gap-3">
+        <span>Args</span>
+        <span class="text-xs font-medium text-zinc-500">Click to expand</span>
+      </span>
+    </summary>
+    <div class="border-t border-zinc-100 px-6 pb-6 pt-4">
+      <pre class="overflow-x-auto rounded-lg bg-zinc-50 p-3 text-xs text-zinc-800"><%= pretty_json(@job.args) %></pre>
+    </div>
+  </details>
+
+  <details class="rounded-xl border border-zinc-200 bg-white shadow-sm">
+    <summary class="cursor-pointer list-none px-6 py-4 text-lg font-semibold text-zinc-900 marker:content-none [&::-webkit-details-marker]:hidden">
+      <span class="inline-flex w-full items-center justify-between gap-3">
+        <span>Meta</span>
+        <span class="text-xs font-medium text-zinc-500">Click to expand</span>
+      </span>
+    </summary>
+    <div class="border-t border-zinc-100 px-6 pb-6 pt-4">
+      <pre class="overflow-x-auto rounded-lg bg-zinc-50 p-3 text-xs text-zinc-800"><%= pretty_json(@job.meta) %></pre>
+    </div>
+  </details>
+
+  <details class="rounded-xl border border-zinc-200 bg-white shadow-sm">
+    <summary class="cursor-pointer list-none px-6 py-4 text-lg font-semibold text-zinc-900 marker:content-none [&::-webkit-details-marker]:hidden">
+      <span class="inline-flex w-full items-center justify-between gap-3">
+        <span>Errors</span>
+        <span class="text-xs font-medium text-zinc-500">Click to expand</span>
+      </span>
+    </summary>
+    <div class="border-t border-zinc-100 px-6 pb-6 pt-4">
+      <%= if @job.errors == [] do %>
+        <p class="text-sm text-zinc-600">No errors recorded.</p>
+      <% else %>
+        <pre class="overflow-x-auto rounded-lg bg-zinc-50 p-3 text-xs text-zinc-800"><%= pretty_json(@job.errors) %></pre>
+      <% end %>
+    </div>
+  </details>
+</div>

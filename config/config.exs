@@ -57,6 +57,17 @@ config :logger, :console,
 # Use Jason for JSON parsing in Phoenix
 config :phoenix, :json_library, Jason
 
+config :mechanics, Oban,
+  repo: Mechanics.Repo,
+  plugins: [
+    {Oban.Plugins.Pruner, max_age: 60 * 60 * 24 * 7},
+    {Oban.Plugins.Cron,
+     crontab: [
+       {"0 */6 * * *", Mechanics.Pricing.Workers.CrawlPastAuctionsWorker}
+     ]}
+  ],
+  queues: [default: 5, crawl: 1, digest: 3]
+
 # Import environment specific config. This must remain at the bottom
 # of this file so it overrides the configuration defined above.
 import_config "#{config_env()}.exs"

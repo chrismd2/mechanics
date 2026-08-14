@@ -102,6 +102,24 @@ defmodule Mechanics.AccountsTest do
       assert Enum.uniq(updated.roles) == updated.roles
     end
 
+    test "admin is a valid role and add_admin_role upgrades a customer" do
+      {:ok, customer} =
+        Accounts.create_user(%{
+          @valid_attrs
+          | "email" => "admin-upgrade@example.com",
+            "roles" => ["customer"]
+        })
+
+      {:ok, updated} = Accounts.add_admin_role(customer)
+
+      assert "admin" in updated.roles
+      assert "customer" in updated.roles
+
+      {:ok, again} = Accounts.add_admin_role(updated)
+      assert "admin" in again.roles
+      assert Enum.uniq(again.roles) == again.roles
+    end
+
     test "list_mechanics returns only users with role mechanic" do
       {:ok, mechanic} =
         Accounts.create_user(%{

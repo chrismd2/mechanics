@@ -1,0 +1,482 @@
+<div id="admin-page" class="mx-auto max-w-5xl space-y-6">
+  <div>
+    <h1 class="text-2xl font-semibold text-zinc-900">Admin</h1>
+    <p class="mt-1 text-sm text-zinc-600">
+      Auction sources, background jobs, and listing candidates used by price suggestions.
+    </p>
+  </div>
+
+  <div class="flex flex-col gap-6 lg:flex-row lg:items-start">
+    <aside
+      class="flex shrink-0 gap-2 rounded-xl border border-zinc-200 bg-zinc-50 p-2 lg:w-52 lg:flex-col"
+      role="tablist"
+      aria-label="Admin tools"
+    >
+      <button
+        type="button"
+        class="admin-tab-btn rounded-lg px-3 py-2 text-left text-sm font-semibold text-zinc-700 aria-selected:bg-white aria-selected:text-zinc-900 aria-selected:shadow-sm"
+        data-admin-tab="sources"
+        role="tab"
+        aria-selected={if @admin_tab == "sources", do: "true", else: "false"}
+        aria-controls="admin-panel-sources"
+        id="admin-tab-sources"
+      >
+        Auction sources
+      </button>
+      <button
+        type="button"
+        class="admin-tab-btn rounded-lg px-3 py-2 text-left text-sm font-semibold text-zinc-700 aria-selected:bg-white aria-selected:text-zinc-900 aria-selected:shadow-sm"
+        data-admin-tab="jobs"
+        role="tab"
+        aria-selected={if @admin_tab == "jobs", do: "true", else: "false"}
+        aria-controls="admin-panel-jobs"
+        id="admin-tab-jobs"
+      >
+        Oban Jobs
+      </button>
+      <button
+        type="button"
+        class="admin-tab-btn rounded-lg px-3 py-2 text-left text-sm font-semibold text-zinc-700 aria-selected:bg-white aria-selected:text-zinc-900 aria-selected:shadow-sm"
+        data-admin-tab="candidates"
+        role="tab"
+        aria-selected={if @admin_tab == "candidates", do: "true", else: "false"}
+        aria-controls="admin-panel-candidates"
+        id="admin-tab-candidates"
+      >
+        Listing candidates
+      </button>
+    </aside>
+
+    <div class="min-w-0 flex-1 space-y-8">
+      <section
+        id="admin-panel-sources"
+        data-admin-panel="sources"
+        role="tabpanel"
+        aria-labelledby="admin-tab-sources"
+        hidden={@admin_tab != "sources"}
+        class="space-y-8"
+      >
+        <div class="space-y-2">
+          <h2 class="text-lg font-semibold text-zinc-900">Auction sources</h2>
+          <p class="text-sm text-zinc-600">
+            Manage origins used by pricing-agent comps and past-auction crawl.
+            After crawling, check <code class="text-xs">config.last_crawl_report</code> or the Oban Jobs panel.
+          </p>
+        </div>
+
+        <div class="space-y-4 rounded-xl border border-zinc-200 bg-white p-6 shadow-sm">
+          <h3 class="text-base font-semibold text-zinc-900">Add source</h3>
+          <form action={~p"/admin/auction-sources"} method="post" class="grid gap-4 sm:grid-cols-2">
+            <input type="hidden" name="_csrf_token" value={get_csrf_token()} />
+            <div class="sm:col-span-2">
+              <label class="block text-sm font-semibold text-zinc-800" for="auction_source_base_url">Base URL</label>
+              <input
+                id="auction_source_base_url"
+                name="auction_source[base_url]"
+                type="url"
+                required
+                placeholder="https://bid.example.com"
+                value={Ecto.Changeset.get_field(@changeset, :base_url) || ""}
+                class="mt-1 block w-full rounded-lg border-zinc-300 shadow-sm sm:text-sm"
+              />
+            </div>
+            <div>
+              <label class="block text-sm font-semibold text-zinc-800" for="auction_source_label">Label</label>
+              <input
+                id="auction_source_label"
+                name="auction_source[label]"
+                type="text"
+                required
+                value={Ecto.Changeset.get_field(@changeset, :label) || ""}
+                class="mt-1 block w-full rounded-lg border-zinc-300 shadow-sm sm:text-sm"
+              />
+            </div>
+            <div>
+              <label class="block text-sm font-semibold text-zinc-800" for="auction_source_kind">Kind</label>
+              <select
+                id="auction_source_kind"
+                name="auction_source[kind]"
+                class="mt-1 block w-full rounded-lg border-zinc-300 shadow-sm sm:text-sm"
+              >
+                <%= for kind <- Mechanics.Pricing.AuctionSource.valid_kinds() do %>
+                  <option
+                    value={kind}
+                    selected={(Ecto.Changeset.get_field(@changeset, :kind) || "unknown") == kind}
+                  >
+                    <%= kind %>
+                  </option>
+                <% end %>
+              </select>
+            </div>
+            <div class="sm:col-span-2">
+              <button type="submit" class="rounded-lg bg-zinc-900 px-4 py-2 text-sm font-semibold text-white hover:bg-zinc-700">
+                Add source
+              </button>
+            </div>
+          </form>
+        </div>
+
+        <%= if @suggestions != [] do %>
+          <div class="space-y-3">
+            <h3 class="text-base font-semibold text-zinc-900">Suggested from recent market prices</h3>
+            <ul class="divide-y divide-zinc-100 rounded-xl border border-zinc-200 bg-white">
+              <%= for suggestion <- @suggestions do %>
+                <li class="flex flex-wrap items-center justify-between gap-3 px-4 py-3 text-sm">
+                  <div>
+                    <div class="font-medium text-zinc-900"><%= suggestion.label %></div>
+                    <div class="text-zinc-600"><%= suggestion.base_url %> · <%= suggestion.kind %></div>
+                  </div>
+                  <form action={~p"/admin/auction-sources/from-suggestion"} method="post">
+                    <input type="hidden" name="_csrf_token" value={get_csrf_token()} />
+                    <input type="hidden" name="base_url" value={suggestion.base_url} />
+                    <input type="hidden" name="kind" value={suggestion.kind} />
+                    <input type="hidden" name="label" value={suggestion.label} />
+                    <button type="submit" class="rounded-lg border border-zinc-300 px-3 py-1.5 font-semibold text-zinc-800 hover:bg-zinc-50">
+                      Add
+                    </button>
+                  </form>
+                </li>
+              <% end %>
+            </ul>
+          </div>
+        <% end %>
+
+        <div class="space-y-3">
+          <h3 class="text-base font-semibold text-zinc-900">Sources</h3>
+          <ul class="divide-y divide-zinc-100 rounded-xl border border-zinc-200 bg-white">
+            <%= for source <- @sources do %>
+              <%
+                config = source.config || %{}
+                report = Map.get(config, "last_crawl_report")
+                last_job_id = Map.get(config, "last_crawl_job_id")
+              %>
+              <li class="flex flex-wrap items-start justify-between gap-3 px-4 py-3 text-sm">
+                <div class="min-w-0 flex-1">
+                  <%= if last_job_id do %>
+                    <.link
+                      href={~p"/admin/jobs/#{last_job_id}"}
+                      class="block min-w-0 rounded-lg border border-transparent px-2 py-1 -mx-2 hover:border-zinc-200 hover:bg-zinc-50 focus:outline-none focus:ring-2 focus:ring-zinc-300"
+                    >
+                      <.auction_source_summary source={source} report={report} linked?={true} />
+                    </.link>
+                  <% else %>
+                    <div class="min-w-0 px-2 py-1 -mx-2">
+                      <.auction_source_summary source={source} report={report} linked?={false} />
+                    </div>
+                  <% end %>
+                </div>
+                <form action={~p"/admin/auction-sources/#{source.id}"} method="post" class="flex shrink-0 items-center gap-2">
+                  <input type="hidden" name="_csrf_token" value={get_csrf_token()} />
+                  <input type="hidden" name="_method" value="patch" />
+                  <input type="hidden" name="auction_source[enabled]" value={to_string(!source.enabled)} />
+                  <input type="hidden" name="auction_source[label]" value={source.label} />
+                  <input type="hidden" name="auction_source[kind]" value={source.kind} />
+                  <input type="hidden" name="auction_source[base_url]" value={source.base_url} />
+                  <button type="submit" class="rounded-lg border border-zinc-300 px-3 py-1.5 font-semibold text-zinc-800 hover:bg-zinc-50">
+                    <%= if source.enabled, do: "Disable", else: "Enable" %>
+                  </button>
+                </form>
+              </li>
+            <% end %>
+          </ul>
+          <%= if @sources == [] do %>
+            <p class="text-sm text-zinc-600">No auction sources yet.</p>
+          <% end %>
+        </div>
+      </section>
+
+      <section
+        id="admin-panel-jobs"
+        data-admin-panel="jobs"
+        role="tabpanel"
+        aria-labelledby="admin-tab-jobs"
+        hidden={@admin_tab != "jobs"}
+        class="space-y-8"
+      >
+        <div class="space-y-2">
+          <h2 class="text-lg font-semibold text-zinc-900">Oban Jobs</h2>
+          <p class="text-sm text-zinc-600">
+            Run crawl and trial search manually, then inspect Oban job state and errors.
+          </p>
+        </div>
+
+        <div class="space-y-4 rounded-xl border border-zinc-200 bg-white p-6 shadow-sm">
+          <h3 class="text-base font-semibold text-zinc-900">Run past-auction crawl</h3>
+          <p class="text-sm text-zinc-600">
+            Enqueues <code class="text-xs">CrawlPastAuctionsWorker</code> for enabled Royal sources.
+          </p>
+          <form action={~p"/admin/jobs/crawl"} method="post" class="flex flex-wrap items-end gap-3">
+            <input type="hidden" name="_csrf_token" value={get_csrf_token()} />
+            <div>
+              <label class="block text-sm font-semibold text-zinc-800" for="crawl_source_id">Source (optional)</label>
+              <select
+                id="crawl_source_id"
+                name="source_id"
+                class="mt-1 block rounded-lg border-zinc-300 shadow-sm sm:text-sm"
+              >
+                <option value="">All enabled Royal</option>
+                <%= for source <- Enum.filter(@enabled_sources, &(&1.kind == "royal")) do %>
+                  <option value={source.id}><%= source.label %></option>
+                <% end %>
+              </select>
+            </div>
+            <button type="submit" class="rounded-lg bg-zinc-900 px-4 py-2 text-sm font-semibold text-white hover:bg-zinc-700">
+              Enqueue crawl
+            </button>
+          </form>
+        </div>
+
+        <div class="space-y-4 rounded-xl border border-zinc-200 bg-white p-6 shadow-sm">
+          <h3 class="text-base font-semibold text-zinc-900">Trial listing search</h3>
+          <p class="text-sm text-zinc-600">
+            Same vehicle fields as price suggestions. Runs
+            <code class="text-xs">search_for_vehicle(make, model)</code> on enabled auction sources.
+          </p>
+          <form action={~p"/admin/jobs/search"} method="post" class="space-y-4" id="admin_trial_vehicle_form">
+            <input type="hidden" name="_csrf_token" value={get_csrf_token()} />
+            <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div class="space-y-2">
+                <label for="vehicle_make" class="block text-sm font-semibold text-zinc-800">Make</label>
+                <input
+                  type="text"
+                  id="vehicle_make"
+                  name="vehicle[make]"
+                  value={@vehicle["make"]}
+                  required
+                  class="mt-1 block w-full rounded-lg border-zinc-300 shadow-sm sm:text-sm"
+                />
+              </div>
+              <div class="space-y-2">
+                <label for="vehicle_model" class="block text-sm font-semibold text-zinc-800">Model</label>
+                <input
+                  type="text"
+                  id="vehicle_model"
+                  name="vehicle[model]"
+                  value={@vehicle["model"]}
+                  required
+                  class="mt-1 block w-full rounded-lg border-zinc-300 shadow-sm sm:text-sm"
+                />
+              </div>
+            </div>
+            <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div class="space-y-2">
+                <label for="vehicle_year" class="block text-sm font-semibold text-zinc-800">
+                  Year <span class="font-normal text-zinc-500">(optional)</span>
+                </label>
+                <input
+                  type="text"
+                  id="vehicle_year"
+                  name="vehicle[year]"
+                  value={@vehicle["year"]}
+                  class="mt-1 block w-full rounded-lg border-zinc-300 shadow-sm sm:text-sm"
+                />
+              </div>
+              <div class="space-y-2">
+                <label for="vehicle_miles" class="block text-sm font-semibold text-zinc-800">
+                  Miles <span class="font-normal text-zinc-500">(optional)</span>
+                </label>
+                <input
+                  type="text"
+                  id="vehicle_miles"
+                  name="vehicle[miles]"
+                  value={@vehicle["miles"]}
+                  min="0"
+                  class="mt-1 block w-full rounded-lg border-zinc-300 shadow-sm sm:text-sm"
+                />
+              </div>
+            </div>
+            <div class="space-y-2">
+              <label for="vehicle_zipcode" class="block text-sm font-semibold text-zinc-800">Zipcode</label>
+              <input
+                type="text"
+                id="vehicle_zipcode"
+                name="vehicle[zipcode]"
+                value={@vehicle["zipcode"]}
+                maxlength="10"
+                inputmode="numeric"
+                class="mt-1 block w-full rounded-lg border-zinc-300 shadow-sm sm:text-sm"
+              />
+              <p class="text-xs text-zinc-500">Defaults to 00000 when blank.</p>
+            </div>
+            <button type="submit" class="rounded-lg bg-zinc-900 px-4 py-2 text-sm font-semibold text-white hover:bg-zinc-700">
+              Search auction sources
+            </button>
+          </form>
+
+          <%= if is_list(@search_results) do %>
+            <div class="space-y-2">
+              <h4 class="text-sm font-semibold text-zinc-800">
+                Results (<%= length(@search_results) %>)
+              </h4>
+              <%= if @search_results == [] do %>
+                <p class="text-sm text-zinc-600">No candidates returned.</p>
+              <% else %>
+                <ul class="divide-y divide-zinc-100 rounded-lg border border-zinc-200">
+                  <%= for candidate <- @search_results do %>
+                    <li class="px-3 py-2 text-sm">
+                      <.link href={~p"/admin/candidates/#{candidate.id}"} class="font-medium text-zinc-900 hover:underline">
+                        <%= candidate.title || candidate.source_url %>
+                      </.link>
+                      <div class="text-zinc-600">
+                        <%= candidate.status %> · <%= candidate.source_url %>
+                      </div>
+                    </li>
+                  <% end %>
+                </ul>
+              <% end %>
+            </div>
+          <% end %>
+        </div>
+
+        <div class="space-y-3">
+          <div class="flex flex-wrap items-center justify-between gap-3">
+            <h3 class="text-base font-semibold text-zinc-900">Recent Oban jobs</h3>
+            <form action={~p"/admin"} method="get" class="flex items-center gap-2">
+              <input type="hidden" name="tab" value="jobs" />
+              <label class="text-sm text-zinc-600" for="jobs_queue">Queue</label>
+              <select
+                id="jobs_queue"
+                name="queue"
+                class="rounded-lg border-zinc-300 shadow-sm sm:text-sm"
+                onchange="this.form.submit()"
+              >
+                <option value="" selected={is_nil(@queue)}>All</option>
+                <option value="crawl" selected={@queue == "crawl"}>crawl</option>
+                <option value="digest" selected={@queue == "digest"}>digest</option>
+                <option value="default" selected={@queue == "default"}>default</option>
+              </select>
+            </form>
+          </div>
+          <div class="overflow-x-auto rounded-xl border border-zinc-200 bg-white">
+            <table class="min-w-full text-left text-sm">
+              <thead class="border-b border-zinc-200 bg-zinc-50 text-xs uppercase text-zinc-500">
+                <tr>
+                  <th class="px-3 py-2">ID</th>
+                  <th class="px-3 py-2">State</th>
+                  <th class="px-3 py-2">Queue</th>
+                  <th class="px-3 py-2">Worker</th>
+                  <th class="px-3 py-2">Attempt</th>
+                  <th class="px-3 py-2">When</th>
+                  <th class="px-3 py-2">Actions</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-zinc-100">
+                <%= for job <- @jobs do %>
+                  <tr>
+                    <td class="px-3 py-2">
+                      <.link href={~p"/admin/jobs/#{job.id}"} class="font-medium text-zinc-900 hover:underline">
+                        #<%= job.id %>
+                      </.link>
+                    </td>
+                    <td class="px-3 py-2"><%= job.state %></td>
+                    <td class="px-3 py-2"><%= job.queue %></td>
+                    <td class="px-3 py-2"><%= short_worker(job.worker) %></td>
+                    <td class="px-3 py-2"><%= job.attempt %>/<%= job.max_attempts %></td>
+                    <td class="px-3 py-2"><%= format_dt(job_timestamp(job)) %></td>
+                    <td class="px-3 py-2">
+                      <div class="flex flex-wrap gap-2">
+                        <%= if job.state in ["scheduled", "available", "suspended"] do %>
+                          <form action={~p"/admin/jobs/#{job.id}/run-now"} method="post" class="inline">
+                            <input type="hidden" name="_csrf_token" value={get_csrf_token()} />
+                            <button type="submit" class="text-sm font-medium text-zinc-700 underline hover:text-zinc-900">
+                              Run now
+                            </button>
+                          </form>
+                        <% end %>
+                        <%= if job.state in ["discarded", "retryable", "cancelled", "completed"] do %>
+                          <form action={~p"/admin/jobs/#{job.id}/retry"} method="post" class="inline">
+                            <input type="hidden" name="_csrf_token" value={get_csrf_token()} />
+                            <button type="submit" class="text-sm font-medium text-zinc-700 underline hover:text-zinc-900">
+                              Retry
+                            </button>
+                          </form>
+                        <% end %>
+                      </div>
+                    </td>
+                  </tr>
+                <% end %>
+              </tbody>
+            </table>
+            <%= if @jobs == [] do %>
+              <p class="px-3 py-4 text-sm text-zinc-600">No jobs yet.</p>
+            <% end %>
+          </div>
+        </div>
+      </section>
+
+      <section
+        id="admin-panel-candidates"
+        data-admin-panel="candidates"
+        role="tabpanel"
+        aria-labelledby="admin-tab-candidates"
+        hidden={@admin_tab != "candidates"}
+        class="space-y-6"
+      >
+        <div class="space-y-2">
+          <h2 class="text-lg font-semibold text-zinc-900">Listing candidates</h2>
+          <p class="text-sm text-zinc-600">
+            External auction hits from suggestions or trial search. Digest imports a URL into market prices.
+          </p>
+        </div>
+
+        <form action={~p"/admin"} method="get" class="flex items-center gap-2">
+          <input type="hidden" name="tab" value="candidates" />
+          <label class="text-sm text-zinc-600" for="candidates_status">Status</label>
+          <select
+            id="candidates_status"
+            name="status"
+            class="rounded-lg border-zinc-300 shadow-sm sm:text-sm"
+            onchange="this.form.submit()"
+          >
+            <option value="" selected={is_nil(@status)}>All</option>
+            <%= for status <- Mechanics.Pricing.ListingCandidate.valid_statuses() do %>
+              <option value={status} selected={@status == status}><%= status %></option>
+            <% end %>
+          </select>
+        </form>
+
+        <div class="overflow-x-auto rounded-xl border border-zinc-200 bg-white">
+          <table class="min-w-full text-left text-sm">
+            <thead class="border-b border-zinc-200 bg-zinc-50 text-xs uppercase text-zinc-500">
+              <tr>
+                <th class="px-3 py-2">Title</th>
+                <th class="px-3 py-2">Status</th>
+                <th class="px-3 py-2">Query</th>
+                <th class="px-3 py-2">Inserted</th>
+                <th class="px-3 py-2"></th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-zinc-100">
+              <%= for candidate <- @candidates do %>
+                <tr>
+                  <td class="px-3 py-2">
+                    <.link href={~p"/admin/candidates/#{candidate.id}"} class="font-medium text-zinc-900 hover:underline">
+                      <%= candidate.title || "Untitled" %>
+                    </.link>
+                    <div class="max-w-md truncate text-xs text-zinc-500"><%= candidate.source_url %></div>
+                  </td>
+                  <td class="px-3 py-2"><%= candidate.status %></td>
+                  <td class="px-3 py-2"><%= candidate.query || "—" %></td>
+                  <td class="px-3 py-2"><%= format_dt(candidate.inserted_at) %></td>
+                  <td class="px-3 py-2 text-right">
+                    <%= if candidate.status == "new" do %>
+                      <form action={~p"/admin/candidates/#{candidate.id}/digest"} method="post" class="inline">
+                        <input type="hidden" name="_csrf_token" value={get_csrf_token()} />
+                        <button type="submit" class="rounded-lg border border-zinc-300 px-2 py-1 text-xs font-semibold text-zinc-800 hover:bg-zinc-50">
+                          Digest
+                        </button>
+                      </form>
+                    <% end %>
+                  </td>
+                </tr>
+              <% end %>
+            </tbody>
+          </table>
+          <%= if @candidates == [] do %>
+            <p class="px-3 py-4 text-sm text-zinc-600">No candidates.</p>
+          <% end %>
+        </div>
+      </section>
+    </div>
+  </div>
+</div>
