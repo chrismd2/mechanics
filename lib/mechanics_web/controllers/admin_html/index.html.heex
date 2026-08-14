@@ -196,7 +196,7 @@
         <div class="space-y-2">
           <h2 class="text-lg font-semibold text-zinc-900">Oban Jobs</h2>
           <p class="text-sm text-zinc-600">
-            Run crawl and trial search manually, then inspect Oban job state and errors.
+            Run crawl and listing search manually, then inspect Oban job state and errors.
           </p>
         </div>
 
@@ -227,12 +227,13 @@
         </div>
 
         <div class="space-y-4 rounded-xl border border-zinc-200 bg-white p-6 shadow-sm">
-          <h3 class="text-base font-semibold text-zinc-900">Trial listing search</h3>
+          <h3 class="text-base font-semibold text-zinc-900">Listing search</h3>
           <p class="text-sm text-zinc-600">
             Same vehicle fields as price suggestions. Runs
-            <code class="text-xs">search_for_vehicle(make, model)</code> on enabled auction sources.
+            <code class="text-xs">search_vehicle_market_prices</code>
+            (local comps plus enabled auction sources).
           </p>
-          <form action={~p"/admin/jobs/search"} method="post" class="space-y-4" id="admin_trial_vehicle_form">
+          <form action={~p"/admin/jobs/search"} method="post" class="space-y-4" id="admin_listing_vehicle_form">
             <input type="hidden" name="_csrf_token" value={get_csrf_token()} />
             <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div class="space-y-2">
@@ -309,16 +310,23 @@
                 Results (<%= length(@search_results) %>)
               </h4>
               <%= if @search_results == [] do %>
-                <p class="text-sm text-zinc-600">No candidates returned.</p>
+                <p class="text-sm text-zinc-600">No results returned.</p>
               <% else %>
                 <ul class="divide-y divide-zinc-100 rounded-lg border border-zinc-200">
-                  <%= for candidate <- @search_results do %>
+                  <%= for row <- @search_results do %>
                     <li class="px-3 py-2 text-sm">
-                      <.link href={~p"/admin/candidates/#{candidate.id}"} class="font-medium text-zinc-900 hover:underline">
-                        <%= candidate.title || candidate.source_url %>
-                      </.link>
+                      <%= if candidate_id = search_row_candidate_id(row) do %>
+                        <.link href={~p"/admin/candidates/#{candidate_id}"} class="font-medium text-zinc-900 hover:underline">
+                          <%= search_row_label(row) %>
+                        </.link>
+                      <% else %>
+                        <span class="font-medium text-zinc-900"><%= search_row_label(row) %></span>
+                      <% end %>
                       <div class="text-zinc-600">
-                        <%= candidate.status %> · <%= candidate.source_url %>
+                        <%= search_row_source(row) %> · <%= search_row_id(row) %>
+                        <%= if url = search_row_url(row) do %>
+                          · <%= url %>
+                        <% end %>
                       </div>
                     </li>
                   <% end %>
@@ -415,7 +423,7 @@
         <div class="space-y-2">
           <h2 class="text-lg font-semibold text-zinc-900">Listing candidates</h2>
           <p class="text-sm text-zinc-600">
-            External auction hits from suggestions or trial search. Digest imports a URL into market prices.
+            External auction hits from suggestions or listing search. Digest imports a URL into market prices.
           </p>
         </div>
 
