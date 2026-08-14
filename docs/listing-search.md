@@ -10,7 +10,7 @@ Hits land in **`listing_candidates`** (not `listings`). Digestion imports into `
 
 | Role | Access |
 |------|--------|
-| `pricing_user` | Suggest prices; agent tools may query enabled auction sources |
+| `pricing_user` | Suggest prices; each suggestion searches enabled auction sources |
 | `admin` | Tools → Admin: tabbed panels for auction sources, Oban jobs, listing candidates |
 
 Grant via `Accounts.add_pricing_user_role/1` and `Accounts.add_admin_role/1` (idempotent; no self-service UI).
@@ -34,7 +34,7 @@ Local Docker uses the **`mechanics`** Postgres DB.
 
 ## Listing candidates
 
-Hits from external search during a suggestion tool call (or admin trial search) are upserted into `listing_candidates` (unique `source_url`) for later Oban digestion. Agent tool ids for these rows are `candidate:<uuid>`.
+Hits from external search during a price suggestion (or admin listing search) are upserted into `listing_candidates` (unique `source_url`) for later Oban digestion. Agent tool ids for these rows are `candidate:<uuid>`.
 
 **Auto-pipeline (on each newly inserted candidate):**
 
@@ -45,12 +45,14 @@ Re-running search for an existing `source_url` updates the candidate but does **
 
 ## How suggestions use external sources
 
-When the pricing agent calls `search_vehicle_market_prices`:
+Every price suggestion (`Agent.suggest` / `POST /pricing/suggest`) runs the **same** search as `search_vehicle_market_prices` — not only when the LLM chooses to call the tool. Heuristic / no-year / LLM-unavailable paths still search auction sources so digest and lot-crawl enqueue.
 
-1. Query local `vehicle_market_prices` as before.
-2. Also search **enabled** auction sources with `"#{make} #{model}"` (BidWrangler `?query=`, Royal GraphQL `search:{text:}`), up to **5 pages** (page size 25) per source until a short/empty page.
+1. Search **enabled** auction sources with `"#{make} #{model}"` (BidWrangler `?query=`, Royal GraphQL `search:{text:}`), up to **5 pages** (page size 25) per source until a short/empty page. Pass `user_id` so new candidates enqueue staggered digests.
+2. Query local `vehicle_market_prices` (year/miles/`price_type` filters apply here).
 3. Merge local + external rows (external marked `source: "external"`).
 4. `get_vehicle_market_price_details` resolves both market-price ids and `candidate:` ids (price from trimmed raw snapshot).
+
+Admin listing search on `/admin?tab=jobs` calls this same tool with the vehicle form (`make`/`model`; optional year/miles as local filters).
 
 ## Adapters
 
@@ -71,7 +73,7 @@ Explicit unknown odometer text (`Odom Reads N/A`, `exempt`, etc.) is stored as *
 | PATCH | `/admin/auction-sources/:id` | admin | Update (enable/disable/label) |
 | POST | `/admin/auction-sources/from-suggestion` | admin | Add a suggested origin |
 | POST | `/admin/jobs/crawl` | admin | Enqueue `CrawlPastAuctionsWorker` |
-| POST | `/admin/jobs/search` | admin | Trial search via vehicle form (`make`/`model`; same as agent; passes `user_id` for digests) |
+| POST | `/admin/jobs/search` | admin | Listing search via `search_vehicle_market_prices` (local comps + enabled auction sources; vehicle form; passes `user_id` for digests) |
 | GET | `/admin/jobs/:id` | admin | Job args / meta / errors; crawl Results from `meta.results` or source `last_crawl_*` |
 | POST | `/admin/jobs/:id/retry` | admin | Retry discarded / retryable / cancelled / completed Oban job |
 | POST | `/admin/jobs/:id/run-now` | admin | Run scheduled / available / suspended job immediately |

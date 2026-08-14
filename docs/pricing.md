@@ -125,7 +125,7 @@ Examples: Groq (`https://api.groq.com/openai/v1`), OpenAI (`https://api.openai.c
 
 | Tool | Purpose |
 |------|---------|
-| `search_vehicle_market_prices` | Filter local `vehicle_market_prices` **and** search enabled external auction sources (BidWrangler / Royal) by make/model (plus optional year/miles/`price_type`). External hits use `candidate:` ids. |
+| `search_vehicle_market_prices` | Filter local `vehicle_market_prices` **and** search enabled external auction sources (BidWrangler / Royal) by make/model (plus optional year/miles/`price_type`). External hits use `candidate:` ids. **Every** `Agent.suggest` run calls this search (including heuristic / no-year fallbacks), not only when the LLM emits a tool call. Admin listing search uses the same tool. |
 | `get_vehicle_market_price_details` | Given ids (local or `candidate:`), return `price_cents`, `currency`, `price_type`, year, miles. |
 
 The agent should use sales for floor / expected-minimum context and listings for asking / competitive context, then return **competitive** and **expected minimum** prices in cents.
@@ -134,7 +134,7 @@ The agent should use sales for floor / expected-minimum context and listings for
 
 ### Seed matches (heuristic / match_count)
 
-Before (and alongside) tool calling, the agent seeds comps from `vehicle_market_prices`:
+Before seeding or tool calling, the agent runs `search_vehicle_market_prices` (listing search + local comps). Then it seeds percentile comps from `vehicle_market_prices`:
 
 1. If year is unspecified (`0` / blank): make/model **contains** match (up to 50 rows) → percentile **best guess** (skip LLM); summary notes year was not specified
 2. Otherwise: same make/model, year ±1; apply miles ±20% only when miles is non-zero (blank miles skips the miles band)
@@ -149,7 +149,7 @@ This matters when VIN decode fills make/model/year but the user’s miles differ
 - `Pricing.create_market_price/2` — create a shared listing/sale market price (`pricing_user` gates the controller; row has no owner)
 - `Pricing.import_market_price_from_url/2` — URL lookup → agent extract (BidWrangler item API, Royal lot GraphQL, or HTML+LLM) → save or `{:needs_form, attrs}` (tests may inject `:extract` via opts or `Application.put_env(:mechanics, Mechanics.Pricing, extract: fun)`)
 - `Pricing.BidWrangler` — parse `/ui/auctions/:auction_id/:item_id`, map `/api/items/:id` JSON to attrs, compact LLM summary
-- `Pricing.ListingSearch` — auction sources, listing candidates, multi-source search / suggestions (see [listing-search.md](listing-search.md))
+- `Pricing.ListingSearch` — auction sources, listing candidates, multi-source search used on every price suggestion (see [listing-search.md](listing-search.md))
 - `Pricing.lookup_vehicle_from_vin/2` — VIN check → `{:ok, :ready, attrs}` or `{:needs_form, attrs}` (blank miles → `0`)
 - `Pricing.get_market_price_by_source_url/1` — find an existing row by URL
 - `Pricing.list_market_prices/1` — filter/search (backing `search_vehicle_market_prices`; supports `vin` as well as make/model/year/miles; no per-user ownership filter)
