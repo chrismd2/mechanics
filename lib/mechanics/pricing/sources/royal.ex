@@ -67,10 +67,7 @@ defmodule Mechanics.Pricing.Sources.Royal do
 
     variables = %{
       "pagination" => %{"page" => page, "pageSize" => page_size},
-      "filter" => %{
-        "auction_lot_status" => [100, 200],
-        "auction_visible_on_front" => true
-      },
+      "filter" => build_lot_filter(opts),
       "search" => %{"text" => query},
       "order" => [%{"column" => "auction_end_time", "direction" => "desc"}]
     }
@@ -312,6 +309,38 @@ defmodule Mechanics.Pricing.Sources.Royal do
       "starting_bid",
       "auction"
     ])
+  end
+
+  defp build_lot_filter(opts) do
+    filter = %{
+      "auction_lot_status" => [100, 200],
+      "auction_visible_on_front" => true
+    }
+
+    case Keyword.get(opts, :auction_id) do
+      nil ->
+        filter
+
+      id ->
+        auction_id =
+          cond do
+            is_integer(id) -> id
+            is_binary(id) -> String.to_integer(id)
+            true -> id
+          end
+
+        Map.put(filter, "auction_id", auction_id)
+    end
+  rescue
+    ArgumentError ->
+      Map.put(
+        %{
+          "auction_lot_status" => [100, 200],
+          "auction_visible_on_front" => true
+        },
+        "auction_id",
+        Keyword.get(opts, :auction_id)
+      )
   end
 
   defp stringify_keys(map) when is_map(map) do

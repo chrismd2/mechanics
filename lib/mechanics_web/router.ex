@@ -77,6 +77,7 @@ defmodule MechanicsWeb.Router do
     get "/admin/auction-sources", Admin.AuctionSourcesController, :index
     get "/admin/jobs", Admin.JobsController, :index
     get "/admin/jobs/:id", Admin.JobsController, :show
+    post "/admin/jobs/:id/retry", Admin.JobsController, :retry
     get "/admin/candidates", Admin.CandidatesController, :index
     get "/admin/candidates/:id", Admin.CandidatesController, :show
 

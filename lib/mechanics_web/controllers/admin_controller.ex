@@ -113,7 +113,7 @@ defmodule MechanicsWeb.AdminController do
 
   def trial_search(conn, params) do
     case admin_user(conn) do
-      {:ok, _user} ->
+      {:ok, user} ->
         vehicle = normalize_vehicle(params["vehicle"] || %{})
         make = vehicle["make"]
         model = vehicle["model"]
@@ -124,7 +124,7 @@ defmodule MechanicsWeb.AdminController do
               {put_flash(conn, :error, "Enter make and model (same as the pricing form)."), []}
 
             true ->
-              case ListingSearch.search_for_vehicle(make, model) do
+              case ListingSearch.search_for_vehicle(make, model, user_id: user.id) do
                 {:ok, candidates} ->
                   {put_flash(
                      conn,

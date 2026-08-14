@@ -3,7 +3,15 @@ defmodule Mechanics.Pricing.Workers.DigestCandidateWorker do
   Fetches listing detail for a candidate and imports into vehicle_market_prices when complete.
   """
 
-  use Oban.Worker, queue: :digest, max_attempts: 3
+  use Oban.Worker,
+    queue: :digest,
+    max_attempts: 3,
+    unique: [
+      period: :infinity,
+      fields: [:args, :worker],
+      keys: [:candidate_id],
+      states: :incomplete
+    ]
 
   require Logger
 

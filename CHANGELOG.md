@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-08-13 — staggered-digest-lot-crawl
+
+- Auto-enqueue staggered digests for new `listing_candidates`; Royal auction lot-crawl by query with pagination; admin Oban job retry; paginate source search (max 5 pages)
+
 ## 2026-08-13 — admin-job-collapsible-sections
 
 - Make Details, Results, Args, Meta, and Errors collapsible on `/admin/jobs/:id`

@@ -253,18 +253,118 @@ defmodule Mechanics.Pricing.ListingSearch do
 
   @doc """
   Enqueue digest of a listing candidate into vehicle_market_prices.
+
+  Schedules after the latest future digest/crawl job for the candidate's auction source (+30s).
+  Pass `auction_source_id:` when known; otherwise loaded from the candidate.
   """
-  def enqueue_digest(candidate_id, user_id) do
-    %{
-      "candidate_id" => to_string(candidate_id),
-      "user_id" => to_string(user_id)
-    }
-    |> Mechanics.Pricing.Workers.DigestCandidateWorker.new()
+  def enqueue_digest(candidate_id, user_id, opts \\ []) do
+    source_id =
+      Keyword.get(opts, :auction_source_id) ||
+        case get_candidate(candidate_id) do
+          %{auction_source_id: id} -> id
+          _ -> nil
+        end
+
+    args =
+      %{
+        "candidate_id" => to_string(candidate_id),
+        "user_id" => to_string(user_id)
+      }
+      |> maybe_put_arg("auction_source_id", source_id)
+
+    scheduled_at = next_scheduled_at(source_id)
+
+    args
+    |> Mechanics.Pricing.Workers.DigestCandidateWorker.new(scheduled_at: scheduled_at)
     |> Oban.insert()
   end
 
   @doc """
+  Enqueue a Royal auction-scoped lot search (paginated). Unique per source/auction/query/page.
+  """
+  def enqueue_lot_crawl(source, auction_id, query, user_id, opts \\ [])
+
+  def enqueue_lot_crawl(%AuctionSource{kind: "royal"} = source, auction_id, query, user_id, opts) do
+    page = Keyword.get(opts, :page, 1)
+
+    args = %{
+      "auction_source_id" => to_string(source.id),
+      "auction_id" => to_string(auction_id),
+      "query" => to_string(query),
+      "user_id" => to_string(user_id),
+      "page" => page
+    }
+
+    scheduled_at = next_scheduled_at(source.id)
+
+    args
+    |> Mechanics.Pricing.Workers.CrawlAuctionLotsWorker.new(scheduled_at: scheduled_at)
+    |> Oban.insert()
+  end
+
+  def enqueue_lot_crawl(%AuctionSource{}, _auction_id, _query, _user_id, _opts),
+    do: {:ok, :skipped_not_royal}
+
+  def enqueue_lot_crawl(_, _, _, _, _), do: {:error, :invalid_source}
+
+  @doc """
+  Next `scheduled_at` for jobs tied to an auction source: max future on digest/crawl + 30s, or now.
+  """
+  def next_scheduled_at(nil), do: DateTime.utc_now() |> DateTime.truncate(:second)
+
+  def next_scheduled_at(source_id) do
+    source_id = to_string(source_id)
+    now = DateTime.utc_now() |> DateTime.truncate(:second)
+    stagger_seconds = 30
+
+    max_at =
+      from(j in Oban.Job,
+        where: j.queue in ["digest", "crawl"],
+        where: j.state in ["available", "scheduled", "executing"],
+        where: fragment("?->>'auction_source_id' = ?", j.args, ^source_id),
+        select: max(j.scheduled_at)
+      )
+      |> Repo.one()
+
+    case max_at do
+      %DateTime{} = at ->
+        next = DateTime.add(at, stagger_seconds, :second)
+        if DateTime.compare(next, now) == :lt, do: now, else: next
+
+      _ ->
+        now
+    end
+  end
+
+  @doc """
+  Retry a discarded / retryable / cancelled Oban job.
+  """
+  def retry_oban_job(id) when is_integer(id) do
+    case get_oban_job!(id) do
+      %Oban.Job{state: state} = job when state in ["discarded", "retryable", "cancelled", "completed"] ->
+        Oban.retry_job(job)
+        {:ok, get_oban_job!(id)}
+
+      %Oban.Job{state: state} ->
+        {:error, {:not_retryable, state}}
+    end
+  end
+
+  def retry_oban_job(id) when is_binary(id) do
+    case Integer.parse(id) do
+      {int, _} -> retry_oban_job(int)
+      :error -> {:error, :invalid_id}
+    end
+  end
+
+  @search_max_pages 5
+  @search_page_size 25
+
+  @doc """
   Search enabled sources (or explicit `:sources` list) and upsert candidates.
+
+  Paginates up to #{@search_max_pages} pages per source. Newly inserted candidates enqueue
+  staggered digests; Royal hits with `auction_id` also enqueue lot-crawl.
   """
   def search(query, opts \\ []) when is_binary(query) do
     query = String.trim(query)
@@ -275,32 +375,141 @@ defmodule Mechanics.Pricing.ListingSearch do
       sources =
         Keyword.get_lazy(opts, :sources, fn -> list_auction_sources(enabled: true) end)
 
+      user_id = resolve_digest_user_id(opts)
+
       results =
         Enum.flat_map(sources, fn source ->
-          case Sources.search(source, query, opts) do
-            {:ok, hits} ->
-              Enum.map(hits, fn hit ->
-                attrs =
-                  hit
-                  |> Map.put("auction_source_id", source.id)
-                  |> Map.put("query", query)
-                  |> Map.put_new("status", "new")
-
-                case upsert_candidate(attrs) do
-                  {:ok, candidate} -> candidate
-                  {:error, _} -> nil
-                end
-              end)
-              |> Enum.reject(&is_nil/1)
-
-            {:error, _} ->
-              []
-          end
+          search_source_pages(source, query, user_id, opts)
         end)
 
       {:ok, results}
     end
   end
+
+  defp search_source_pages(source, query, user_id, opts) do
+    Enum.reduce_while(1..@search_max_pages, [], fn page, acc ->
+      page_opts = Keyword.merge(opts, page: page, page_size: @search_page_size)
+
+      case Sources.search(source, query, page_opts) do
+        {:ok, hits} ->
+          ingested = ingest_hits(source, query, hits, user_id)
+          acc = acc ++ ingested
+
+          if length(hits) < @search_page_size do
+            {:halt, acc}
+          else
+            {:cont, acc}
+          end
+
+        {:error, _} ->
+          {:halt, acc}
+      end
+    end)
+  end
+
+  @doc false
+  def ingest_hits(source, query, hits, user_id) when is_list(hits) do
+    Enum.flat_map(hits, fn hit ->
+      attrs =
+        hit
+        |> Map.put("auction_source_id", source.id)
+        |> Map.put("query", query)
+        |> Map.put_new("status", "new")
+
+      case upsert_candidate_action(attrs) do
+        {:ok, candidate, :inserted} ->
+          maybe_enqueue_after_insert(source, candidate, hit, user_id)
+          [candidate]
+
+        {:ok, candidate, :updated} ->
+          [candidate]
+
+        {:error, _} ->
+          []
+      end
+    end)
+  end
+
+  defp upsert_candidate_action(attrs) when is_map(attrs) do
+    attrs = stringify_keys(attrs)
+    source_url = Map.get(attrs, "source_url") || Map.get(attrs, :source_url)
+
+    case Repo.get_by(ListingCandidate, source_url: source_url) do
+      nil ->
+        case %ListingCandidate{} |> ListingCandidate.changeset(attrs) |> Repo.insert() do
+          {:ok, candidate} -> {:ok, candidate, :inserted}
+          {:error, changeset} -> {:error, changeset}
+        end
+
+      %ListingCandidate{} = existing ->
+        case existing
+             |> ListingCandidate.changeset(Map.put(attrs, "status", existing.status))
+             |> Repo.update() do
+          {:ok, candidate} -> {:ok, candidate, :updated}
+          {:error, changeset} -> {:error, changeset}
+        end
+    end
+  end
+
+  defp maybe_enqueue_after_insert(source, candidate, hit, user_id) do
+    if candidate.status == "new" and user_id do
+      _ = enqueue_digest(candidate.id, user_id, auction_source_id: source.id)
+    end
+
+    auction_id = auction_id_from_hit(hit)
+
+    if source.kind == "royal" and auction_id && user_id do
+      _ = enqueue_lot_crawl(source, auction_id, candidate.query || "", user_id, page: 1)
+    end
+
+    :ok
+  end
+
+  defp auction_id_from_hit(hit) when is_map(hit) do
+    raw = Map.get(hit, "raw") || Map.get(hit, :raw) || %{}
+
+    cond do
+      id = get_in(raw, ["auction", "auction_id"]) -> id
+      id = Map.get(raw, "auction_id") -> id
+      true -> nil
+    end
+    |> case do
+      nil -> nil
+      id -> to_string(id)
+    end
+  end
+
+  defp resolve_digest_user_id(opts) do
+    case Keyword.get(opts, :user_id) do
+      nil -> default_digest_user_id()
+      id -> to_string(id)
+    end
+  end
+
+  defp default_digest_user_id do
+    admin =
+      from(u in Mechanics.Accounts.User,
+        where: "admin" in u.roles,
+        limit: 1
+      )
+      |> Repo.one()
+
+    user =
+      admin ||
+        from(u in Mechanics.Accounts.User,
+          where: "pricing_user" in u.roles,
+          limit: 1
+        )
+        |> Repo.one()
+
+    case user do
+      %{id: id} -> to_string(id)
+      _ -> nil
+    end
+  end
+
+  defp maybe_put_arg(map, _key, nil), do: map
+  defp maybe_put_arg(map, key, value), do: Map.put(map, key, to_string(value))
 
   @doc """
   Search enabled auction sources for a vehicle make/model (used by pricing agent tools).

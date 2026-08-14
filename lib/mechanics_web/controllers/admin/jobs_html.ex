@@ -34,4 +34,9 @@ defmodule MechanicsWeb.Admin.JobsHTML do
   end
 
   def job_results(_), do: nil
+
+  def retryable_job?(%{state: state}) when state in ["discarded", "retryable", "cancelled", "completed"],
+    do: true
+
+  def retryable_job?(_), do: false
 end

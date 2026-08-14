@@ -27,6 +27,31 @@ defmodule MechanicsWeb.Admin.JobsController do
     end
   end
 
+  def retry(conn, %{"id" => id}) do
+    case admin_user(conn) do
+      {:ok, _user} ->
+        case ListingSearch.retry_oban_job(id) do
+          {:ok, job} ->
+            conn
+            |> put_flash(:info, "Job ##{job.id} requeued (state: #{job.state}).")
+            |> redirect(to: ~p"/admin/jobs/#{job.id}")
+
+          {:error, {:not_retryable, state}} ->
+            conn
+            |> put_flash(:error, "Job is not retryable (state: #{state}).")
+            |> redirect(to: ~p"/admin/jobs/#{id}")
+
+          {:error, reason} ->
+            conn
+            |> put_flash(:error, "Could not retry job: #{inspect(reason)}")
+            |> redirect(to: ~p"/admin/jobs/#{id}")
+        end
+
+      :error ->
+        redirect(conn, to: ~p"/")
+    end
+  end
+
   defp admin_user(conn) do
     current_user = conn.assigns[:current_user]
 

@@ -123,4 +123,33 @@ defmodule MechanicsWeb.Admin.JobsControllerTest do
     assert html =~ "Fallback Auction Title"
     assert html =~ "9999"
   end
+
+  test "retries a discarded job", %{conn: conn} do
+    {:ok, conn: conn, user: _user} = create_admin(conn)
+
+    now = DateTime.utc_now()
+
+    {:ok, job} =
+      %Oban.Job{}
+      |> Ecto.Changeset.change(%{
+        state: "discarded",
+        queue: "digest",
+        worker: "Mechanics.Pricing.Workers.DigestCandidateWorker",
+        args: %{"candidate_id" => Ecto.UUID.generate(), "user_id" => Ecto.UUID.generate()},
+        meta: %{},
+        attempt: 3,
+        max_attempts: 3,
+        attempted_at: now,
+        discarded_at: now,
+        scheduled_at: now
+      })
+      |> Repo.insert()
+
+    conn = post(conn, ~p"/admin/jobs/#{job.id}/retry")
+    assert redirected_to(conn) == "/admin/jobs/#{job.id}"
+
+    refreshed = Repo.get!(Oban.Job, job.id)
+    assert refreshed.state == "available"
+    assert is_nil(refreshed.discarded_at)
+  end
 end

@@ -357,6 +357,7 @@
                   <th class="px-3 py-2">Worker</th>
                   <th class="px-3 py-2">Attempt</th>
                   <th class="px-3 py-2">When</th>
+                  <th class="px-3 py-2">Actions</th>
                 </tr>
               </thead>
               <tbody class="divide-y divide-zinc-100">
@@ -372,6 +373,16 @@
                     <td class="px-3 py-2"><%= short_worker(job.worker) %></td>
                     <td class="px-3 py-2"><%= job.attempt %>/<%= job.max_attempts %></td>
                     <td class="px-3 py-2"><%= format_dt(job_timestamp(job)) %></td>
+                    <td class="px-3 py-2">
+                      <%= if job.state in ["discarded", "retryable", "cancelled", "completed"] do %>
+                        <form action={~p"/admin/jobs/#{job.id}/retry"} method="post" class="inline">
+                          <input type="hidden" name="_csrf_token" value={get_csrf_token()} />
+                          <button type="submit" class="text-sm font-medium text-zinc-700 underline hover:text-zinc-900">
+                            Retry
+                          </button>
+                        </form>
+                      <% end %>
+                    </td>
                   </tr>
                 <% end %>
               </tbody>
