@@ -19,6 +19,16 @@ defmodule MechanicsWeb.Admin.JobsHTML do
 
   def format_dt(_), do: "—"
 
+  def format_cents(nil), do: "—"
+
+  def format_cents(cents) when is_integer(cents) do
+    dollars = div(cents, 100)
+    remainder = rem(cents, 100) |> abs() |> Integer.to_string() |> String.pad_leading(2, "0")
+    "$#{dollars}.#{remainder}"
+  end
+
+  def format_cents(_), do: "—"
+
   def pretty_json(value) do
     value
     |> Jason.encode!(pretty: true)

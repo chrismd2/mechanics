@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-08-13 — admin-digest-job-results
+
+- Show digest Outcomes on `/admin/jobs/:id` (meta + candidate fallback): status, lot URL, candidate link, market price
+
 ## 2026-08-13 — admin-job-run-now
 
 - Add Run now for scheduled/available Oban jobs on the admin jobs list and job detail

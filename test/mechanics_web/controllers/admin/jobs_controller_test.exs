@@ -153,6 +153,55 @@ defmodule MechanicsWeb.Admin.JobsControllerTest do
     assert is_nil(refreshed.discarded_at)
   end
 
+  test "lists digest results from candidate when job meta is empty", %{conn: conn} do
+    {:ok, conn: conn, user: _user} = create_admin(conn)
+
+    {:ok, source} =
+      ListingSearch.create_auction_source(%{
+        "kind" => "royal",
+        "base_url" => "https://live.digest-#{System.unique_integer([:positive])}.test",
+        "label" => "Digest Royal",
+        "enabled" => true
+      })
+
+    {:ok, candidate} =
+      ListingSearch.upsert_candidate(%{
+        "auction_source_id" => source.id,
+        "external_id" => "32179",
+        "source_url" => "https://live.example.test/auctions/1/lot/32179-truck",
+        "title" => "2015 Ford F750 Digested",
+        "query" => "Ford f750",
+        "status" => "imported"
+      })
+
+    now = DateTime.utc_now()
+
+    {:ok, job} =
+      %Oban.Job{}
+      |> Ecto.Changeset.change(%{
+        state: "completed",
+        queue: "digest",
+        worker: "Mechanics.Pricing.Workers.DigestCandidateWorker",
+        args: %{
+          "candidate_id" => candidate.id,
+          "user_id" => Ecto.UUID.generate(),
+          "auction_source_id" => source.id
+        },
+        meta: %{},
+        attempted_at: now,
+        completed_at: now,
+        scheduled_at: now
+      })
+      |> Repo.insert()
+
+    conn = get(conn, ~p"/admin/jobs/#{job.id}")
+    html = html_response(conn, 200)
+    assert html =~ "Results"
+    assert html =~ "2015 Ford F750 Digested"
+    assert html =~ "imported"
+    assert html =~ "/admin/candidates/#{candidate.id}"
+  end
+
   test "runs a scheduled job now", %{conn: conn} do
     {:ok, conn: conn, user: _user} = create_admin(conn)
 

@@ -148,7 +148,8 @@ defmodule Mechanics.Pricing.ListingSearch do
 
   @doc """
   Results for `/admin/jobs/:id`. Prefers `job.meta["results"]`, then auction sources
-  linked by `config.last_crawl_job_id`, then sources crawled near the job timestamp.
+  linked by `config.last_crawl_job_id`, then sources crawled near the job timestamp,
+  then digest outcome rebuilt from the candidate for DigestCandidateWorker jobs.
   """
   def results_for_oban_job(%Oban.Job{} = job) do
     cond do
@@ -161,6 +162,9 @@ defmodule Mechanics.Pricing.ListingSearch do
           list -> list
         end
 
+      digest_worker?(job) ->
+        results_from_digest_job(job)
+
       true ->
         nil
     end
@@ -171,6 +175,51 @@ defmodule Mechanics.Pricing.ListingSearch do
   end
 
   defp crawl_worker?(_), do: false
+
+  defp digest_worker?(%Oban.Job{worker: worker}) when is_binary(worker) do
+    String.ends_with?(worker, "DigestCandidateWorker")
+  end
+
+  defp digest_worker?(_), do: false
+
+  defp results_from_digest_job(%Oban.Job{args: args}) do
+    case Map.get(args, "candidate_id") do
+      id when is_binary(id) and id != "" ->
+        case get_candidate(id) do
+          %ListingCandidate{} = candidate ->
+            [
+              %{
+                "kind" => "digest",
+                "status" => candidate.status,
+                "outcome" => candidate.status,
+                "candidate_id" => to_string(candidate.id),
+                "title" => candidate.title,
+                "source_url" => candidate.source_url,
+                "query" => candidate.query,
+                "vehicle_market_price_id" =>
+                  if(candidate.vehicle_market_price_id,
+                    do: to_string(candidate.vehicle_market_price_id),
+                    else: nil
+                  )
+              }
+            ]
+
+          nil ->
+            [
+              %{
+                "kind" => "digest",
+                "status" => "missing_candidate",
+                "outcome" => "missing_candidate",
+                "candidate_id" => id,
+                "error" => "Candidate not found"
+              }
+            ]
+        end
+
+      _ ->
+        nil
+    end
+  end
 
   defp results_from_sources_for_job(%Oban.Job{} = job) do
     job_id = to_string(job.id)

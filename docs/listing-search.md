@@ -87,7 +87,7 @@ Tools drawer → **Admin** opens the hub; nested links open the matching panel.
 
 - `CrawlPastAuctionsWorker` — enabled Royal sources (or optional `source_id`), past auctions (`auction_status: [300]` via GraphQL `AuctionPaginationInput` + `AuctionFilterInput`), writes job `meta.results`, source `config.last_crawl_report` / `last_crawl_auctions` / `last_crawl_job_id`, and `last_crawled_at`.
 - `CrawlAuctionLotsWorker` — Royal-only; args `auction_source_id`, `auction_id`, `query`, `user_id`, `page`. Searches lots in that auction (same text query), upserts candidates, chains pages 1..5 with per-source stagger. Non-Royal sources cancel.
-- `DigestCandidateWorker` — import a candidate URL into `vehicle_market_prices` (`user_id` + `auction_source_id` in args). Unique on `candidate_id` while available/scheduled/executing/completed.
+- `DigestCandidateWorker` — import a candidate URL into `vehicle_market_prices` (`user_id` + `auction_source_id` in args). Unique on `candidate_id` while incomplete. Writes outcome into job `meta.results` (imported / needs_form / error); admin job detail also rebuilds Results from the candidate when meta is empty.
 
 **Stagger:** 30 seconds between jobs that share an `auction_source_id` on queues `digest` and `crawl`.
 
