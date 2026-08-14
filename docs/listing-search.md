@@ -73,7 +73,8 @@ Explicit unknown odometer text (`Odom Reads N/A`, `exempt`, etc.) is stored as *
 | POST | `/admin/jobs/crawl` | admin | Enqueue `CrawlPastAuctionsWorker` |
 | POST | `/admin/jobs/search` | admin | Trial search via vehicle form (`make`/`model`; same as agent; passes `user_id` for digests) |
 | GET | `/admin/jobs/:id` | admin | Job args / meta / errors; crawl Results from `meta.results` or source `last_crawl_*` |
-| POST | `/admin/jobs/:id/retry` | admin | Retry discarded / retryable / cancelled Oban job |
+| POST | `/admin/jobs/:id/retry` | admin | Retry discarded / retryable / cancelled / completed Oban job |
+| POST | `/admin/jobs/:id/run-now` | admin | Run scheduled / available / suspended job immediately |
 | POST | `/admin/candidates/:id/digest` | admin | Enqueue `DigestCandidateWorker` |
 | POST | `/admin/candidates/:id/dismiss` | admin | Mark candidate dismissed |
 | GET | `/admin/candidates/:id` | admin | Candidate detail + raw snapshot |

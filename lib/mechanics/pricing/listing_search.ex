@@ -357,6 +357,40 @@ defmodule Mechanics.Pricing.ListingSearch do
     end
   end
 
+  @doc """
+  Promote a scheduled/available/suspended job to run immediately (`available`, `scheduled_at` = now).
+  Not for failed/finished jobs — use `retry_oban_job/1` for those.
+  """
+  def run_oban_job_now(id) when is_integer(id) do
+    case get_oban_job!(id) do
+      %Oban.Job{state: state} when state in ["discarded", "retryable", "cancelled", "completed", "executing"] ->
+        {:error, {:not_runnable_now, state}}
+
+      %Oban.Job{id: job_id} ->
+        now = DateTime.utc_now() |> DateTime.truncate(:microsecond)
+
+        {count, _} =
+          from(j in Oban.Job,
+            where: j.id == ^job_id,
+            where: j.state in ["scheduled", "available", "suspended"]
+          )
+          |> Repo.update_all(set: [state: "available", scheduled_at: now])
+
+        if count == 1 do
+          {:ok, get_oban_job!(job_id)}
+        else
+          {:error, :update_failed}
+        end
+    end
+  end
+
+  def run_oban_job_now(id) when is_binary(id) do
+    case Integer.parse(id) do
+      {int, _} -> run_oban_job_now(int)
+      :error -> {:error, :invalid_id}
+    end
+  end
+
   @search_max_pages 5
   @search_page_size 25
 

@@ -39,4 +39,7 @@ defmodule MechanicsWeb.Admin.JobsHTML do
     do: true
 
   def retryable_job?(_), do: false
+
+  def runnable_now_job?(%{state: state}) when state in ["scheduled", "available", "suspended"], do: true
+  def runnable_now_job?(_), do: false
 end

@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-08-13 — admin-job-run-now
+
+- Add Run now for scheduled/available Oban jobs on the admin jobs list and job detail
+
 ## 2026-08-13 — staggered-digest-lot-crawl
 
 - Auto-enqueue staggered digests for new `listing_candidates`; Royal auction lot-crawl by query with pagination; admin Oban job retry; paginate source search (max 5 pages)

@@ -7,6 +7,17 @@
       </p>
     </div>
     <div class="flex flex-wrap items-center gap-3">
+      <%= if runnable_now_job?(@job) do %>
+        <form action={~p"/admin/jobs/#{@job.id}/run-now"} method="post">
+          <input type="hidden" name="_csrf_token" value={get_csrf_token()} />
+          <button
+            type="submit"
+            class="rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-sm font-semibold text-zinc-900 hover:bg-zinc-50"
+          >
+            Run now
+          </button>
+        </form>
+      <% end %>
       <%= if retryable_job?(@job) do %>
         <form action={~p"/admin/jobs/#{@job.id}/retry"} method="post">
           <input type="hidden" name="_csrf_token" value={get_csrf_token()} />

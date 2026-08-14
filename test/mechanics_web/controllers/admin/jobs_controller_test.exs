@@ -152,4 +152,29 @@ defmodule MechanicsWeb.Admin.JobsControllerTest do
     assert refreshed.state == "available"
     assert is_nil(refreshed.discarded_at)
   end
+
+  test "runs a scheduled job now", %{conn: conn} do
+    {:ok, conn: conn, user: _user} = create_admin(conn)
+
+    future = DateTime.utc_now() |> DateTime.add(3600, :second)
+
+    {:ok, job} =
+      %Oban.Job{}
+      |> Ecto.Changeset.change(%{
+        state: "scheduled",
+        queue: "digest",
+        worker: "Mechanics.Pricing.Workers.DigestCandidateWorker",
+        args: %{"candidate_id" => Ecto.UUID.generate(), "user_id" => Ecto.UUID.generate()},
+        meta: %{},
+        scheduled_at: future
+      })
+      |> Repo.insert()
+
+    conn = post(conn, ~p"/admin/jobs/#{job.id}/run-now")
+    assert redirected_to(conn) == "/admin/jobs/#{job.id}"
+
+    refreshed = Repo.get!(Oban.Job, job.id)
+    assert refreshed.state == "available"
+    assert DateTime.compare(refreshed.scheduled_at, future) == :lt
+  end
 end

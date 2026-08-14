@@ -52,6 +52,31 @@ defmodule MechanicsWeb.Admin.JobsController do
     end
   end
 
+  def run_now(conn, %{"id" => id}) do
+    case admin_user(conn) do
+      {:ok, _user} ->
+        case ListingSearch.run_oban_job_now(id) do
+          {:ok, job} ->
+            conn
+            |> put_flash(:info, "Job ##{job.id} set to run now (state: #{job.state}).")
+            |> redirect(to: ~p"/admin/jobs/#{job.id}")
+
+          {:error, {:not_runnable_now, state}} ->
+            conn
+            |> put_flash(:error, "Job cannot run now (state: #{state}). Use Retry if it failed.")
+            |> redirect(to: ~p"/admin/jobs/#{id}")
+
+          {:error, reason} ->
+            conn
+            |> put_flash(:error, "Could not run job now: #{inspect(reason)}")
+            |> redirect(to: ~p"/admin/jobs/#{id}")
+        end
+
+      :error ->
+        redirect(conn, to: ~p"/")
+    end
+  end
+
   defp admin_user(conn) do
     current_user = conn.assigns[:current_user]
 
