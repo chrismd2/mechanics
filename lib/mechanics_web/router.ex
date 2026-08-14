@@ -70,7 +70,7 @@ defmodule MechanicsWeb.Router do
     post "/admin/auction-sources/from-suggestion", AdminController, :create_source_from_suggestion
     patch "/admin/auction-sources/:id", AdminController, :update_source
     post "/admin/jobs/crawl", AdminController, :enqueue_crawl
-    post "/admin/jobs/search", AdminController, :trial_search
+    post "/admin/jobs/search", AdminController, :listing_search
     post "/admin/candidates/:id/digest", AdminController, :enqueue_digest
     post "/admin/candidates/:id/dismiss", AdminController, :dismiss_candidate
 

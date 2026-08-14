@@ -1,5 +1,14 @@
 # Changelog
 
+## 2026-08-14 — admin-oban-jobs-pagination
+
+- Paginate the admin Oban jobs list (25 per page; `?page=` with queue filter preserved)
+
+## 2026-08-14 — suggest-runs-listing-search
+
+- Run `search_vehicle_market_prices` on every price suggestion (including heuristic fallbacks) so auction listing search, digest, and lot-crawl enqueue
+- Point admin listing search at the same tool (local comps + external candidates); drop the trial-search label
+
 ## 2026-08-13 — admin-digest-job-results
 
 - Show digest Outcomes on `/admin/jobs/:id` (meta + candidate fallback): status, lot URL, candidate link, market price

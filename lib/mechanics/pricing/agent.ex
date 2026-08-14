@@ -58,7 +58,11 @@ defmodule Mechanics.Pricing.Agent do
     ]
   end
 
-  def execute_tool("search_vehicle_market_prices", args) when is_map(args) do
+  @listing_search_opt_keys [:http_get, :http_post, :user_id, :sources]
+
+  def execute_tool(name, args, opts \\ [])
+
+  def execute_tool("search_vehicle_market_prices", args, opts) when is_map(args) do
     make = Map.get(args, "make") || Map.get(args, :make)
     model = Map.get(args, "model") || Map.get(args, :model)
 
@@ -83,12 +87,15 @@ defmodule Mechanics.Pricing.Agent do
           miles: row.miles,
           zipcode: row.zipcode,
           price_type: row.price_type,
-          source: "local"
+          source: "local",
+          source_url: row.source_url
         }
       end)
 
+    search_opts = Keyword.take(opts, @listing_search_opt_keys)
+
     external =
-      case ListingSearch.search_for_vehicle(make, model) do
+      case ListingSearch.search_for_vehicle(make, model, search_opts) do
         {:ok, candidates} ->
           candidates
           |> Enum.map(&ListingSearch.candidate_to_search_row/1)
@@ -101,7 +108,7 @@ defmodule Mechanics.Pricing.Agent do
     local ++ external
   end
 
-  def execute_tool("get_vehicle_market_price_details", args) when is_map(args) do
+  def execute_tool("get_vehicle_market_price_details", args, _opts) when is_map(args) do
     ids = Map.get(args, "ids") || Map.get(args, :ids) || []
     ids = List.wrap(ids) |> Enum.map(&to_string/1)
 
@@ -112,7 +119,7 @@ defmodule Mechanics.Pricing.Agent do
       ListingSearch.get_candidate_price_details(candidate_ids)
   end
 
-  def execute_tool(_name, _args), do: %{error: "unknown_tool"}
+  def execute_tool(_name, _args, _opts), do: %{error: "unknown_tool"}
 
   defp maybe_filter_external_price_type(rows, nil), do: rows
   defp maybe_filter_external_price_type(rows, ""), do: rows
@@ -128,6 +135,7 @@ defmodule Mechanics.Pricing.Agent do
   `:summary`, and `:currency`.
   """
   def suggest(vehicle, opts \\ []) when is_map(vehicle) do
+    _ = run_listing_search(vehicle, opts)
     seed_matches = seed_market_matches(vehicle)
     year = Map.get(vehicle, "year") || Map.get(vehicle, :year)
 
@@ -151,6 +159,18 @@ defmodule Mechanics.Pricing.Agent do
           heuristic_suggestion(seed_matches)
       end
     end
+  end
+
+  defp run_listing_search(vehicle, opts) do
+    make = Map.get(vehicle, "make") || Map.get(vehicle, :make)
+    model = Map.get(vehicle, "model") || Map.get(vehicle, :model)
+
+    args =
+      %{}
+      |> maybe_put("make", make)
+      |> maybe_put("model", model)
+
+    execute_tool("search_vehicle_market_prices", args, Keyword.take(opts, @listing_search_opt_keys))
   end
 
   defp seed_market_matches(vehicle) do
@@ -227,7 +247,7 @@ defmodule Mechanics.Pricing.Agent do
               _ -> %{}
             end
 
-          result = execute_tool(name, args)
+          result = execute_tool(name, args, Keyword.take(opts, @listing_search_opt_keys))
 
           %{
             "role" => "tool",

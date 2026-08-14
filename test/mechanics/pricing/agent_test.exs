@@ -4,6 +4,7 @@ defmodule Mechanics.Pricing.AgentTest do
   alias Mechanics.Accounts
   alias Mechanics.Pricing
   alias Mechanics.Pricing.Agent
+  alias Mechanics.Pricing.ListingSearch
 
   defp pricing_user! do
     suffix = System.unique_integer([:positive])
@@ -55,6 +56,67 @@ defmodule Mechanics.Pricing.AgentTest do
     assert Enum.any?(result, fn row ->
              (Map.get(row, :id) == market_price.id or Map.get(row, "id") == market_price.id) and
                (Map.get(row, :source) == "local" or Map.get(row, "source") == "local")
+           end)
+  end
+
+  test "suggest runs listing search even when LLM is skipped" do
+    user = pricing_user!()
+
+    {:ok, source} =
+      ListingSearch.create_auction_source(%{
+        "kind" => "bidwrangler",
+        "base_url" => "https://bid.suggest-search-#{System.unique_integer([:positive])}.test",
+        "label" => "Suggest Search Bid"
+      })
+
+    http_get = fn url ->
+      assert String.contains?(url, "/api/items/search?query=")
+
+      {:ok,
+       Jason.encode!(%{
+         "items" => [
+           %{
+             "id" => 77,
+             "auction_id" => 3,
+             "name" => "2016 Kenworth T880",
+             "status" => "sold",
+             "api_bidding_state" => %{"closing_bid" => %{"amount" => 26_000}}
+           }
+         ]
+       })}
+    end
+
+    http =
+      fn _url, _headers, _body ->
+        {:ok, %{status: 401, body: ~s({"error":{"message":"Invalid API Key"}})}}
+      end
+
+    result =
+      Agent.suggest(
+        %{
+          "make" => "Kenworth",
+          "model" => "T880",
+          "year" => 2016,
+          "miles" => 41_921,
+          "zipcode" => "00000"
+        },
+        api_key: "invalid-key",
+        http_client: http,
+        http_get: http_get,
+        user_id: user.id,
+        sources: [source]
+      )
+
+    assert result.match_count >= 0
+
+    candidates = ListingSearch.list_candidates(query: "Kenworth T880")
+    assert Enum.any?(candidates, &(&1.source_url == "#{source.base_url}/ui/auctions/3/77"))
+
+    digest_jobs = ListingSearch.list_oban_jobs(queue: "digest", limit: 20)
+
+    assert Enum.any?(digest_jobs, fn job ->
+             job.worker == "Mechanics.Pricing.Workers.DigestCandidateWorker" and
+               job.args["user_id"] == to_string(user.id)
            end)
   end
 

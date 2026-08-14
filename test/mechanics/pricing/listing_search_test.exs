@@ -234,4 +234,29 @@ defmodule Mechanics.Pricing.ListingSearchTest do
 
     assert length(lot_after) == 1
   end
+
+  test "paginate_oban_jobs returns newest-first pages" do
+    for i <- 1..7 do
+      assert {:ok, _} =
+               %{"n" => i}
+               |> Mechanics.Pricing.Workers.CrawlPastAuctionsWorker.new()
+               |> Oban.insert()
+    end
+
+    page1 = ListingSearch.paginate_oban_jobs(page: 1, page_size: 5, queue: "crawl")
+    assert length(page1.entries) == 5
+    assert page1.page == 1
+    assert page1.page_size == 5
+    assert page1.total_count >= 7
+    assert page1.total_pages >= 2
+
+    page2 = ListingSearch.paginate_oban_jobs(page: 2, page_size: 5, queue: "crawl")
+    assert page2.entries != []
+    page1_ids = MapSet.new(page1.entries, & &1.id)
+    refute Enum.any?(page2.entries, &MapSet.member?(page1_ids, &1.id))
+    assert hd(page1.entries).id > hd(page2.entries).id
+
+    clamped = ListingSearch.paginate_oban_jobs(page: 0, page_size: 5, queue: "crawl")
+    assert clamped.page == 1
+  end
 end

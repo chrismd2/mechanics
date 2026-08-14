@@ -17,7 +17,7 @@ The [deploy workflow](.github/workflows/deploy.yml) runs `mix test` (with Postgr
 
 Users with the `pricing_user` role can submit observed vehicle market prices (listing or sale) and request competitive and expected-minimum suggestions via a pricing agent that queries that stored data. See [docs/pricing.md](docs/pricing.md).
 
-Multi-source auction comps (BidWrangler + Royal Auction) are queried by the pricing agent tools during suggestions. Admins manage origins in [docs/listing-search.md](docs/listing-search.md).
+Multi-source auction comps (BidWrangler + Royal Auction) are searched on every price suggestion. Admins manage origins in [docs/listing-search.md](docs/listing-search.md).
 
 ## Learn more
 

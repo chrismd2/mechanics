@@ -419,7 +419,7 @@ defmodule Mechanics.Pricing do
     attrs = stringify_keys(attrs)
 
     with {:ok, vehicle} <- normalize_vehicle_attrs(attrs) do
-      suggestion = Agent.suggest(vehicle)
+      suggestion = Agent.suggest(vehicle, user_id: user.id)
 
       query_attrs =
         vehicle

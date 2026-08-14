@@ -1,6 +1,7 @@
 defmodule MechanicsWeb.AdminController do
   use MechanicsWeb, :controller
 
+  alias Mechanics.Pricing.Agent
   alias Mechanics.Pricing.ListingSearch
   alias Mechanics.Pricing.AuctionSource
 
@@ -111,7 +112,7 @@ defmodule MechanicsWeb.AdminController do
     end
   end
 
-  def trial_search(conn, params) do
+  def listing_search(conn, params) do
     case admin_user(conn) do
       {:ok, user} ->
         vehicle = normalize_vehicle(params["vehicle"] || %{})
@@ -124,20 +125,20 @@ defmodule MechanicsWeb.AdminController do
               {put_flash(conn, :error, "Enter make and model (same as the pricing form)."), []}
 
             true ->
-              case ListingSearch.search_for_vehicle(make, model, user_id: user.id) do
-                {:ok, candidates} ->
-                  {put_flash(
-                     conn,
-                     :info,
-                     "search_for_vehicle(#{make}, #{model}) returned #{length(candidates)} candidate(s)."
-                   ), candidates}
+              args =
+                %{"make" => make, "model" => model}
+                |> maybe_put_int("year_min", vehicle["year"])
+                |> maybe_put_int("year_max", vehicle["year"])
+                |> maybe_put_int("miles_min", vehicle["miles"])
+                |> maybe_put_int("miles_max", vehicle["miles"])
 
-                {:error, :blank_query} ->
-                  {put_flash(conn, :error, "Enter make and model."), []}
+              results = Agent.execute_tool("search_vehicle_market_prices", args, user_id: user.id)
 
-                {:error, reason} ->
-                  {put_flash(conn, :error, "Search failed: #{inspect(reason)}"), []}
-              end
+              {put_flash(
+                 conn,
+                 :info,
+                 "search_vehicle_market_prices returned #{length(results)} result(s)."
+               ), results}
           end
 
         render_admin(flash_conn, %{"tab" => "jobs"},
@@ -198,6 +199,7 @@ defmodule MechanicsWeb.AdminController do
     tab = normalize_tab(Map.get(params, "tab"))
     queue = blank_to_nil(Map.get(params, "queue"))
     status = blank_to_nil(Map.get(params, "status"))
+    jobs_page = ListingSearch.paginate_oban_jobs(page: parse_page(Map.get(params, "page")), queue: queue)
 
     assigns =
       [
@@ -205,7 +207,10 @@ defmodule MechanicsWeb.AdminController do
         sources: ListingSearch.list_auction_sources(),
         suggestions: ListingSearch.suggest_auction_sources(limit: 15),
         changeset: Keyword.get(overrides, :changeset) || ListingSearch.change_auction_source(%AuctionSource{}),
-        jobs: ListingSearch.list_oban_jobs(limit: 50, queue: queue),
+        jobs: jobs_page.entries,
+        jobs_page: jobs_page.page,
+        jobs_total_pages: jobs_page.total_pages,
+        jobs_total_count: jobs_page.total_count,
         enabled_sources: ListingSearch.list_auction_sources(enabled: true),
         queue: queue,
         vehicle: Keyword.get(overrides, :vehicle) || empty_vehicle(),
@@ -227,7 +232,7 @@ defmodule MechanicsWeb.AdminController do
       opts
       |> Keyword.drop([:tab])
       |> Enum.reject(fn {_k, v} -> is_nil(v) or v == "" end)
-      |> Map.new(fn {k, v} -> {to_string(k), v} end)
+      |> Map.new(fn {k, v} -> {to_string(k), to_string(v)} end)
 
     query = Map.put(extras, "tab", tab)
     "/admin?" <> URI.encode_query(query)
@@ -271,4 +276,20 @@ defmodule MechanicsWeb.AdminController do
   defp blank_to_nil(nil), do: nil
   defp blank_to_nil(""), do: nil
   defp blank_to_nil(value), do: value
+
+  defp parse_page(value) do
+    case Integer.parse(to_string(value || "1")) do
+      {n, _} -> n
+      :error -> 1
+    end
+  end
+
+  defp maybe_put_int(map, _key, value) when value in [nil, ""], do: map
+
+  defp maybe_put_int(map, key, value) do
+    case Integer.parse(value |> to_string() |> String.trim()) do
+      {int, _} -> Map.put(map, key, int)
+      :error -> map
+    end
+  end
 end

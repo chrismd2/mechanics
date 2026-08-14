@@ -2,6 +2,7 @@ defmodule MechanicsWeb.AdminControllerTest do
   use MechanicsWeb.ConnCase, async: false
 
   alias Mechanics.Accounts
+  alias Mechanics.Pricing
   alias Mechanics.Pricing.ListingSearch
   alias Mechanics.Repo
 
@@ -75,8 +76,19 @@ defmodule MechanicsWeb.AdminControllerTest do
     assert html_response(conn, 200) =~ "CrawlPastAuctionsWorker"
   end
 
-  test "trial search uses vehicle form on jobs panel", %{conn: conn} do
-    {:ok, conn: conn, user: _user} = create_admin(conn)
+  test "listing search uses search_vehicle_market_prices and shows local comps", %{conn: conn} do
+    {:ok, conn: conn, user: user} = create_admin(conn)
+
+    {:ok, market_price} =
+      Pricing.create_market_price(user, %{
+        "make" => "Ford",
+        "model" => "F-150",
+        "year" => 2018,
+        "miles" => 100_000,
+        "price_cents" => 2_500_000,
+        "price_type" => "listing",
+        "source_url" => "https://example.com/f150-#{System.unique_integer([:positive])}"
+      })
 
     conn =
       post(conn, ~p"/admin/jobs/search", %{
@@ -92,6 +104,42 @@ defmodule MechanicsWeb.AdminControllerTest do
     html = html_response(conn, 200)
     assert html =~ "admin-panel-jobs"
     assert html =~ ~s(value="Ford")
+    assert html =~ "Listing search"
+    refute html =~ "Trial listing search"
+    assert html =~ "search_vehicle_market_prices"
     assert html =~ "Results ("
+    assert html =~ "local"
+    assert html =~ to_string(market_price.id)
+  end
+
+  test "paginates Oban jobs on the jobs panel", %{conn: conn} do
+    {:ok, conn: conn, user: _user} = create_admin(conn)
+
+    for i <- 1..26 do
+      assert {:ok, _} =
+               %{"n" => i}
+               |> Mechanics.Pricing.Workers.CrawlPastAuctionsWorker.new()
+               |> Oban.insert()
+    end
+
+    conn = get(conn, ~p"/admin?tab=jobs")
+    html = html_response(conn, 200)
+    assert html =~ "Page 1"
+    assert html =~ "Next"
+    assert html =~ "page=2"
+
+    newest_id = ListingSearch.list_oban_jobs(limit: 1) |> hd() |> Map.get(:id)
+    assert html =~ "##{newest_id}"
+
+    conn = get(conn, "/admin?tab=jobs&page=2")
+    html = html_response(conn, 200)
+    assert html =~ "Page 2"
+    assert html =~ "Previous"
+    refute html =~ "##{newest_id}"
+
+    conn = get(conn, "/admin?tab=jobs&queue=crawl&page=2")
+    html = html_response(conn, 200)
+    assert html =~ "page=1"
+    assert html =~ "queue=crawl"
   end
 end
