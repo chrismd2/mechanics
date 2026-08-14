@@ -111,4 +111,35 @@ defmodule MechanicsWeb.AdminControllerTest do
     assert html =~ "local"
     assert html =~ to_string(market_price.id)
   end
+
+  test "paginates Oban jobs on the jobs panel", %{conn: conn} do
+    {:ok, conn: conn, user: _user} = create_admin(conn)
+
+    for i <- 1..26 do
+      assert {:ok, _} =
+               %{"n" => i}
+               |> Mechanics.Pricing.Workers.CrawlPastAuctionsWorker.new()
+               |> Oban.insert()
+    end
+
+    conn = get(conn, ~p"/admin?tab=jobs")
+    html = html_response(conn, 200)
+    assert html =~ "Page 1"
+    assert html =~ "Next"
+    assert html =~ "page=2"
+
+    newest_id = ListingSearch.list_oban_jobs(limit: 1) |> hd() |> Map.get(:id)
+    assert html =~ "##{newest_id}"
+
+    conn = get(conn, "/admin?tab=jobs&page=2")
+    html = html_response(conn, 200)
+    assert html =~ "Page 2"
+    assert html =~ "Previous"
+    refute html =~ "##{newest_id}"
+
+    conn = get(conn, "/admin?tab=jobs&queue=crawl&page=2")
+    html = html_response(conn, 200)
+    assert html =~ "page=1"
+    assert html =~ "queue=crawl"
+  end
 end

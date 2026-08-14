@@ -144,6 +144,53 @@ defmodule Mechanics.Pricing.ListingSearch do
     |> Repo.all()
   end
 
+  @oban_jobs_page_size 25
+
+  @doc """
+  Paginated Oban jobs, newest first.
+
+  Options: `:page` (1-based; invalid or `< 1` becomes 1), `:page_size` (default #{@oban_jobs_page_size}),
+  `:queue`.
+  """
+  def paginate_oban_jobs(opts \\ []) do
+    page_size =
+      opts
+      |> Keyword.get(:page_size, @oban_jobs_page_size)
+      |> normalize_positive_int(@oban_jobs_page_size)
+
+    queue = Keyword.get(opts, :queue)
+
+    base =
+      Oban.Job
+      |> maybe_filter_queue(queue)
+
+    total_count = Repo.aggregate(base, :count, :id)
+    total_pages = max(1, div(total_count + page_size - 1, page_size))
+    page = opts |> Keyword.get(:page, 1) |> normalize_page() |> min(total_pages)
+    offset = (page - 1) * page_size
+
+    entries =
+      base
+      |> order_by([j], desc: j.id)
+      |> offset(^offset)
+      |> limit(^page_size)
+      |> Repo.all()
+
+    %{
+      entries: entries,
+      page: page,
+      page_size: page_size,
+      total_count: total_count,
+      total_pages: total_pages
+    }
+  end
+
+  defp normalize_page(page) when is_integer(page) and page >= 1, do: page
+  defp normalize_page(_), do: 1
+
+  defp normalize_positive_int(n, _default) when is_integer(n) and n >= 1, do: n
+  defp normalize_positive_int(_, default), do: default
+
   def get_oban_job!(id), do: Repo.get!(Oban.Job, id)
 
   @doc """

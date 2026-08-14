@@ -76,7 +76,7 @@ defmodule MechanicsWeb.AdminHTML do
       opts
       |> Keyword.drop([:tab])
       |> Enum.reject(fn {_k, v} -> is_nil(v) or v == "" end)
-      |> Map.new(fn {k, v} -> {to_string(k), v} end)
+      |> Map.new(fn {k, v} -> {to_string(k), to_string(v)} end)
 
     query = Map.put(extras, "tab", tab)
     "/admin?" <> URI.encode_query(query)

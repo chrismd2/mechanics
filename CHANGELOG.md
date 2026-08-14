@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-08-14 — admin-oban-jobs-pagination
+
+- Paginate the admin Oban jobs list (25 per page; `?page=` with queue filter preserved)
+
 ## 2026-08-14 — suggest-runs-listing-search
 
 - Run `search_vehicle_market_prices` on every price suggestion (including heuristic fallbacks) so auction listing search, digest, and lot-crawl enqueue

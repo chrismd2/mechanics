@@ -68,7 +68,7 @@ Explicit unknown odometer text (`Odom Reads N/A`, `exempt`, etc.) is stored as *
 
 | Method | Path | Role | Description |
 |--------|------|------|-------------|
-| GET | `/admin` | admin | Hub with panels (`?tab=sources\|jobs\|candidates`) |
+| GET | `/admin` | admin | Hub with panels (`?tab=sources\|jobs\|candidates`). Jobs list is **25 per page** (`?page=`, default 1); `queue` is preserved across pages |
 | POST | `/admin/auction-sources` | admin | Create source |
 | PATCH | `/admin/auction-sources/:id` | admin | Update (enable/disable/label) |
 | POST | `/admin/auction-sources/from-suggestion` | admin | Add a suggested origin |
@@ -92,6 +92,8 @@ Tools drawer → **Admin** opens the hub; nested links open the matching panel.
 - `DigestCandidateWorker` — import a candidate URL into `vehicle_market_prices` (`user_id` + `auction_source_id` in args). Unique on `candidate_id` while incomplete. Writes outcome into job `meta.results` (imported / needs_form / error); admin job detail also rebuilds Results from the candidate when meta is empty.
 
 **Stagger:** 30 seconds between jobs that share an `auction_source_id` on queues `digest` and `crawl`.
+
+Admin jobs list: `ListingSearch.paginate_oban_jobs/1` (`:page`, `:page_size` default 25, optional `:queue`) returns `%{entries, page, page_size, total_count, total_pages}`. Invalid/`< 1` page values become page 1. Changing the queue filter starts at page 1.
 
 Cron: every 6 hours for past-auction crawl. Admins can also enqueue from `/admin/jobs`.
 

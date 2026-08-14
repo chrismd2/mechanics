@@ -409,6 +409,27 @@
               <p class="px-3 py-4 text-sm text-zinc-600">No jobs yet.</p>
             <% end %>
           </div>
+          <div class="flex flex-wrap items-center justify-between gap-3 text-sm text-zinc-600">
+            <span>Page <%= @jobs_page %> of <%= @jobs_total_pages %></span>
+            <div class="flex flex-wrap gap-3">
+              <%= if @jobs_page > 1 do %>
+                <.link
+                  href={admin_path(tab: "jobs", queue: @queue, page: @jobs_page - 1)}
+                  class="font-medium text-zinc-700 underline hover:text-zinc-900"
+                >
+                  Previous
+                </.link>
+              <% end %>
+              <%= if @jobs_page < @jobs_total_pages do %>
+                <.link
+                  href={admin_path(tab: "jobs", queue: @queue, page: @jobs_page + 1)}
+                  class="font-medium text-zinc-700 underline hover:text-zinc-900"
+                >
+                  Next
+                </.link>
+              <% end %>
+            </div>
+          </div>
         </div>
       </section>
 
