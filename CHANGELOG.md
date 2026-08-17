@@ -2,7 +2,8 @@
 
 ## 2026-08-17 — screen-scroll-mobile
 
-- Remove leftover Cursor debug ingest (`127.0.0.1:7308`) from `app.js` so the public site no longer requests local-network access
+- Make warranty/liability disclaimer dialogs a vertical scroll container so mobile users can reach Accept when the notice is taller than the screen
+
 
 ## 2026-08-14 — admin-oban-jobs-pagination
 

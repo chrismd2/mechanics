@@ -61,6 +61,7 @@ defmodule MechanicsWeb.AccountControllerTest do
       assert html =~ ~s(id="account_profile_headline")
       assert html =~ ~s(name="profile[return_to]")
       assert html =~ "/account"
+      assert_scrollable_disclaimer_modal(html, "#account_profile_liability_disclaimer_modal")
     end
 
     test "opens Account settings when tab=settings is in the query string" do

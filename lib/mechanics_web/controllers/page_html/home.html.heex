@@ -225,12 +225,18 @@
   <div
     id="chat_disclaimer_modal"
     hidden
-    class="fixed inset-0 z-50"
+    class="fixed inset-0 z-50 overflow-y-auto overscroll-contain"
     role="dialog"
     aria-modal="true"
   >
-    <div class="absolute inset-0 bg-zinc-900/60" data-chat-disclaimer-modal-overlay></div>
-    <div class="relative mx-auto mt-16 w-[95%] max-w-lg rounded-xl bg-white p-6 shadow-xl">
+    <div
+      class="flex min-h-full items-start justify-center bg-zinc-900/60 p-4 sm:items-center"
+      data-chat-disclaimer-modal-overlay
+    >
+    <div
+      class="relative w-full max-w-lg rounded-xl bg-white p-6 shadow-xl"
+      data-disclaimer-modal-panel
+    >
       <div class="flex items-start justify-between gap-4">
         <h2 id="chat_disclaimer_modal_title_warranty" class="text-lg font-semibold text-zinc-900">
           Customer Warranty Disclaimer
@@ -273,6 +279,7 @@
           Accept
         </button>
       </div>
+    </div>
     </div>
   </div>
 
@@ -323,7 +330,8 @@
 
       var overlay = modal.querySelector("[data-chat-disclaimer-modal-overlay]");
       if (overlay) {
-        overlay.addEventListener("click", function () {
+        overlay.addEventListener("click", function (e) {
+          if (e.target.closest("[data-disclaimer-modal-panel]")) return;
           closeModal();
         });
       }

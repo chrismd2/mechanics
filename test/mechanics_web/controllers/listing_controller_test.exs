@@ -47,6 +47,7 @@ defmodule MechanicsWeb.ListingControllerTest do
       assert Floki.find(parsed, "input#listing_warranty_disclaimer[type='checkbox'][name='listing[warranty_disclaimer_accepted]']") != []
 
       assert Regex.match?(~r/<button[^>]*id="listing_submit"[^>]*\sdisabled(?:\s|=|>)/, html)
+      assert_scrollable_disclaimer_modal(html, "#listing_warranty_disclaimer_modal")
     end
 
     test "redirects home when not a customer", %{conn: conn} do

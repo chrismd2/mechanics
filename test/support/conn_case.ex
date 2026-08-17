@@ -16,6 +16,7 @@ defmodule MechanicsWeb.ConnCase do
   """
 
   use ExUnit.CaseTemplate
+  import ExUnit.Assertions
 
   using do
     quote do
@@ -34,5 +35,22 @@ defmodule MechanicsWeb.ConnCase do
   setup tags do
     Mechanics.DataCase.setup_sandbox(tags)
     {:ok, conn: Phoenix.ConnTest.build_conn()}
+  end
+
+  @doc """
+  Asserts a disclaimer dialog is a vertical scroll container so mobile users can
+  reach Accept when the notice is taller than the viewport.
+  """
+  def assert_scrollable_disclaimer_modal(html, selector) do
+    parsed = Floki.parse_document!(html)
+    nodes = Floki.find(parsed, selector)
+    assert nodes != [], "expected #{selector} on the page"
+
+    class = nodes |> hd() |> Floki.attribute("class") |> List.first() || ""
+    assert class =~ "overflow-y-auto"
+    assert class =~ "overscroll-contain"
+
+    panel = Floki.find(hd(nodes), "[data-disclaimer-modal-panel]")
+    assert panel != [], "#{selector} should wrap the notice in data-disclaimer-modal-panel"
   end
 end

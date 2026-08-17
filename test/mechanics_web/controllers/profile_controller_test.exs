@@ -75,6 +75,8 @@ defmodule MechanicsWeb.ProfileControllerTest do
                ~r/<button[^>]*id="profile_submit"[^>]*\sdisabled(?:\s|=|>)/,
                html
              )
+
+      assert_scrollable_disclaimer_modal(html, "#profile_liability_disclaimer_modal")
     end
 
     test "auto-populates the form with the latest mechanic profile data", %{conn: conn} do
