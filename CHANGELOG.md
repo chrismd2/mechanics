@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-08-17 — screen-scroll-mobile
+
+- Remove leftover Cursor debug ingest (`127.0.0.1:7308`) from `app.js` so the public site no longer requests local-network access
+
 ## 2026-08-14 — admin-oban-jobs-pagination
 
 - Paginate the admin Oban jobs list (25 per page; `?page=` with queue filter preserved)
