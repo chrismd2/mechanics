@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-08-17 — screen-scroll-mobile
+
+- Make warranty/liability disclaimer dialogs a vertical scroll container so mobile users can reach Accept when the notice is taller than the screen
+
+
 ## 2026-08-14 — admin-oban-jobs-pagination
 
 - Paginate the admin Oban jobs list (25 per page; `?page=` with queue filter preserved)

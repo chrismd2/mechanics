@@ -18,6 +18,11 @@ defmodule MechanicsWeb.PageControllerTest do
       assert html_response(conn, 200) =~ "Connecting mechanics with customers to complete jobs"
     end
 
+    test "warranty disclaimer modal is a mobile scroll container", %{conn: conn} do
+      html = conn |> get(~p"/") |> html_response(200)
+      assert_scrollable_disclaimer_modal(html, "#chat_disclaimer_modal")
+    end
+
     test "clears a stale session user id instead of crashing", %{conn: conn} do
       conn =
         conn
