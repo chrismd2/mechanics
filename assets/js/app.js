@@ -65,6 +65,31 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 })
 
+// Admin page: tab panels for auction sources / jobs / candidates.
+document.addEventListener("DOMContentLoaded", () => {
+  const adminRoot = document.getElementById("admin-page")
+  if (adminRoot) {
+    const tabs = adminRoot.querySelectorAll("[data-admin-tab]")
+    const panels = adminRoot.querySelectorAll("[data-admin-panel]")
+    tabs.forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const key = btn.getAttribute("data-admin-tab")
+        tabs.forEach((t) => {
+          const on = t.getAttribute("data-admin-tab") === key
+          t.setAttribute("aria-selected", on ? "true" : "false")
+        })
+        panels.forEach((p) => {
+          const show = p.getAttribute("data-admin-panel") === key
+          p.hidden = !show
+        })
+        const url = new URL(window.location.href)
+        url.searchParams.set("tab", key)
+        window.history.replaceState({}, "", url)
+      })
+    })
+  }
+})
+
 // Local `<time data-local-chat-time>` labels from `datetime` (UTC ISO); chat Enter sends, Shift+Enter newline.
 document.addEventListener("DOMContentLoaded", () => {
   applyChatTranscriptTimes()

@@ -46,7 +46,57 @@ defmodule Mechanics.Accounts do
     end
   end
 
+  @doc """
+  Adds the "pricing_user" role to a signed-in user.
+
+  Customers can be granted pricing access; this is idempotent.
+  """
+  def add_pricing_user_role(%User{} = user) do
+    roles = user.roles || []
+
+    cond do
+      "pricing_user" in roles ->
+        {:ok, user}
+
+      "customer" in roles ->
+        new_roles = roles ++ ["pricing_user"] |> Enum.uniq()
+
+        user
+        |> User.roles_changeset(%{roles: new_roles})
+        |> Repo.update()
+
+      true ->
+        {:error, :not_customer}
+    end
+  end
+
+  @doc """
+  Adds the "admin" role to a signed-in user.
+
+  Customers can be granted admin access; this is idempotent.
+  """
+  def add_admin_role(%User{} = user) do
+    roles = user.roles || []
+
+    cond do
+      "admin" in roles ->
+        {:ok, user}
+
+      "customer" in roles ->
+        new_roles = roles ++ ["admin"] |> Enum.uniq()
+
+        user
+        |> User.roles_changeset(%{roles: new_roles})
+        |> Repo.update()
+
+      true ->
+        {:error, :not_customer}
+    end
+  end
+
   def get_user!(id), do: Repo.get!(User, id)
+
+  def get_user(id), do: Repo.get(User, id)
 
   def get_user_by_email(email) do
     Repo.get_by(User, email: email)

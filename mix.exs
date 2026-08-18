@@ -60,7 +60,8 @@ defmodule Mechanics.MixProject do
       {:dns_cluster, "~> 0.1.1"},
       {:bandit, "~> 1.2"},
       {:bcrypt_elixir, "~> 3.0"},
-      {:altcha, "~> 0.2"}
+      {:altcha, "~> 0.2"},
+      {:oban, "~> 2.18"}
     ]
   end
 

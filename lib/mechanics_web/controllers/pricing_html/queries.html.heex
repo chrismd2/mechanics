@@ -1,0 +1,180 @@
+<%
+  filters = @filters || %{}
+  q = Map.get(filters, "q") || ""
+  make = Map.get(filters, "make") || ""
+  model = Map.get(filters, "model") || ""
+  year = Map.get(filters, "year") || ""
+  vin = Map.get(filters, "vin") || ""
+%>
+
+<div class="space-y-6">
+  <div class="flex items-start justify-between gap-4">
+    <div class="space-y-2">
+      <h1 class="text-2xl font-semibold text-zinc-900">Recent searches</h1>
+      <p class="text-sm text-zinc-600">
+        Search and filter your past suggestion queries, or re-run one to refresh the price.
+      </p>
+    </div>
+    <a href={~p"/pricing"} class="shrink-0 text-sm font-semibold text-zinc-900 underline">
+      New suggestion
+    </a>
+  </div>
+
+  <details
+    id="recent-searches-filter"
+    class="rounded-xl border border-zinc-200 bg-white shadow-sm open:shadow-sm"
+    open
+  >
+    <summary class="cursor-pointer list-none px-6 py-4 text-sm font-semibold text-zinc-900 marker:content-none [&::-webkit-details-marker]:hidden">
+      <span class="inline-flex w-full items-center justify-between gap-3">
+        <span>Search &amp; filter</span>
+        <span class="text-xs font-medium text-zinc-500">Click to collapse</span>
+      </span>
+    </summary>
+
+    <div class="border-t border-zinc-100 px-6 pb-6 pt-4">
+      <form action={~p"/pricing/queries"} method="get" class="space-y-4" id="recent_searches_filter_form">
+        <div class="space-y-2">
+          <label for="filter_q" class="block text-sm font-semibold text-zinc-800">Search</label>
+          <input
+            type="text"
+            id="filter_q"
+            name="q"
+            value={q}
+            placeholder="Make, model, or VIN"
+            class="mt-1 block w-full rounded-lg border-zinc-300 shadow-sm sm:text-sm"
+          />
+        </div>
+
+        <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <div class="space-y-2">
+            <label for="filter_make" class="block text-sm font-semibold text-zinc-800">Make</label>
+            <input
+              type="text"
+              id="filter_make"
+              name="make"
+              value={make}
+              class="mt-1 block w-full rounded-lg border-zinc-300 shadow-sm sm:text-sm"
+            />
+          </div>
+          <div class="space-y-2">
+            <label for="filter_model" class="block text-sm font-semibold text-zinc-800">Model</label>
+            <input
+              type="text"
+              id="filter_model"
+              name="model"
+              value={model}
+              class="mt-1 block w-full rounded-lg border-zinc-300 shadow-sm sm:text-sm"
+            />
+          </div>
+          <div class="space-y-2">
+            <label for="filter_year" class="block text-sm font-semibold text-zinc-800">Year</label>
+            <input
+              type="text"
+              id="filter_year"
+              name="year"
+              value={year}
+              class="mt-1 block w-full rounded-lg border-zinc-300 shadow-sm sm:text-sm"
+            />
+          </div>
+          <div class="space-y-2">
+            <label for="filter_vin" class="block text-sm font-semibold text-zinc-800">VIN</label>
+            <input
+              type="text"
+              id="filter_vin"
+              name="vin"
+              value={vin}
+              class="mt-1 block w-full rounded-lg border-zinc-300 shadow-sm sm:text-sm uppercase"
+            />
+          </div>
+        </div>
+
+        <div class="flex items-center gap-3">
+          <button
+            type="submit"
+            class="inline-flex items-center rounded-lg bg-zinc-900 px-4 py-2 text-sm font-semibold text-white hover:bg-zinc-700"
+          >
+            Filter
+          </button>
+          <a href={~p"/pricing/queries"} class="text-sm text-zinc-600 hover:text-zinc-900">Clear</a>
+        </div>
+      </form>
+    </div>
+  </details>
+
+  <div class="rounded-xl border border-zinc-200 bg-white shadow-sm overflow-hidden">
+    <%= if @queries == [] do %>
+      <p class="p-6 text-sm text-zinc-500">No matching searches.</p>
+    <% else %>
+      <ul id="recent-searches-list" class="divide-y divide-zinc-100">
+        <%= for query <- @queries do %>
+          <li class="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
+            <div class="min-w-0 space-y-1">
+              <p class="text-sm font-semibold text-zinc-900">
+                <%= if query.year not in [nil, 0] do %><%= query.year %> <% end %><%= query.make %> <%= query.model %>
+              </p>
+              <p class="pl-3 text-xs text-zinc-500">
+                <%= MechanicsWeb.Helpers.CurrencyFormatter.format_integer(query.miles) %> miles
+                · <%= query.zipcode || "00000" %>
+                <%= if query.vin do %>
+                  · <%= query.vin %>
+                <% end %>
+                · <%= Calendar.strftime(query.inserted_at, "%Y-%m-%d %H:%M") %> UTC
+              </p>
+              <p class="pl-3 text-xs text-zinc-600">
+                Competitive:
+                <%= if query.suggested_competitive_cents do %>
+                  <%= MechanicsWeb.Helpers.CurrencyFormatter.format(
+                    query.suggested_competitive_cents,
+                    query.currency || "USD"
+                  ) %>
+                <% else %>
+                  —
+                <% end %>
+                · Minimum:
+                <%= if query.suggested_minimum_cents do %>
+                  <%= MechanicsWeb.Helpers.CurrencyFormatter.format(
+                    query.suggested_minimum_cents,
+                    query.currency || "USD"
+                  ) %>
+                <% else %>
+                  —
+                <% end %>
+                · Matches: <%= query.match_count %>
+              </p>
+            </div>
+
+            <div class="flex shrink-0 items-center gap-2">
+              <form action={~p"/pricing/suggest"} method="post">
+                <input type="hidden" name="_csrf_token" value={get_csrf_token()} />
+                <input type="hidden" name="vehicle[vin]" value={query.vin || ""} />
+                <input type="hidden" name="vehicle[make]" value={query.make} />
+                <input type="hidden" name="vehicle[model]" value={query.model} />
+                <input type="hidden" name="vehicle[year]" value={if query.year in [nil, 0], do: "", else: query.year} />
+                <input type="hidden" name="vehicle[miles]" value={query.miles} />
+                <input type="hidden" name="vehicle[zipcode]" value={query.zipcode || "00000"} />
+                <button
+                  type="submit"
+                  class="inline-flex items-center rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm font-semibold text-zinc-800 hover:bg-zinc-50"
+                >
+                  Re-run
+                </button>
+              </form>
+              <form action={~p"/pricing/queries/#{query.id}"} method="post">
+                <input type="hidden" name="_csrf_token" value={get_csrf_token()} />
+                <input type="hidden" name="_method" value="delete" />
+                <input type="hidden" name="return_to" value="/pricing/queries" />
+                <button
+                  type="submit"
+                  class="inline-flex items-center rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm font-semibold text-zinc-600 hover:bg-zinc-50 hover:text-zinc-900"
+                >
+                  Dismiss
+                </button>
+              </form>
+            </div>
+          </li>
+        <% end %>
+      </ul>
+    <% end %>
+  </div>
+</div>

@@ -53,6 +53,35 @@ defmodule MechanicsWeb.Router do
     post "/listings/:id", ListingController, :update
     delete "/listings/:id", ListingController, :delete
 
+    get "/pricing", PricingController, :index
+    get "/pricing/queries", PricingController, :queries
+    delete "/pricing/queries/:id", PricingController, :delete_query
+    post "/pricing/queries/:id/similar/:market_price_id/dismiss",
+         PricingController,
+         :dismiss_similar
+    post "/pricing/from-vin", PricingController, :lookup_from_vin
+    get "/pricing/market-prices/new", PricingController, :new_market_price
+    post "/pricing/market-prices/from-url", PricingController, :import_market_price_from_url
+    post "/pricing/market-prices", PricingController, :create_market_price
+    post "/pricing/suggest", PricingController, :suggest
+
+    get "/admin", AdminController, :index
+    post "/admin/auction-sources", AdminController, :create_source
+    post "/admin/auction-sources/from-suggestion", AdminController, :create_source_from_suggestion
+    patch "/admin/auction-sources/:id", AdminController, :update_source
+    post "/admin/jobs/crawl", AdminController, :enqueue_crawl
+    post "/admin/jobs/search", AdminController, :listing_search
+    post "/admin/candidates/:id/digest", AdminController, :enqueue_digest
+    post "/admin/candidates/:id/dismiss", AdminController, :dismiss_candidate
+
+    get "/admin/auction-sources", Admin.AuctionSourcesController, :index
+    get "/admin/jobs", Admin.JobsController, :index
+    get "/admin/jobs/:id", Admin.JobsController, :show
+    post "/admin/jobs/:id/retry", Admin.JobsController, :retry
+    post "/admin/jobs/:id/run-now", Admin.JobsController, :run_now
+    get "/admin/candidates", Admin.CandidatesController, :index
+    get "/admin/candidates/:id", Admin.CandidatesController, :show
+
     get "/chats/open/mechanic/:mechanic_user_id", ChatController, :open_by_mechanic
     get "/chats/open/listing/:listing_id", ChatController, :open_by_listing
     get "/chats/open/listing_owner/:listing_id", ChatController, :open_listing_owner_next
